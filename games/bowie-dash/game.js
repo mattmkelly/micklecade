@@ -4,11 +4,10 @@
 // Five places to run through, sun stars to collect, and an ear-flap double jump.
 (() => {
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
 
-  const W = canvas.width;   // 480
-  const H = canvas.height;  // 270
+  const W = 480, H = 270;
+  // Draw in 480x270 coordinates; HiRes gives the canvas a screen-sized pixel buffer so it stays sharp.
+  const ctx = HiRes.setup(canvas, W, H);
   const GROUND_Y = 214;     // top surface of the ground
 
   // ---------- Physics ----------
