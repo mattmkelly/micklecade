@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freddy Bear Kart</title>
+<style>
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #0a0618;
+    font-family: 'Courier New', Courier, monospace;
+    color: #fff;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  #app { width: 100%; max-width: 720px; }
+
+  .screen { display: none; flex-direction: column; align-items: center; gap: 14px; }
+  .screen.active { display: flex; }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.6rem, 6vw, 2.6rem);
+    letter-spacing: 3px;
+    color: #ffe14f;
+    text-shadow: 0 0 8px #ffe14f, 0 0 22px #ff4fd8;
+    text-align: center;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    color: #4ff0ff;
+    text-shadow: 0 0 6px #4ff0ff;
+  }
+
+  a.link, button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  a.link {
+    color: #4ff0ff;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px #4ff0ff;
+    align-self: flex-start;
+  }
+
+  .tagline {
+    color: #ff9d3f;
+    letter-spacing: 2px;
+    font-size: .8rem;
+    text-shadow: 0 0 8px #ff6a2b;
+  }
+
+  .coinbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    color: #ffd23f;
+    text-shadow: 0 0 8px #ffb300;
+  }
+
+  .coinbar .dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff6b0, #ffb300 60%, #a86800);
+    border: 2px solid #7a4c00;
+  }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; width: 100%; }
+
+  .card {
+    background: linear-gradient(180deg, #1e1440, #140c30);
+    border: 3px solid #4ff0ff;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    box-shadow: 0 0 10px rgba(79,240,255,0.35);
+    transition: transform .12s, box-shadow .12s, border-color .12s;
+  }
+  .card:hover { transform: translateY(-4px); border-color: #ff4fd8; box-shadow: 0 0 20px #ff4fd8; }
+  .card canvas { border-radius: 8px; width: 100%; height: auto; image-rendering: pixelated; background: #000; }
+  .card .name { color: #ffe14f; letter-spacing: 1px; font-size: .95rem; text-shadow: 0 0 6px #ffe14f; }
+  .card .sub { color: #b9b0e0; font-size: .72rem; line-height: 1.4; }
+  .card .best { color: #4ff0ff; font-size: .72rem; }
+
+  .locked { opacity: .5; filter: grayscale(.7); }
+  .equipped { border-color: #ffd23f !important; box-shadow: 0 0 18px #ffd23f !important; }
+
+  button {
+    background: linear-gradient(180deg, #2b1f5a, #1a1038);
+    border: 3px solid #ffe14f;
+    color: #ffe14f;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: .9rem;
+    letter-spacing: 2px;
+    text-shadow: 0 0 6px #ffe14f;
+    box-shadow: 0 0 10px rgba(255,225,79,.3);
+  }
+  button:hover { background: linear-gradient(180deg, #3b2b7a, #241650); }
+  button:focus, a.link:focus { outline: 3px solid #ff4fd8; outline-offset: 3px; }
+  button.small { font-size: .72rem; padding: 7px 12px; border-width: 2px; }
+  button:disabled { opacity: .45; cursor: not-allowed; border-color: #666; color: #888; text-shadow: none; box-shadow: none; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  /* ---- race screen ---- */
+  #screen-race { gap: 8px; }
+
+  #game {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border: 4px solid #4ff0ff;
+    border-radius: 6px;
+    box-shadow: 0 0 24px rgba(79,240,255,.5);
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    background: #000;
+    touch-action: none;
+  }
+
+  #touchpad { display: flex; gap: 12px; width: 100%; max-width: 720px; }
+  #touchpad button {
+    flex: 1;
+    padding: 18px 0;
+    font-size: 1.6rem;
+    border-color: #4ff0ff;
+    color: #4ff0ff;
+    text-shadow: 0 0 8px #4ff0ff;
+    touch-action: none;
+  }
+  #touchpad button.brake { flex: 0 0 28%; font-size: .8rem; border-color: #ff4f4f; color: #ff4f4f; text-shadow: 0 0 8px #ff4f4f; }
+
+  #hint { color: #ffe14f; font-size: .72rem; letter-spacing: 1px; text-align: center; }
+
+  .result-line { font-size: 1rem; letter-spacing: 2px; }
+  .result-big { font-size: 1.5rem; letter-spacing: 3px; color: #ffd23f; text-shadow: 0 0 10px #ffb300; }
+  .unlock { color: #4fff8f; text-shadow: 0 0 8px #4fff8f; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TRACK SELECT -->
+  <div id="screen-tracks" class="screen active">
+    <a class="link" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+    <h1>FREDDY BEAR KART</h1>
+    <div class="tagline">RACE FOR GOLDEN KOALAS!</div>
+    <div class="coinbar"><span class="dot"></span><span id="coins-tracks">0</span> GOLD KOALA COINS</div>
+    <h2>CHOOSE YOUR TRACK</h2>
+    <div id="track-cards" class="cards"></div>
+    <div class="row">
+      <button id="btn-garage">FREDDY'S GARAGE</button>
+    </div>
+  </div>
+
+  <!-- GARAGE -->
+  <div id="screen-garage" class="screen">
+    <h1>FREDDY'S GARAGE</h1>
+    <div class="coinbar"><span class="dot"></span><span id="coins-garage">0</span> GOLD KOALA COINS</div>
+    <h2>SKINS</h2>
+    <div id="skin-cards" class="cards"></div>
+    <h2>HATS</h2>
+    <div id="hat-cards" class="cards"></div>
+    <div class="row"><button id="btn-garage-back">BACK TO TRACKS</button></div>
+  </div>
+
+  <!-- RACE -->
+  <div id="screen-race" class="screen">
+    <canvas id="game" width="480" height="270"></canvas>
+    <div id="touchpad">
+      <button id="btn-left" aria-label="steer left">&#9664;</button>
+      <button id="btn-brake" class="brake">BRAKE</button>
+      <button id="btn-right" aria-label="steer right">&#9654;</button>
+    </div>
+    <div id="hint">STEER WITH &#9664; &#9654;, ARROW KEYS OR A CONTROLLER &mdash; FREDDY DRIVES BY HIMSELF!</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="screen-results" class="screen">
+    <h1 id="result-title">FINISHED!</h1>
+    <div id="result-body" style="text-align:center; display:flex; flex-direction:column; gap:10px;"></div>
+    <div class="row">
+      <button id="btn-again">RACE AGAIN</button>
+      <button id="btn-tracks">TRACK SELECT</button>
+      <button id="btn-results-garage" class="small">GARAGE</button>
+    </div>
+  </div>
+
+</div>
+<script src="../../shared/gamepad.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

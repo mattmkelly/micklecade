@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snowbell: The Quest for the Golden Tablet</title>
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #120b28;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  #wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    width: 100%;
+    max-width: 720px;
+    touch-action: manipulation;
+  }
+
+  #back {
+    align-self: flex-start;
+    color: #ff9dc0;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px #ff9dc0;
+  }
+
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    border: 4px solid #ff9dc0;
+    border-radius: 6px;
+    box-shadow: 0 0 24px rgba(255, 157, 192, 0.5);
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    background: #000;
+    touch-action: none;
+  }
+
+  #touchpad {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 720px;
+  }
+
+  #touchpad button {
+    background: linear-gradient(180deg, #2b1f5a, #1a1038);
+    border: 3px solid #4ff0ff;
+    color: #4ff0ff;
+    border-radius: 10px;
+    padding: 16px 0;
+    font-size: 1.4rem;
+    font-family: inherit;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px #4ff0ff;
+    flex: 1;
+    touch-action: none;
+  }
+
+  #touchpad button.hop {
+    flex: 0 0 40%;
+    font-size: 1rem;
+    border-color: #ffe14f;
+    color: #ffe14f;
+    text-shadow: 0 0 8px #ffe14f;
+  }
+
+  #hint {
+    color: #ffe14f;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-align: center;
+    text-shadow: 0 0 6px #ffe14f;
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+    <canvas id="game" width="480" height="270"></canvas>
+    <div id="touchpad">
+      <button id="btn-left" aria-label="hop left">&#9664;</button>
+      <button id="btn-hop" class="hop">HOP</button>
+      <button id="btn-right" aria-label="hop right">&#9654;</button>
+    </div>
+    <div id="hint">ARROWS / A D / STICK TO MOVE &mdash; SPACE, HOP OR A BUTTON TO JUMP &mdash; HOLD FOR A BIGGER HOP</div>
+  </div>
+  <script src="../../shared/gamepad.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

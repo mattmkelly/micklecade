@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MickleCade</title>
+<style>
+  :root {
+    --neon-pink: #ff4fd8;
+    --neon-cyan: #4ff0ff;
+    --neon-yellow: #ffe14f;
+    --bg-dark: #120b28;
+    --bg-darker: #0a0618;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 50% 0%, #2a1a5e 0%, var(--bg-darker) 70%);
+    font-family: 'Courier New', Courier, monospace;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 64px;
+  }
+
+  .marquee {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .marquee h1 {
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    margin: 0;
+    letter-spacing: 6px;
+    color: var(--neon-yellow);
+    text-shadow:
+      0 0 6px var(--neon-yellow),
+      0 0 18px var(--neon-pink),
+      0 0 32px var(--neon-pink);
+    animation: flicker 3.5s infinite;
+  }
+
+  .marquee p {
+    margin: 8px 0 0;
+    letter-spacing: 3px;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 8px var(--neon-cyan);
+    font-size: 0.9rem;
+  }
+
+  @keyframes flicker {
+    0%, 96%, 100% { opacity: 1; }
+    97% { opacity: 0.85; }
+    98% { opacity: 1; }
+    99% { opacity: 0.7; }
+  }
+
+  .cabinet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 28px;
+    max-width: 900px;
+    width: 100%;
+    margin-top: 40px;
+  }
+
+  .cabinet {
+    background: linear-gradient(180deg, #1e1440 0%, #140c30 100%);
+    border: 3px solid var(--neon-cyan);
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    box-shadow:
+      0 0 10px rgba(79, 240, 255, 0.5),
+      inset 0 0 20px rgba(79, 240, 255, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cabinet:hover {
+    transform: translateY(-6px) scale(1.03);
+    box-shadow:
+      0 0 22px var(--neon-pink),
+      inset 0 0 26px rgba(255, 79, 216, 0.15);
+    border-color: var(--neon-pink);
+  }
+
+  .cabinet .art {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 8px;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    overflow: hidden;
+  }
+
+  .cabinet .art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 25%;
+  }
+
+  .cabinet .title {
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 6px var(--neon-yellow);
+  }
+
+  .cabinet .blurb {
+    font-size: 0.75rem;
+    color: #b9b0e0;
+    letter-spacing: 1px;
+    line-height: 1.4;
+  }
+
+  .cabinet.locked {
+    opacity: 0.45;
+    filter: grayscale(0.6);
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .cabinet.locked .title { color: #999; text-shadow: none; }
+
+  .cabinet:focus {
+    outline: none;
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: 0 0 22px var(--neon-pink), inset 0 0 26px rgba(255, 79, 216, 0.15);
+    border-color: var(--neon-pink);
+  }
+
+  footer {
+    margin-top: 56px;
+    font-size: 0.7rem;
+    color: #6a5fa0;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+  <div class="marquee">
+    <h1>MICKLECADE</h1>
+    <p>&#9733; MICKLEKIDS ARCADE &#9733;</p>
+  </div>
+
+  <div class="cabinet-grid">
+    <a class="cabinet" href="../games/freddy-bear-run/index.html">
+      <div class="art"><img src="../assets/freddy-bear-run-cover.png" alt="Freddy Bear Run"></div>
+      <div class="title">FREDDY BEAR RUN</div>
+      <div class="blurb">Help Freddy the koala<br>collect magic fruit gems!</div>
+    </a>
+
+    <a class="cabinet" href="../games/freddy-bear-kart/index.html">
+      <div class="art"><img src="../assets/freddy-bear-kart-cover.jpg" alt="Freddy Bear Kart"></div>
+      <div class="title">FREDDY BEAR KART</div>
+      <div class="blurb">Race for Golden Koalas<br>on 3 wild tracks!</div>
+    </a>
+
+    <a class="cabinet" href="../games/snowbell-carrot-quest/index.html">
+      <div class="art"><img src="../assets/snowbell-carrot-quest-cover.jpg" alt="Snowbell: The Quest for the Golden Tablet"></div>
+      <div class="title">SNOWBELL</div>
+      <div class="blurb">The quest for the golden tablet!<br>5 lands, shiny carrots, no bad guys.</div>
+    </a>
+
+    <a class="cabinet" href="../games/bowie-dash/index.html">
+      <div class="art"><img src="../assets/bowie-dash-cover.jpg" alt="Bowie Dash"></div>
+      <div class="title">BOWIE DASH</div>
+      <div class="blurb">Run, jump and ear-flap<br>through 5 wild places!</div>
+    </a>
+
+    <div class="cabinet locked">
+      <div class="art">&#10067;</div>
+      <div class="title">COMING SOON</div>
+      <div class="blurb">Our next game<br>goes here!</div>
+    </div>
+  </div>
+
+  <footer>MADE BY THE MICKLEKIDS &mdash; PRESS START</footer>
+
+<script src="../shared/gamepad.js"></script>
+<script>
+  // Xbox 360 controller: D-pad/left stick browses the cabinets, A opens one.
+  (function () {
+    function cabinets() {
+      return Array.from(document.querySelectorAll('.cabinet-grid a.cabinet'));
+    }
+    function loop() {
+      if (typeof Pad360 !== 'undefined') {
+        Pad360.poll();
+        const items = cabinets();
+        const step = Pad360.dxPressed() || Pad360.dyPressed();
+        if (step && items.length) {
+          const current = items.indexOf(document.activeElement);
+          const next = current === -1 ? 0 : (current + step + items.length) % items.length;
+          items[next].focus();
+        }
+        if (Pad360.pressed(Pad360.BTN.A) && document.activeElement && document.activeElement.classList.contains('cabinet')) {
+          document.activeElement.click();
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  })();
+</script>
+</body>
+</html>
