@@ -25,14 +25,17 @@
     box-sizing: border-box;
   }
 
+  /* As wide as fits, but short enough that the back link above the game and the
+     controls / hint below it always stay on screen. */
   #wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
     padding: 8px;
-    width: 100%;
-    max-width: 720px;
+    width: min(100%, 720px, calc((100vh - 110px) * 16 / 9 + 16px));
+    width: min(100%, 720px, calc((100dvh - 110px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
     touch-action: manipulation;
   }
 
@@ -73,6 +76,7 @@
   </div>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/hires.js"></script>
+  <script src="../../shared/scores.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

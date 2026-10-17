@@ -23,17 +23,26 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 12px;
+    padding: 8px;
   }
 
-  #app { width: 100%; max-width: 720px; }
+  /* Same footprint as the other games: as wide as fits, but short enough that the back
+     link, the race's touch buttons and the hint always stay on screen. */
+  #app {
+    width: min(720px, 100%, calc((100vh - 190px) * 16 / 9));
+    width: min(720px, 100%, calc((100dvh - 190px) * 16 / 9));
+    min-width: min(100%, 300px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
 
-  .screen { display: none; flex-direction: column; align-items: center; gap: 14px; }
+  .screen { display: none; flex-direction: column; align-items: center; gap: 8px; }
   .screen.active { display: flex; }
 
   h1 {
     margin: 0;
-    font-size: clamp(1.6rem, 6vw, 2.6rem);
+    font-size: clamp(1.3rem, 4.2vw, 2rem);
     letter-spacing: 3px;
     color: #ffe14f;
     text-shadow: 0 0 8px #ffe14f, 0 0 22px #ff4fd8;
@@ -42,7 +51,7 @@
 
   h2 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: .9rem;
     letter-spacing: 2px;
     color: #4ff0ff;
     text-shadow: 0 0 6px #4ff0ff;
@@ -73,7 +82,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 1rem;
+    font-size: .85rem;
     letter-spacing: 2px;
     color: #ffd23f;
     text-shadow: 0 0 8px #ffb300;
@@ -85,27 +94,38 @@
     border: 2px solid #7a4c00;
   }
 
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; width: 100%; }
+  /* Track and garage cards sit on Xbox 360-style carousels (shared/carousel.js). */
+  .card-strip { --mc-card-w: clamp(130px, min(22vw, 27vh), 190px); width: 100%; padding: 8px 0 12px; }
+  #skin-cards, #hat-cards { --mc-card-w: clamp(100px, min(16vw, 18vh), 145px); padding: 4px 0 8px; }
 
   .card {
     background: linear-gradient(180deg, #1e1440, #140c30);
     border: 3px solid #4ff0ff;
     border-radius: 12px;
-    padding: 12px;
+    padding: 8px;
     text-align: center;
     color: #fff;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 5px;
     align-items: center;
     box-shadow: 0 0 10px rgba(79,240,255,0.35);
-    transition: transform .12s, box-shadow .12s, border-color .12s;
+    cursor: pointer;
   }
-  .card:hover { transform: translateY(-4px); border-color: #ff4fd8; box-shadow: 0 0 20px #ff4fd8; }
+  .card.selected { border-color: #ff4fd8; box-shadow: 0 0 20px #ff4fd8; }
+  /* the row the controller / keyboard is on glows brighter */
+  .card-strip:focus-within .card.selected { box-shadow: 0 0 26px #ff4fd8, 0 0 54px rgba(255,79,216,.45); }
   .card canvas { border-radius: 8px; width: 100%; height: auto; image-rendering: pixelated; background: #000; }
-  .card .name { color: #ffe14f; letter-spacing: 1px; font-size: .95rem; text-shadow: 0 0 6px #ffe14f; }
-  .card .sub { color: #b9b0e0; font-size: .72rem; line-height: 1.4; }
-  .card .best { color: #4ff0ff; font-size: .72rem; }
+  .card .name { color: #ffe14f; letter-spacing: 1px; font-size: .85rem; text-shadow: 0 0 6px #ffe14f; }
+  .card .sub { color: #b9b0e0; font-size: .65rem; line-height: 1.35; }
+  .card .best { color: #4ff0ff; font-size: .65rem; }
+  .card button.small { padding: 5px 10px; }
+
+  /* short screens (tablets on their side): drop the extras so a whole menu fits */
+  @media (max-height: 680px) {
+    .tagline, .card .sub { display: none; }
+    .screen { gap: 6px; }
+  }
 
   .locked { opacity: .5; filter: grayscale(.7); }
   .equipped { border-color: #ffd23f !important; box-shadow: 0 0 18px #ffd23f !important; }
@@ -164,14 +184,16 @@
 <body>
 <div id="app">
 
+  <!-- on every screen, so there's always a way out -->
+  <a id="back" class="link" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+
   <!-- TRACK SELECT -->
   <div id="screen-tracks" class="screen active">
-    <a class="link" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
     <h1>FREDDY BEAR KART</h1>
     <div class="tagline">RACE FOR GOLDEN KOALAS!</div>
     <div class="coinbar"><span class="dot"></span><span id="coins-tracks">0</span> GOLD KOALA COINS</div>
     <h2>CHOOSE YOUR TRACK</h2>
-    <div id="track-cards" class="cards"></div>
+    <div id="track-cards" class="card-strip"></div>
     <div class="row">
       <button id="btn-garage">FREDDY'S GARAGE</button>
     </div>
@@ -182,9 +204,9 @@
     <h1>FREDDY'S GARAGE</h1>
     <div class="coinbar"><span class="dot"></span><span id="coins-garage">0</span> GOLD KOALA COINS</div>
     <h2>SKINS</h2>
-    <div id="skin-cards" class="cards"></div>
+    <div id="skin-cards" class="card-strip"></div>
     <h2>HATS</h2>
-    <div id="hat-cards" class="cards"></div>
+    <div id="hat-cards" class="card-strip"></div>
     <div class="row"><button id="btn-garage-back">BACK TO TRACKS</button></div>
   </div>
 
@@ -213,6 +235,8 @@
 </div>
 <script src="../../shared/gamepad.js"></script>
 <script src="../../shared/hires.js"></script>
+<script src="../../shared/scores.js"></script>
+<script src="../../shared/carousel.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

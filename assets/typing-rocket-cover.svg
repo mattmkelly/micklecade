@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#060a24"/>
+      <stop offset="1" stop-color="#2a1260"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <g fill="#fff" opacity="0.75">
+    <rect x="60" y="230" width="4" height="4"/><rect x="180" y="300" width="3" height="3"/>
+    <rect x="300" y="250" width="3" height="3"/><rect x="460" y="290" width="4" height="4"/>
+    <rect x="740" y="250" width="3" height="3"/><rect x="40" y="40" width="3" height="3"/>
+    <rect x="760" y="40" width="4" height="4"/><rect x="560" y="230" width="3" height="3"/>
+  </g>
+
+  <!-- title -->
+  <g font-family="'Courier New', Courier, monospace" font-weight="bold" text-anchor="middle" filter="url(#glow)">
+    <text x="400" y="100" font-size="80" fill="#4ff0ff" letter-spacing="6">TYPING</text>
+    <text x="400" y="185" font-size="80" fill="#ffe14f" letter-spacing="6">ROCKET</text>
+  </g>
+
+  <!-- the moon -->
+  <circle cx="690" cy="300" r="56" fill="#ffe9a8" filter="url(#glow)"/>
+  <circle cx="672" cy="288" r="12" fill="#e6cf86"/>
+  <circle cx="708" cy="318" r="8" fill="#e6cf86"/>
+
+  <!-- the rocket, blasting along a trail of letters -->
+  <g font-family="'Courier New', Courier, monospace" font-weight="bold" font-size="38" fill="#6be04f" filter="url(#glow)">
+    <text x="70" y="330">A</text><text x="130" y="318" fill="#ff7ad9">B</text><text x="190" y="306" fill="#4ff0ff">C</text>
+  </g>
+  <g transform="translate(400 290) rotate(-12) scale(9)">
+    <path d="M-9,-3 L-17,0 L-9,3 Z" fill="#ffb03f"/>
+    <path d="M-9,-1.5 L-13,0 L-9,1.5 Z" fill="#ffe14f"/>
+    <path d="M-7,-4 L-11,-8 L-3,-4 Z" fill="#ff4f6d"/>
+    <path d="M-7,4 L-11,8 L-3,4 Z" fill="#ff4f6d"/>
+    <ellipse cx="0" cy="0" rx="10" ry="4.5" fill="#e8ecff"/>
+    <path d="M6,-3.6 Q13,0 6,3.6 Z" fill="#ff4f6d"/>
+    <circle cx="1" cy="0" r="2" fill="#4ff0ff"/>
+  </g>
+
+  <!-- keyboard keys along the bottom, finger colours like the game -->
+  <g font-family="'Courier New', Courier, monospace" font-weight="bold" font-size="34" text-anchor="middle">
+    <g transform="translate(90 440)">
+      <rect x="0" y="0" width="80" height="70" rx="10" fill="#1c2660" stroke="#3b4fb0" stroke-width="4"/>
+      <rect x="12" y="58" width="56" height="5" fill="#ff7ad9"/><text x="40" y="47" fill="#d9d2ff">A</text>
+    </g>
+    <g transform="translate(190 440)">
+      <rect x="0" y="0" width="80" height="70" rx="10" fill="#1c2660" stroke="#3b4fb0" stroke-width="4"/>
+      <rect x="12" y="58" width="56" height="5" fill="#c88bff"/><text x="40" y="47" fill="#d9d2ff">S</text>
+    </g>
+    <g transform="translate(290 440)">
+      <rect x="0" y="0" width="80" height="70" rx="10" fill="#1c2660" stroke="#3b4fb0" stroke-width="4"/>
+      <rect x="12" y="58" width="56" height="5" fill="#4f8bff"/><text x="40" y="47" fill="#d9d2ff">D</text>
+    </g>
+    <g transform="translate(390 440)">
+      <rect x="0" y="0" width="80" height="70" rx="10" fill="#4a4a2a" stroke="#ffe14f" stroke-width="5" filter="url(#glow)"/>
+      <rect x="12" y="58" width="56" height="5" fill="#6be04f"/><text x="40" y="47" fill="#fff">F</text>
+    </g>
+    <g transform="translate(530 440)">
+      <rect x="0" y="0" width="80" height="70" rx="10" fill="#1c2660" stroke="#3b4fb0" stroke-width="4"/>
+      <rect x="12" y="58" width="56" height="5" fill="#6be04f"/><text x="40" y="47" fill="#d9d2ff">J</text>
+    </g>
+    <g transform="translate(630 440)">
+      <rect x="0" y="0" width="80" height="70" rx="10" fill="#1c2660" stroke="#3b4fb0" stroke-width="4"/>
+      <rect x="12" y="58" width="56" height="5" fill="#4f8bff"/><text x="40" y="47" fill="#d9d2ff">K</text>
+    </g>
+  </g>
+</svg>

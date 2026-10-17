@@ -551,6 +551,7 @@
       if (earned.length) unlockedThisRun = earned[earned.length - 1];
     }
     persist();
+    if (window.MickleScores) MickleScores.record('bowie-dash', shownScore());
     if (unlockedThisRun) sfxUnlock();
     else if (newBest) sfxBest();
     else sfxOver();

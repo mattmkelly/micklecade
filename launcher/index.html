@@ -89,26 +89,13 @@
     pointer-events: none;
   }
 
+  /* The sideways scrolling, tilt and fade come from shared/carousel.js. */
   .cabinet-strip {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    padding: 36px calc(50vw - var(--card-w) / 2) 44px;
-    perspective: 1200px;
-    touch-action: pan-x;
+    --mc-card-w: var(--card-w);
+    padding: 36px 0 44px;
   }
-  .cabinet-strip::-webkit-scrollbar { display: none; }
 
   .cabinet {
-    /* --d is the cabinet's distance from center in card widths, set by script */
-    --d: 0;
-    --ad: 0;
-    flex: 0 0 var(--card-w);
-    scroll-snap-align: center;
     background: linear-gradient(180deg, #1e1440 0%, #140c30 100%);
     border: 3px solid var(--neon-cyan);
     border-radius: 14px;
@@ -123,14 +110,6 @@
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    transform:
-      translateX(calc(var(--d) * -14%))
-      rotateY(calc(var(--d) * -22deg))
-      scale(calc(1.08 - min(var(--ad), 2) * 0.17));
-    opacity: calc(1 - min(var(--ad), 3) * 0.25);
-    z-index: calc(10 - var(--zi, 0));
-    position: relative;
-    will-change: transform;
     -webkit-box-reflect: below 6px linear-gradient(transparent 72%, rgba(255, 255, 255, 0.14));
   }
 
@@ -141,8 +120,6 @@
       0 0 60px rgba(255, 79, 216, 0.35),
       inset 0 0 26px rgba(255, 79, 216, 0.15);
   }
-
-  .cabinet:focus { outline: none; }
 
   .cabinet .art {
     width: 100%;
@@ -248,14 +225,159 @@
     transform: scale(1.3);
   }
 
-  .hint {
-    margin-top: 14px;
-    font-size: 0.75rem;
-    color: var(--neon-cyan);
-    letter-spacing: 2px;
-    animation: blink 1.4s steps(2, start) infinite;
+  /* ---- High-score board for the selected game ---- */
+
+  .board {
+    margin: 14px auto 0;
+    width: min(540px, 100%);
+    border: 2px solid rgba(79, 240, 255, 0.55);
+    border-radius: 10px;
+    background: rgba(20, 12, 48, 0.75);
+    box-shadow: 0 0 12px rgba(79, 240, 255, 0.25), inset 0 0 18px rgba(79, 240, 255, 0.06);
+    padding: 8px 12px 10px;
+    text-align: left;
   }
-  @keyframes blink { to { visibility: hidden; } }
+  .board[hidden] { display: none; }
+
+  .board-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 6px var(--neon-cyan);
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(79, 240, 255, 0.25);
+  }
+  .board-head .cat { color: var(--neon-yellow); text-shadow: 0 0 6px var(--neon-yellow); flex: 1; text-align: center; }
+  .board-head button {
+    background: none;
+    border: 0;
+    color: var(--neon-cyan);
+    font: bold 0.9rem 'Courier New', Courier, monospace;
+    cursor: pointer;
+    padding: 2px 6px;
+    touch-action: manipulation;
+  }
+  .board-head button[hidden] { visibility: hidden; display: inline; }
+
+  .board ol { list-style: none; margin: 6px 0 0; padding: 0; }
+  .board li {
+    display: grid;
+    grid-template-columns: 2.4em 1fr auto 6.5em;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    padding: 2px 0;
+    color: #d9d2ff;
+  }
+  .board li .rank { color: #8a7fc0; }
+  .board li .score { color: var(--neon-yellow); text-align: right; }
+  .board li .date { color: #8a7fc0; font-size: 0.75rem; text-align: right; }
+  .board li.first .rank { color: var(--neon-yellow); text-shadow: 0 0 6px var(--neon-yellow); }
+  .board li.me .name { color: var(--neon-pink); text-shadow: 0 0 6px var(--neon-pink); }
+  .board li.empty { display: block; text-align: center; color: #8a7fc0; font-size: 0.85rem; letter-spacing: 1px; padding: 10px 0 4px; }
+
+  /* ---- Player badge + "who's playing?" picker ---- */
+
+  .player-badge {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    z-index: 30;
+    max-width: 46vw;
+    padding: 8px 14px;
+    border: 2px solid var(--neon-pink);
+    border-radius: 999px;
+    background: rgba(10, 6, 24, 0.8);
+    color: #fff;
+    font: bold 0.85rem 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 0 12px rgba(255, 79, 216, 0.5);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .player-badge .star { color: var(--neon-yellow); text-shadow: 0 0 6px var(--neon-yellow); }
+  .player-badge:hover, .player-badge:focus-visible { outline: none; box-shadow: 0 0 20px var(--neon-pink); }
+
+  .picker {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(5, 3, 14, 0.86);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .picker[hidden] { display: none; }
+
+  .picker-panel {
+    width: min(520px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #1e1440 0%, #140c30 100%);
+    border: 3px solid var(--neon-pink);
+    border-radius: 14px;
+    box-shadow: 0 0 30px rgba(255, 79, 216, 0.5);
+    padding: 20px;
+    text-align: center;
+  }
+  .picker h2 {
+    margin: 0 0 16px;
+    font-size: 1.6rem;
+    letter-spacing: 4px;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 8px var(--neon-yellow), 0 0 22px var(--neon-pink);
+  }
+
+  .player-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .prow { display: flex; }
+  .picker button, .picker input {
+    font: bold 1rem 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+    touch-action: manipulation;
+  }
+  .picker button {
+    background: rgba(10, 6, 24, 0.8);
+    color: #fff;
+    border: 2px solid var(--neon-cyan);
+    border-radius: 10px;
+    padding: 12px 10px;
+    cursor: pointer;
+  }
+  .picker button:focus { outline: none; }
+  .picker button:hover, .picker button:focus-visible, .picker button.focused {
+    border-color: var(--neon-pink);
+    box-shadow: 0 0 14px var(--neon-pink);
+  }
+  .prow .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .prow .pname.current { color: var(--neon-yellow); border-color: var(--neon-yellow); }
+  .prow .premove { margin-left: 4px; padding: 12px 8px; color: #8a7fc0; border-color: #3a2e6e; }
+
+  .picker .new-player { width: 100%; margin-top: 14px; color: var(--neon-cyan); }
+  .picker form { display: flex; gap: 8px; margin-top: 14px; }
+  .picker form[hidden] { display: none; }
+  .picker input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px;
+    border: 2px solid var(--neon-yellow);
+    border-radius: 10px;
+    background: #0a0618;
+    color: var(--neon-yellow);
+    text-transform: uppercase;
+    outline: none;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .picker .close { margin-top: 16px; color: #b9b0e0; border-color: #3a2e6e; }
 
   footer {
     margin-top: auto;
@@ -269,6 +391,14 @@
   @media (max-width: 600px) {
     :root { --card-w: 62vw; }
     .nav { display: none; }
+    .player-badge { position: static; margin: 0 auto 12px; max-width: 90vw; }
+    .board li { grid-template-columns: 2em 1fr auto; }
+    .board li .date { display: none; }
+  }
+
+  @media (max-height: 720px) {
+    .info .blurb { display: none; }
+    .board { margin-top: 8px; }
   }
 
   @media (max-height: 560px) {
@@ -280,6 +410,8 @@
 </style>
 </head>
 <body>
+
+  <button class="player-badge" type="button"></button>
 
   <div class="marquee">
     <h1>MICKLECADE</h1>
@@ -320,6 +452,18 @@
         <div class="blurb">Munch the right answers!<br>Kindergarten to 6th grade.</div>
       </a>
 
+      <a class="cabinet" href="../games/shape-munchers/index.html">
+        <div class="art"><img src="../assets/shape-munchers-cover.svg" alt="Shape Munchers"></div>
+        <div class="title">SHAPE MUNCHERS</div>
+        <div class="blurb">Munch the right shapes!<br>Pictures, sides, corners and names.</div>
+      </a>
+
+      <a class="cabinet" href="../games/typing-rocket/index.html">
+        <div class="art"><img src="../assets/typing-rocket-cover.svg" alt="Typing Rocket"></div>
+        <div class="title">TYPING ROCKET</div>
+        <div class="blurb">Type it, spell it, blast off!<br>Kindergarten to 6th grade.</div>
+      </a>
+
       <div class="cabinet locked">
         <div class="art">&#10067;</div>
         <div class="title">COMING SOON</div>
@@ -334,23 +478,60 @@
     <p class="now"></p>
     <p class="blurb"></p>
     <div class="dots"></div>
-    <div class="hint">PRESS START</div>
+    <div class="board" hidden>
+      <div class="board-head">
+        <button class="cat-prev" type="button" aria-label="Previous board">&#9650;</button>
+        <span>HIGH SCORES</span>
+        <span class="cat"></span>
+        <button class="cat-next" type="button" aria-label="Next board">&#9660;</button>
+      </div>
+      <ol></ol>
+    </div>
   </div>
 
-  <footer>MADE BY THE MICKLEKIDS &mdash; &#9664; &#9654; TO BROWSE &mdash; A / ENTER TO PLAY</footer>
+  <div class="picker" hidden>
+    <div class="picker-panel" role="dialog" aria-label="Who's playing?">
+      <h2>WHO'S PLAYING?</h2>
+      <div class="player-list"></div>
+      <button class="new-player" type="button">+ NEW PLAYER</button>
+      <form hidden>
+        <input type="text" maxlength="10" placeholder="YOUR NAME" autocomplete="off" spellcheck="false" aria-label="Your name">
+        <button type="submit">OK</button>
+      </form>
+      <button class="close" type="button">CLOSE</button>
+    </div>
+  </div>
+
+  <footer>MADE BY THE MICKLEKIDS &mdash; &#9664; &#9654; TO BROWSE &mdash; &#9650; &#9660; HIGH SCORES &mdash; A / ENTER TO PLAY &mdash; Y / P TO PICK PLAYER</footer>
 
 <script src="../shared/gamepad.js"></script>
+<script src="../shared/scores.js"></script>
+<script src="../shared/carousel.js"></script>
 <script>
-  // Xbox 360-style game shelf. The strip is a native scroll-snap scroller (so swiping
-  // works on tablets); the cabinet nearest the center is "selected". Arrows / D-pad /
-  // left stick / LB-RB / mouse wheel move one cabinet at a time; A, Enter or tapping
-  // the selected cabinet opens it. Tapping a side cabinet just slides it to the middle.
+  // Xbox 360-style game shelf (shared/carousel.js does the scrolling and tilting). The
+  // cabinet in the middle is "selected". Arrows / D-pad / left stick / LB-RB / mouse wheel
+  // move one cabinet at a time; A, Enter or tapping the selected cabinet opens it. Tapping
+  // a side cabinet just slides it to the middle.
+  // Under the strip, the selected game's high-score board (shared/scores.js); up/down flip
+  // between its tracks / lands / grades. The badge top-right (or Y / P) picks the player.
   (function () {
     const strip = document.querySelector('.cabinet-strip');
     const items = Array.from(strip.querySelectorAll('.cabinet'));
     const nowEl = document.querySelector('.info .now');
     const blurbEl = document.querySelector('.info .blurb');
-    const hintEl = document.querySelector('.info .hint');
+    const boardEl = document.querySelector('.board');
+    const boardCatEl = boardEl.querySelector('.cat');
+    const boardListEl = boardEl.querySelector('ol');
+    const catPrevBtn = boardEl.querySelector('.cat-prev');
+    const catNextBtn = boardEl.querySelector('.cat-next');
+    const badge = document.querySelector('.player-badge');
+    const picker = document.querySelector('.picker');
+    const playerList = picker.querySelector('.player-list');
+    const newPlayerBtn = picker.querySelector('.new-player');
+    const newPlayerForm = picker.querySelector('form');
+    const nameInput = newPlayerForm.querySelector('input');
+    const closeBtn = picker.querySelector('.close');
+    const ASKED_KEY = 'micklecade.askedPlayer';
     const dotsEl = document.querySelector('.dots');
     const prevBtn = document.querySelector('.nav.prev');
     const nextBtn = document.querySelector('.nav.next');
@@ -360,95 +541,229 @@
 
     const dots = items.map(() => dotsEl.appendChild(document.createElement('span')));
 
-    function centerOf(el) {
-      return el.offsetLeft + el.offsetWidth / 2;
-    }
-
-    // Tilt/shrink each cabinet by how far it is from the middle of the strip.
-    function layout() {
-      const mid = strip.scrollLeft + strip.clientWidth / 2;
-      let best = 0, bestDist = Infinity;
-      items.forEach((el, i) => {
-        const d = (centerOf(el) - mid) / el.offsetWidth;
-        el.style.setProperty('--d', d.toFixed(3));
-        el.style.setProperty('--ad', Math.abs(d).toFixed(3));
-        el.style.setProperty('--zi', Math.round(Math.abs(d) * 2));
-        if (Math.abs(d) < bestDist) { bestDist = Math.abs(d); best = i; }
-      });
-      select(best);
-    }
-
+    // The carousel tells us whenever the middle cabinet changes.
     function select(i) {
-      if (i === selected) return;
       selected = i;
       const el = items[i];
-      items.forEach((c, j) => c.classList.toggle('selected', j === i));
       dots.forEach((dot, j) => dot.classList.toggle('on', j === i));
       nowEl.textContent = el.querySelector('.title').textContent;
       blurbEl.innerHTML = el.querySelector('.blurb').innerHTML;
-      hintEl.style.visibility = el.classList.contains('locked') ? 'hidden' : '';
+      openBoard();
       prevBtn.disabled = i === 0;
       nextBtn.disabled = i === items.length - 1;
       try { localStorage.setItem(STORE_KEY, String(i)); } catch (e) {}
     }
 
-    function goTo(i, smooth) {
-      i = Math.max(0, Math.min(items.length - 1, i));
-      strip.scrollTo({
-        left: centerOf(items[i]) - strip.clientWidth / 2,
-        behavior: smooth === false ? 'auto' : 'smooth',
-      });
-      select(i);
-    }
-
-    function step(dir) {
-      goTo(selected + dir);
-    }
+    function goTo(i, smooth) { shelf.goTo(i, smooth); }
+    function step(dir) { shelf.step(dir); }
 
     function launch() {
       const el = items[selected];
       if (el && !el.classList.contains('locked')) window.location.href = el.href;
     }
 
-    strip.addEventListener('scroll', () => requestAnimationFrame(layout), { passive: true });
-    window.addEventListener('resize', () => goTo(selected, false));
+    // ---- High-score board ----
 
-    items.forEach((el, i) => {
-      el.addEventListener('click', (e) => {
-        if (i !== selected) { e.preventDefault(); goTo(i); }
+    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const BOARD_ROWS = 5;
+    let boards = [], boardIdx = 0;
+
+    // The game id is its folder name: ../games/<id>/index.html
+    function gameId(el) {
+      const m = /games\/([^/]+)\//.exec(el.getAttribute('href') || '');
+      return m ? m[1] : '';
+    }
+
+    function fmtDate(iso) {
+      const [y, m, d] = String(iso).split('-').map(Number);
+      if (!y || !m || !d) return '';
+      const label = MONTHS[m - 1] + ' ' + d;
+      return y === new Date().getFullYear() ? label : label + ' ' + y;
+    }
+
+    // Show the selected game's board, starting on whichever track / land / grade was played last.
+    function openBoard() {
+      const id = gameId(items[selected]);
+      boards = id ? MickleScores.boards(id) : [];
+      const last = id ? MickleScores.lastCategory(id) : '';
+      boardIdx = Math.max(0, boards.findIndex((b) => b.category === last));
+      boardEl.hidden = !id;
+      renderBoard();
+    }
+
+    function cycleBoard(dir) {
+      if (boards.length < 2) return;
+      boardIdx = (boardIdx + dir + boards.length) % boards.length;
+      renderBoard();
+    }
+
+    function renderBoard() {
+      const b = boards[boardIdx];
+      catPrevBtn.hidden = catNextBtn.hidden = boards.length < 2;
+      boardCatEl.textContent = b && b.category ? b.category : '';
+      boardListEl.textContent = '';
+      if (!b || !b.list.length) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'NO SCORES YET \u2014 BE THE FIRST!';
+        boardListEl.appendChild(li);
+        return;
+      }
+      const me = MickleScores.player();
+      b.list.slice(0, BOARD_ROWS).forEach((entry, i) => {
+        const li = document.createElement('li');
+        if (i === 0) li.classList.add('first');
+        if (me && entry.name === me) li.classList.add('me');
+        [
+          ['rank', i === 0 ? '\u2605' : (i + 1) + '.'],
+          ['name', entry.name],
+          ['score', MickleScores.formatScore(entry.score, b.format)],
+          ['date', fmtDate(entry.date)],
+        ].forEach(([cls, text]) => {
+          const span = document.createElement('span');
+          span.className = cls;
+          span.textContent = text;
+          li.appendChild(span);
+        });
+        boardListEl.appendChild(li);
       });
-      el.addEventListener('focus', () => { if (i !== selected) goTo(i); });
+    }
+
+    catPrevBtn.addEventListener('click', () => cycleBoard(-1));
+    catNextBtn.addEventListener('click', () => cycleBoard(1));
+
+    // ---- Player picker ----
+
+    function updateBadge() {
+      const star = document.createElement('span');
+      star.className = 'star';
+      star.textContent = '\u2605 ';
+      badge.textContent = '';
+      badge.append(star, MickleScores.player() || "WHO'S PLAYING?");
+    }
+
+    function pickerOpen() { return !picker.hidden; }
+
+    function pickerControls() {
+      return Array.from(picker.querySelectorAll('button, input'))
+        .filter((el) => el.offsetParent !== null);
+    }
+
+    function renderPlayers() {
+      playerList.textContent = '';
+      const current = MickleScores.player();
+      MickleScores.players().forEach((name) => {
+        const row = document.createElement('div');
+        row.className = 'prow';
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'pname' + (name === current ? ' current' : '');
+        pick.textContent = name;
+        pick.addEventListener('click', () => { MickleScores.setPlayer(name); closePicker(); });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'premove';
+        remove.textContent = '\u2715';
+        remove.setAttribute('aria-label', 'Remove ' + name);
+        remove.addEventListener('click', () => {
+          if (!confirm('Take ' + name + ' off the player list? Their high scores stay.')) return;
+          MickleScores.removePlayer(name);
+          renderPlayers();
+          focusFirst();
+        });
+        row.append(pick, remove);
+        playerList.appendChild(row);
+      });
+      closeBtn.textContent = current ? 'CLOSE' : 'NOT NOW';
+    }
+
+    function focusFirst() {
+      const first = playerList.querySelector('.pname.current') || pickerControls()[0];
+      if (first) first.focus();
+    }
+
+    function openPicker() {
+      newPlayerForm.hidden = true;
+      newPlayerBtn.hidden = false;
+      nameInput.value = '';
+      renderPlayers();
+      picker.hidden = false;
+      focusFirst();
+    }
+
+    function closePicker() {
+      picker.hidden = true;
+      try { sessionStorage.setItem(ASKED_KEY, '1'); } catch (e) {}
+      updateBadge();
+      renderBoard();
+      badge.blur();
+    }
+
+    function movePickerFocus(dir) {
+      const els = pickerControls();
+      if (!els.length) return;
+      const i = els.indexOf(document.activeElement);
+      els[(i + dir + els.length) % els.length].focus();
+    }
+
+    badge.addEventListener('click', openPicker);
+    closeBtn.addEventListener('click', closePicker);
+    picker.addEventListener('click', (e) => { if (e.target === picker) closePicker(); });
+    newPlayerBtn.addEventListener('click', () => {
+      newPlayerBtn.hidden = true;
+      newPlayerForm.hidden = false;
+      nameInput.focus();
+    });
+    newPlayerForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (MickleScores.setPlayer(nameInput.value)) closePicker();
+      else nameInput.focus();
     });
 
     prevBtn.addEventListener('click', () => step(-1));
     nextBtn.addEventListener('click', () => step(1));
 
-    // Mouse wheel (vertical or horizontal) moves one cabinet per notch.
-    let wheelLock = 0;
-    strip.addEventListener('wheel', (e) => {
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      e.preventDefault();
-      const now = performance.now();
-      if (Math.abs(delta) < 4 || now < wheelLock) return;
-      wheelLock = now + 220;
-      step(delta > 0 ? 1 : -1);
-    }, { passive: false });
-
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { step(1); e.preventDefault(); }
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { step(-1); e.preventDefault(); }
+      if (pickerOpen()) {
+        // Buttons click themselves on Enter/Space; arrows walk between them (not inside the name box).
+        if (e.key === 'Escape') { closePicker(); e.preventDefault(); }
+        else if (e.target !== nameInput && /^Arrow/.test(e.key)) {
+          movePickerFocus(e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1);
+          e.preventDefault();
+        }
+        return;
+      }
+      if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { cycleBoard(1); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { cycleBoard(-1); e.preventDefault(); }
+      else if (e.key === 'p' || e.key === 'P') { openPicker(); e.preventDefault(); }
       else if (e.key === 'Home') { goTo(0); e.preventDefault(); }
       else if (e.key === 'End') { goTo(items.length - 1); e.preventDefault(); }
-      else if (e.key === 'Enter' || e.key === ' ') { launch(); e.preventDefault(); }
+      else if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button')) { launch(); e.preventDefault(); }
     });
 
-    // Xbox 360 controller: D-pad/left stick (with hold-to-repeat) and LB/RB browse,
-    // A or Start opens the selected cabinet.
+    // Xbox 360 controller: D-pad/left stick left-right (with hold-to-repeat) and LB/RB
+    // browse, up-down flips the high-score board, A or Start opens the selected cabinet,
+    // Y picks the player. In the picker: D-pad moves, A presses, B (or Y) closes.
     let holdDir = 0, holdNext = 0;
     function loop(t) {
-      if (typeof Pad360 !== 'undefined') {
+      if (typeof Pad360 !== 'undefined' && pickerOpen()) {
         Pad360.poll();
-        const dir = Pad360.dx() || Pad360.dy();
+        const move = Pad360.dxPressed() || Pad360.dyPressed();
+        if (move) movePickerFocus(move);
+        const focused = document.activeElement;
+        if (Pad360.pressed(Pad360.BTN.A) && focused && focused !== nameInput && picker.contains(focused)) {
+          focused.click();
+        } else if (Pad360.pressed(Pad360.BTN.B) || Pad360.pressed(Pad360.BTN.Y)) {
+          closePicker();
+        }
+        holdDir = 0;
+      } else if (typeof Pad360 !== 'undefined') {
+        Pad360.poll();
+        if (Pad360.dyPressed()) cycleBoard(Pad360.dyPressed());
+        if (Pad360.pressed(Pad360.BTN.Y)) openPicker();
+        const dir = Pad360.dx();
         if (dir !== holdDir) {
           holdDir = dir;
           if (dir) { step(dir); holdNext = t + 380; }
@@ -458,7 +773,7 @@
         }
         if (Pad360.pressed(Pad360.BTN.LB)) step(-1);
         if (Pad360.pressed(Pad360.BTN.RB)) step(1);
-        if (Pad360.pressed(Pad360.BTN.A) || Pad360.pressed(Pad360.BTN.START)) launch();
+        if (!pickerOpen() && (Pad360.pressed(Pad360.BTN.A) || Pad360.pressed(Pad360.BTN.START))) launch();
       }
       requestAnimationFrame(loop);
     }
@@ -466,9 +781,19 @@
     // Come back to whichever game you last played.
     let start = 0;
     try { start = parseInt(localStorage.getItem(STORE_KEY), 10) || 0; } catch (e) {}
-    goTo(Math.min(start, items.length - 1), false);
-    layout();
+    const shelf = MickleCarousel.create(strip, {
+      start: Math.min(start, items.length - 1),
+      onSelect: select,
+      wheel: window,
+      wheelEnabled: () => !pickerOpen(),
+    });
+    updateBadge();
     requestAnimationFrame(loop);
+
+    // First time in (no players yet): ask who's playing, once per visit.
+    let asked = false;
+    try { asked = !!sessionStorage.getItem(ASKED_KEY); } catch (e) {}
+    if (!asked && !MickleScores.players().length) openPicker();
   })();
 </script>
 </body>

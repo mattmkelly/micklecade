@@ -25,14 +25,17 @@
     box-sizing: border-box;
   }
 
+  /* As wide as fits, but short enough that the back link above the game and the
+     controls / hint below it always stay on screen. */
   #wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
     padding: 8px;
-    width: 100%;
-    max-width: 720px;
+    width: min(100%, 720px, calc((100vh - 120px) * 16 / 9 + 16px));
+    width: min(100%, 720px, calc((100dvh - 120px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
     touch-action: manipulation;
   }
 
@@ -56,33 +59,13 @@
     touch-action: none;
   }
 
-  #touchpad {
+  /* back link on the left, the TOUCH CONTROLS toggle (shared/touchpad.js) on the right */
+  #topbar {
     display: flex;
-    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     width: 100%;
-    max-width: 720px;
-  }
-
-  #touchpad button {
-    background: linear-gradient(180deg, #2b1f5a, #1a1038);
-    border: 3px solid #4ff0ff;
-    color: #4ff0ff;
-    border-radius: 10px;
-    padding: 16px 0;
-    font-size: 1.4rem;
-    font-family: inherit;
-    letter-spacing: 2px;
-    text-shadow: 0 0 8px #4ff0ff;
-    flex: 1;
-    touch-action: none;
-  }
-
-  #touchpad button.hop {
-    flex: 0 0 40%;
-    font-size: 1rem;
-    border-color: #ffe14f;
-    color: #ffe14f;
-    text-shadow: 0 0 8px #ffe14f;
   }
 
   #hint {
@@ -96,17 +79,16 @@
 </head>
 <body>
   <div id="wrap">
-    <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
-    <canvas id="game" width="480" height="270"></canvas>
-    <div id="touchpad">
-      <button id="btn-left" aria-label="hop left">&#9664;</button>
-      <button id="btn-hop" class="hop">HOP</button>
-      <button id="btn-right" aria-label="hop right">&#9654;</button>
+    <div id="topbar">
+      <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
     </div>
-    <div id="hint">ARROWS / A D / STICK TO MOVE &mdash; SPACE, HOP OR A BUTTON TO JUMP &mdash; HOLD FOR A BIGGER HOP</div>
+    <canvas id="game" width="480" height="270"></canvas>
+    <div id="hint">ARROWS / A D / STICK TO MOVE &mdash; SPACE OR A BUTTON TO HOP &mdash; HOLD FOR A BIGGER HOP</div>
   </div>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/hires.js"></script>
+  <script src="../../shared/scores.js"></script>
+  <script src="../../shared/touchpad.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

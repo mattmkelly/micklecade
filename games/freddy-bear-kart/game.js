@@ -247,6 +247,15 @@
   window.addEventListener('keydown', (e) => {
     if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(e.code)) e.preventDefault();
     keys[e.code] = true;
+    if (screen === 'race' || e.repeat) return;
+    if (e.code === 'ArrowLeft') menuNav(-1, 0);
+    else if (e.code === 'ArrowRight') menuNav(1, 0);
+    else if (e.code === 'ArrowUp') menuNav(0, -1);
+    else if (e.code === 'ArrowDown') menuNav(0, 1);
+    else if ((e.code === 'Enter' || e.code === 'Space') && document.activeElement && document.activeElement.classList.contains('card')) {
+      ensureAudio();
+      document.activeElement.click();
+    }
   });
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
@@ -288,29 +297,55 @@
   const brakeInput = () => keys['ArrowDown'] || keys['KeyS'] || touch.brake ||
     (padReady() && (Pad360.down(Pad360.BTN.B) || Pad360.down(Pad360.BTN.LT) || Pad360.down(Pad360.BTN.RT)));
 
-  // Xbox 360 controller menus: D-pad/left stick moves between the buttons and
-  // cards on the current screen, A activates the focused one, B backs out.
+  // Menus (Xbox 360 controller or arrow keys): each card carousel is one row and every
+  // other button is its own row. Left/right spins the carousel you're on (or steps between
+  // buttons), up/down moves between rows, A / Enter activates, B backs out. Card buttons
+  // have tabindex -1 -- the card itself is what gets focus, and pressing it presses them.
   function focusablesInActiveScreen() {
     const active = document.querySelector('.screen.active');
     if (!active) return [];
-    return Array.from(active.querySelectorAll('button, a.link')).filter((el) => !el.disabled && el.offsetParent !== null);
+    return [el('back'), ...active.querySelectorAll('button:not([tabindex="-1"]), a.link, .card[tabindex="0"]')]
+      .filter((f) => !f.disabled && f.offsetParent !== null);
+  }
+  function menuRows() {
+    const rows = [];
+    for (const f of focusablesInActiveScreen()) {
+      const shelf = MickleCarousel.of(f);
+      const row = shelf ? shelf.strip : f;
+      if (!rows.includes(row)) rows.push(row);
+    }
+    return rows;
+  }
+  function focusRow(row) {
+    const shelf = MickleCarousel.of(row);
+    const target = shelf ? shelf.items()[shelf.selected()] : row;
+    if (target) target.focus({ preventScroll: true });
   }
   function padNavigate(dir) {
-    const items = focusablesInActiveScreen();
+    const items = focusablesInActiveScreen().filter((f) => !MickleCarousel.of(f));
     if (!items.length) return;
     const current = items.indexOf(document.activeElement);
     const next = current === -1 ? 0 : (current + dir + items.length) % items.length;
-    items[next].focus();
+    items[next].focus({ preventScroll: true });
+  }
+  function menuNav(dx, dy) {
+    const shelf = MickleCarousel.of(document.activeElement);
+    if (dx && shelf) { shelf.step(dx); return; }
+    if (dx) { padNavigate(dx); return; }
+    const rows = menuRows();
+    if (!rows.length) return;
+    const cur = rows.findIndex((r) => r === document.activeElement || r.contains(document.activeElement));
+    focusRow(rows[cur === -1 ? 0 : (cur + dy + rows.length) % rows.length]);
   }
   function pollMenuGamepad() {
-    const step = Pad360.dxPressed() || Pad360.dyPressed();
-    if (step) padNavigate(step);
+    const dx = Pad360.dxPressed(), dy = Pad360.dyPressed();
+    if (dx || dy) menuNav(dx, dy);
     if (Pad360.pressed(Pad360.BTN.A)) {
       const focused = document.activeElement;
       if (focused && focused.closest && focused.closest('.screen.active')) { ensureAudio(); focused.click(); }
     }
     if (Pad360.pressed(Pad360.BTN.B)) {
-      const back = document.querySelector('.screen.active button[id*="back"], .screen.active a.link');
+      const back = document.querySelector('.screen.active button[id*="back"]') || (screen === 'tracks' ? el('back') : null);
       if (back) { ensureAudio(); back.click(); }
     }
   }
@@ -454,6 +489,12 @@
       save.ghosts[track.id] = race.trail;
     }
     writeSave();
+    if (window.MickleScores) {
+      MickleScores.record('freddy-bear-kart', race.time, {
+        category: track.name, order: TRACK_DEFS.findIndex((d) => d.id === track.id),
+        lowerIsBetter: true, format: 'time',
+      });
+    }
     if (isBest) sfxWin();
 
     showResults({ isBest, prevBest, time: race.time, coinsGot: race.coinsGot, coinsBefore });
@@ -813,12 +854,14 @@
     screen = name;
     ['tracks', 'garage', 'race', 'results'].forEach(s => el('screen-' + s).classList.toggle('active', s === name));
     if (name === 'tracks') renderTrackCards();
-    if (name === 'garage') renderGarage();
+    if (name === 'garage') renderGarage(true);
     el('coins-tracks').textContent = save.coins;
     el('coins-garage').textContent = save.coins;
     if (name !== 'race') {
-      const first = focusablesInActiveScreen()[0];
-      if (first) first.focus();
+      // Start on the screen's first carousel if it has one, else its first button.
+      const rows = menuRows();
+      const first = rows.find((r) => MickleCarousel.of(r)) || rows[0];
+      if (first) focusRow(first);
     }
   }
 
@@ -863,12 +906,22 @@
     return c;
   }
 
+  // Clicking the middle card (anywhere but its own button) presses its button.
+  const pressCardButton = (i, card) => {
+    const btn = card.querySelector('button');
+    if (btn && !btn.disabled) { ensureAudio(); btn.click(); }
+  };
+  const trackShelf = MickleCarousel.create(el('track-cards'), { onActivate: pressCardButton });
+  const skinShelf = MickleCarousel.create(el('skin-cards'), { onActivate: pressCardButton });
+  const hatShelf = MickleCarousel.create(el('hat-cards'), { onActivate: pressCardButton });
+
   function renderTrackCards() {
     const wrap = el('track-cards');
     wrap.innerHTML = '';
     for (const t of tracks) {
       const card = document.createElement('div');
       card.className = 'card';
+      card.tabIndex = 0;
       card.appendChild(trackThumb(t));
       const name = document.createElement('div');
       name.className = 'name'; name.textContent = t.name;
@@ -879,10 +932,13 @@
       best.textContent = 'BEST: ' + fmtTime(save.bestTimes[t.id]);
       const btn = document.createElement('button');
       btn.className = 'small'; btn.textContent = 'RACE!';
+      btn.tabIndex = -1;
       btn.addEventListener('click', () => { ensureAudio(); newRace(t); show('race'); });
       card.append(name, sub, best, btn);
       wrap.appendChild(card);
     }
+    // Open on the track you raced last.
+    trackShelf.refresh(Math.max(0, tracks.indexOf(track)));
   }
 
   function itemPreview(skinId, hatId) {
@@ -898,7 +954,9 @@
     return c;
   }
 
-  function renderGarage() {
+  // fresh: true when opening the garage (start on what Freddy is wearing); otherwise the
+  // cards were just re-rendered after wearing something, so stay put.
+  function renderGarage(fresh) {
     const skinWrap = el('skin-cards');
     const hatWrap = el('hat-cards');
     skinWrap.innerHTML = ''; hatWrap.innerHTML = '';
@@ -909,6 +967,8 @@
     for (const hat of HATS) {
       hatWrap.appendChild(makeItemCard(hat, 'hat', save.skin, hat.id));
     }
+    skinShelf.refresh(fresh ? Math.max(0, SKINS.findIndex((sk) => sk.id === save.skin)) : undefined);
+    hatShelf.refresh(fresh ? Math.max(0, HATS.findIndex((h) => h.id === save.hat)) : undefined);
   }
 
   function makeItemCard(item, kind, skinId, hatId) {
@@ -916,6 +976,7 @@
     const equipped = kind === 'skin' ? save.skin === item.id : save.hat === item.id;
     const card = document.createElement('div');
     card.className = 'card' + (unlocked ? '' : ' locked') + (equipped ? ' equipped' : '');
+    card.tabIndex = 0;
     card.appendChild(itemPreview(skinId, hatId));
     const name = document.createElement('div');
     name.className = 'name'; name.textContent = item.name;
@@ -926,9 +987,13 @@
     btn.className = 'small';
     btn.textContent = equipped ? 'WEARING' : 'WEAR IT';
     btn.disabled = !unlocked || equipped;
+    btn.tabIndex = -1;
     btn.addEventListener('click', () => {
+      // Re-rendering replaces the cards, so put focus back on the same row's middle card.
+      const row = MickleCarousel.of(document.activeElement);
       if (kind === 'skin') save.skin = item.id; else save.hat = item.id;
       writeSave(); renderGarage();
+      if (row) focusRow(row.strip);
     });
     card.append(name, sub, btn);
     return card;

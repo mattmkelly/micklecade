@@ -376,7 +376,15 @@
     return grade.rules[lastRuleIdx](d);
   }
 
-  function grumbleOn() { return level >= (gradeIdx === 0 ? 4 : 3); }
+  // Casual mode (picked on the title screen, saved): Grumble stays home, just munch.
+  function grumbleOn() { return !save.casual && level >= (gradeIdx === 0 ? 4 : 3); }
+  // Casual runs keep their own BEST and high-score board, since they're easier.
+  function bestKey(i) { return GRADES[i].name + (save.casual ? '-casual' : ''); }
+  function toggleCasual() {
+    save.casual = !save.casual;
+    writeSave();
+    sfxMove();
+  }
 
   function newLevel() {
     curRule = nextRule(Math.min(1, (level - 1) / 6));
@@ -392,6 +400,7 @@
     gradeIdx = i;
     save.lastGrade = i;
     writeSave();
+    runRecorded = false;
     level = 1; score = 0; streak = 0;
     mx = 0; my = 0;
     ({ x: drawX, y: drawY } = cellPos(0, 0));
@@ -401,7 +410,7 @@
   }
 
   function updateBest() {
-    const name = GRADES[gradeIdx].name;
+    const name = bestKey(gradeIdx);
     const b = save.best[name] || { score: 0, level: 0 };
     b.score = Math.max(b.score, score);
     b.level = Math.max(b.level, level);
@@ -409,7 +418,23 @@
     writeSave();
   }
 
+  // One MickleCade high-score entry per grade session (the score keeps adding up level to
+  // level), recorded when you go back to the title or leave the page mid-game.
+  let runRecorded = false;
+  function recordRun() {
+    if (runRecorded || state === 'title') return;
+    runRecorded = true;
+    if (window.MickleScores) {
+      MickleScores.record('munchy-math', score, {
+        category: GRADES[gradeIdx].sub + (save.casual ? ' CASUAL' : ''),
+        order: gradeIdx + (save.casual ? 0.5 : 0),
+      });
+    }
+  }
+  window.addEventListener('pagehide', recordRun);
+
   function backToTitle() {
+    recordRun();
     if (state !== 'title') updateBest();
     state = 'title';
     message = null;
@@ -529,6 +554,7 @@
   function onDir(dx, dy) {
     if (state === 'title') {
       if (dx) { gradeIdx = (gradeIdx + dx + GRADES.length) % GRADES.length; sfxMove(); }
+      else if (dy) toggleCasual();
     } else move(dx, dy);
   }
   function onAction() {
@@ -544,10 +570,12 @@
   const TILE_W = 58, TILE_GAP = 6, TILE_Y = 88, TILE_H = 66;
   function tileX(i) { return (W - (GRADES.length * TILE_W + (GRADES.length - 1) * TILE_GAP)) / 2 + i * (TILE_W + TILE_GAP); }
   const GRADES_BTN = { x: 6, y: 7, w: 64, h: 20 };
+  const CASUAL_BTN = { x: 380, y: 10, w: 100, h: 72 }; // Grumble + his ON/OFF switch on the title
   function inRect(x, y, r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
   function onTap(x, y) {
     if (state === 'title') {
+      if (inRect(x, y, CASUAL_BTN)) { toggleCasual(); return; }
       for (let i = 0; i < GRADES.length; i++) {
         if (inRect(x, y, { x: tileX(i), y: TILE_Y, w: TILE_W, h: TILE_H })) { startGrade(i); return; }
       }
@@ -578,6 +606,7 @@
     if (dx || dy) { e.preventDefault(); ensureAudio(); onDir(dx, dy); return; }
     if (k === ' ' || k === 'Enter') { e.preventDefault(); ensureAudio(); if (!e.repeat) onAction(); return; }
     if (k === 'Escape') { e.preventDefault(); onBack(); }
+    if ((k === 'g' || k === 'G') && state === 'title') { ensureAudio(); toggleCasual(); }
   });
 
   // Whole page takes taps (not just the canvas). Taps are mapped onto the canvas so a box can
@@ -601,6 +630,7 @@
     if (dx || dy) { ensureAudio(); onDir(dx, dy); }
     if (Pad360.pressed(BTN.A) || Pad360.pressed(BTN.START)) { ensureAudio(); onAction(); }
     if (Pad360.pressed(BTN.B) && state !== 'playing') onBack();
+    if (Pad360.pressed(BTN.Y) && state === 'title') { ensureAudio(); toggleCasual(); }
     if (Pad360.pressed(BTN.BACK)) onBack();
   }
 
@@ -867,7 +897,22 @@
     glowText('MUNCHY MATH', W / 2, 38, 'bold 30px monospace', '#6be04f', 10);
     glowText('MUNCH EVERY BOX THAT MATCHES THE RULE!', W / 2, 66, '10px monospace', '#4ff0ff');
     drawMuncher(52, 40, 2.5, 1, Math.sin(time * 8) > 0, false);
-    drawGrumble(428, 40, 2.5);
+    if (save.casual) {
+      ctx.globalAlpha = 0.35;
+      drawGrumble(428, 40, 2.5);
+      ctx.globalAlpha = 1;
+      glowText('z z z', 444 + Math.sin(time * 2) * 2, 20, 'bold 9px monospace', '#b9b0e0', 0);
+    } else {
+      drawGrumble(428, 40, 2.5);
+    }
+    roundRect(383, 64, 94, 14, 7);
+    ctx.fillStyle = save.casual ? '#1c2660' : '#3a1c60';
+    ctx.fill();
+    ctx.strokeStyle = save.casual ? '#4ff0ff' : '#ff4fd8';
+    ctx.stroke();
+    ctx.font = 'bold 8px monospace';
+    ctx.fillStyle = save.casual ? '#4ff0ff' : '#ff9dff';
+    ctx.fillText(save.casual ? 'CASUAL: NO GRUMBLE' : 'GRUMBLE: ON', 430, 74);
 
     for (let i = 0; i < GRADES.length; i++) {
       const g = GRADES[i], x = tileX(i), sel = i === gradeIdx;
@@ -883,7 +928,7 @@
       ctx.font = '8px monospace';
       ctx.fillStyle = '#b9b0e0';
       ctx.fillText(g.sub, x + TILE_W / 2, y + 44);
-      const best = save.best[g.name];
+      const best = save.best[bestKey(i)];
       if (best && best.score) {
         ctx.fillStyle = '#6be04f';
         ctx.fillText('BEST ' + best.score, x + TILE_W / 2, y + 56);
@@ -898,8 +943,10 @@
     ctx.globalAlpha = 1;
     ctx.font = '9px monospace';
     ctx.fillStyle = '#b9b0e0';
-    ctx.fillText('ARROWS / D-PAD PICK A GRADE  ·  SPACE / A TO START', W / 2, 218);
-    ctx.fillText('WATCH OUT FOR GRUMBLE -- HE JUST BUMPS YOU AROUND!', W / 2, 232);
+    ctx.fillText('LEFT / RIGHT PICK A GRADE  ·  SPACE / A TO START', W / 2, 218);
+    ctx.fillText(save.casual
+      ? 'CASUAL MODE: NO GRUMBLE, JUST MUNCH!  (UP/DOWN, Y OR TAP HIM)'
+      : 'WATCH OUT FOR GRUMBLE!  NO GRUMBLE?  UP/DOWN, Y OR TAP HIM', W / 2, 232);
     ctx.font = '8px monospace';
     ctx.fillStyle = '#6a5fa0';
     ctx.fillText('A MICKLEKIDS GAME', W / 2, 258);

@@ -24,11 +24,18 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* As wide as fits, but short enough that the back link above the game and the
+     controls / hint below it always stay on screen. */
   #wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
+    box-sizing: border-box;
+    padding: 8px;
+    width: min(100%, 720px, calc((100vh - 100px) * 16 / 9 + 16px));
+    width: min(100%, 720px, calc((100dvh - 100px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
     touch-action: manipulation;
   }
 
@@ -45,13 +52,15 @@
     border: 4px solid #4ff0ff;
     border-radius: 6px;
     box-shadow: 0 0 24px rgba(79, 240, 255, 0.5);
-    max-width: 95vw;
+    width: 100%;
+    box-sizing: border-box;
     height: auto;
     background: #000;
   }
 
   #hint {
     color: #ffe14f;
+    text-align: center;
     font-size: 0.8rem;
     letter-spacing: 1px;
     text-shadow: 0 0 6px #ffe14f;
@@ -66,6 +75,7 @@
   </div>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/hires.js"></script>
+  <script src="../../shared/scores.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

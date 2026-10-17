@@ -123,11 +123,14 @@
       // you on (and are the ones who come get you if you fall).
       hop(x, baseY = 210) { lv.helpers.push({ kind: 'fuzzy', x, y: baseY - 17, w: 28, h: 17, squash: 0, cheer: Math.random() * 6.28, bouncer: true }); return api; },
       cheer(x, kind, baseY = 210) { lv.helpers.push({ kind, x, y: baseY - 22, w: 20, h: 22, squash: 0, cheer: Math.random() * 6.28 }); return api; },
-      // FunnyBunny + a toy too tall to hop: she laughs and it topples into a step
-      topple(x, w, h, baseY = 210) {
-        const toy = { kind: 'toy', x, y: baseY - h, w, h, baseY, state: 'up', t: 0, standW: w, standH: h };
-        lv.props.push(toy);
-        lv.helpers.push({ kind: 'funny', x: x - 50, y: baseY - 22, w: 20, h: 22, squash: 0, cheer: 0, toy, laugh: 0 });
+      // FunnyBunny + a toy too tall to hop: when you get close she pops up a little stack
+      // of toy blocks in front of it, a step to hop up on. (Nothing gets knocked over.)
+      helpStep(x, w, h, baseY = 210) {
+        lv.solids.push({ kind: 'block', x, y: baseY - h, w, h, style: 'toy' });
+        mark(x + w);
+        const step = { kind: 'step', x: x - 30, w: 30, h: 28, baseY, grow: 0, state: 'hidden' };
+        lv.props.push(step);
+        lv.helpers.push({ kind: 'funny', x: x - 78, y: baseY - 22, w: 20, h: 22, squash: 0, cheer: 0, step, laugh: 0 });
         return api;
       },
       goal(x, y = 210) { lv.goalX = x; lv.goalY = y; mark(x + 140); return api; },
@@ -287,7 +290,7 @@
     b.cheer(130, 'funny');
 
     b.ground(700, 520);
-    b.topple(800, 26, 62);
+    b.helpStep(800, 26, 62);
     b.carrot(813, 132, 'gold'); b.carrot(880, 174, 'silver');
     b.block(980, 26, 26, 210, 'ball');
     b.plat(1060, 140, 70); b.row(1076, 122, 3, 20, 'gold');
@@ -296,7 +299,7 @@
     b.pit(1220, 78, 'house'); b.arc(1228, 176, 4, 18, 'silver', 22);
     b.ground(1298, 542);
     b.block(1360, 150, 52, 210, 'couch'); b.row(1380, 136, 5, 26, 'gold');
-    b.topple(1620, 26, 62); b.carrot(1633, 132, 'gold');
+    b.helpStep(1620, 26, 62); b.carrot(1633, 132, 'gold');
     b.block(1740, 30, 28, 210, 'blocks');
     b.row(1790, 190, 2, 24, 'bronze');
 
@@ -305,7 +308,7 @@
     b.block(2010, 26, 24, 210, 'ball');
     b.plat(2100, 152, 66); b.row(2116, 134, 2, 22, 'gold');
     b.plat(2210, 116, 66); b.carrot(2243, 94, 'jewel');
-    b.topple(2400, 26, 62); b.carrot(2413, 132, 'gold');
+    b.helpStep(2400, 26, 62); b.carrot(2413, 132, 'gold');
     b.block(2520, 30, 32, 210, 'blocks');
     b.cheer(2590, 'funny');
 
@@ -317,7 +320,7 @@
     b.row(3240, 190, 5, 24, 'silver');
     b.cheer(3370, 'funny');
     b.goal(3420);
-    return { key: 'house', name: 'THE BIG HOUSE', blurb: 'FunnyBunny laughs toys over!', helper: 'funny', lv: b.lv };
+    return { key: 'house', name: 'THE BIG HOUSE', blurb: 'FunnyBunny builds you steps!', helper: 'funny', lv: b.lv };
   }
 
   function makeLevel5() {
@@ -377,6 +380,7 @@
   let L = LEVELS[0], lv = L.lv;
   let player = null, cam = { x: 0 }, particles = [], pops = [], rescue = null, safeSpot = { x: 40, y: 188 };
   let elapsed = 0, score = 0, carrotsGot = 0, bannerT = 0, selIndex = 0;
+  let selAnim = 0; // the land picker's carousel position, easing toward selIndex
   let lastLevelScore = 0, newBest = false;
 
   function resetPlayer(x, y) {
@@ -392,7 +396,7 @@
     L = LEVELS[i];
     lv = L.lv;
     lv.carrots.forEach((c) => { c.got = false; });
-    lv.props.forEach((p) => { if (p.kind === 'toy') { p.state = 'up'; p.t = 0; } });
+    lv.props.forEach((p) => { if (p.kind === 'step') { p.state = 'hidden'; p.grow = 0; } });
     lv.helpers.forEach((h) => { h.squash = 0; h.laugh = 0; });
     resetPlayer(40, lv.solids[0].y - PH);
     cam = { x: 0 };
@@ -404,11 +408,10 @@
 
   // ---------- Input ----------
   const keys = {};
-  const touch = { left: false, right: false, hop: false };
 
   function pressHop() {
     ensureAudio();
-    if (state === 'title') { state = 'select'; selIndex = Math.min(save.unlocked - 1, LEVELS.length - 1); sfxMenu(); return; }
+    if (state === 'title') { state = 'select'; selIndex = 0; sfxMenu(); return; }
     if (state === 'select') {
       if (selIndex < save.unlocked) { startLevel(selIndex); sfxMenu(); }
       else beep(180, 0.12, 'square', 0.1);
@@ -420,7 +423,7 @@
       sfxMenu();
       return;
     }
-    if (state === 'victory') { state = 'select'; selIndex = LEVELS.length - 1; sfxMenu(); return; }
+    if (state === 'victory') { state = 'select'; selIndex = 0; sfxMenu(); return; }
     if (state === 'play') player.buffer = BUFFER;
   }
 
@@ -431,7 +434,9 @@
 
   function menuMove(dir) {
     if (state !== 'select') return;
-    selIndex = clamp(selIndex + dir, 0, LEVELS.length - 1);
+    const next = clamp(selIndex + dir, 0, LEVELS.length - 1);
+    if (next === selIndex) return;
+    selIndex = next;
     sfxMenu();
   }
 
@@ -448,39 +453,67 @@
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') releaseHop();
   });
 
-  function bindHold(el, prop, onPress) {
-    const on = (e) => { e.preventDefault(); ensureAudio(); touch[prop] = true; if (onPress) onPress(); };
-    const off = (e) => { if (e) e.preventDefault(); touch[prop] = false; if (prop === 'hop') releaseHop(); };
-    el.addEventListener('pointerdown', on);
-    el.addEventListener('pointerup', off);
-    el.addEventListener('pointercancel', off);
-    el.addEventListener('pointerleave', off);
-  }
-  const btnLeft = document.getElementById('btn-left');
-  const btnRight = document.getElementById('btn-right');
-  const btnHop = document.getElementById('btn-hop');
-  bindHold(btnLeft, 'left', () => menuMove(-1));
-  bindHold(btnRight, 'right', () => menuMove(1));
-  bindHold(btnHop, 'hop', () => { if (player) player.holding = true; pressHop(); });
+  // Optional on-screen controls (shared/touchpad.js), off until the toggle turns them on:
+  // a thumbstick bottom-left to hop around (and spin the land picker), HOP bottom-right.
+  const touchPad = MickleTouch.create({
+    toggleParent: document.getElementById('topbar'),
+    buttons: [{ id: 'hop', label: 'HOP' }],
+    onPress: () => { ensureAudio(); if (player) player.holding = true; pressHop(); },
+    onRelease: () => releaseHop(),
+    onStep: (dx) => { ensureAudio(); menuMove(dx); },
+  });
 
-  // The whole page (minus links and the arrow buttons) is a hop button too.
+  // The whole page (minus links and the touch controls) is a hop button too.
+  // In the land picker a press waits for the release: a swipe or a tap on a side land
+  // spins the carousel, a tap on the middle land plays it.
+  let selPress = null;
+  function canvasX(e) {
+    const r = canvas.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return null;
+    return (e.clientX - r.left) * (W / r.width);
+  }
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && (e.target.closest('a') || e.target.closest('#touchpad'))) return;
+    if (e.target.closest && e.target.closest('a, button')) return;
     e.preventDefault();
     ensureAudio();
+    if (state === 'select') { selPress = { x: e.clientX, cx: canvasX(e) }; return; }
     if (player) player.holding = true;
     pressHop();
   });
-  document.addEventListener('pointerup', releaseHop);
-  document.addEventListener('pointercancel', releaseHop);
+  document.addEventListener('pointerup', (e) => {
+    releaseHop();
+    if (!selPress) return;
+    const press = selPress;
+    selPress = null;
+    if (state !== 'select') return;
+    const r = canvas.getBoundingClientRect();
+    const swipe = (e.clientX - press.x) * (W / r.width);
+    if (Math.abs(swipe) > 30) { menuMove(swipe < 0 ? 1 : -1); return; }
+    const d = press.cx === null ? 0 : Math.round((press.cx - W / 2) / SEL_SPACING);
+    if (d) menuMove(d); else pressHop();
+  });
+  document.addEventListener('pointercancel', () => { selPress = null; releaseHop(); });
+
+  // Mouse wheel spins the land picker one land per notch.
+  let wheelLock = 0;
+  window.addEventListener('wheel', (e) => {
+    if (state !== 'select') return;
+    e.preventDefault();
+    let delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (e.deltaMode === 1) delta *= 16; // Firefox counts notches in lines
+    const now = performance.now();
+    if (Math.abs(delta) < 4 || now < wheelLock) return;
+    wheelLock = now + 220;
+    menuMove(delta > 0 ? 1 : -1);
+  }, { passive: false });
 
   const padReady = () => typeof Pad360 !== 'undefined';
   const moveInput = () => {
-    const left = keys['ArrowLeft'] || keys['KeyA'] || touch.left || (padReady() && Pad360.dx() < 0);
-    const right = keys['ArrowRight'] || keys['KeyD'] || touch.right || (padReady() && Pad360.dx() > 0);
+    const left = keys['ArrowLeft'] || keys['KeyA'] || touchPad.dx() < 0 || (padReady() && Pad360.dx() < 0);
+    const right = keys['ArrowRight'] || keys['KeyD'] || touchPad.dx() > 0 || (padReady() && Pad360.dx() > 0);
     return (left ? -1 : 0) + (right ? 1 : 0);
   };
-  const holdingHop = () => keys['Space'] || keys['ArrowUp'] || keys['KeyW'] || touch.hop ||
+  const holdingHop = () => keys['Space'] || keys['ArrowUp'] || keys['KeyW'] || touchPad.down('hop') ||
     (padReady() && (Pad360.down(Pad360.BTN.A) || Pad360.down(Pad360.BTN.START)));
 
   // Xbox 360 controller: D-pad/left stick moves and steps through the level
@@ -495,16 +528,14 @@
   }
 
   // ---------- World helpers ----------
-  function toyRect(t) {
-    if (t.state === 'up' || (t.state === 'falling' && t.t < 0.22)) {
-      return { x: t.x, y: t.baseY - t.standH, w: t.standW, h: t.standH, kind: 'block', style: 'toy' };
-    }
-    return { x: t.x, y: t.baseY - t.standW, w: t.standH, h: t.standW, kind: 'block', style: 'toy' };
+  function stepRect(st) {
+    const h = Math.max(1, Math.round(st.h * st.grow));
+    return { x: st.x, y: st.baseY - h, w: st.w, h, kind: 'block', style: 'blocks' };
   }
 
   function collisionSolids() {
     const out = lv.solids.slice();
-    for (const p of lv.props) if (p.kind === 'toy') out.push(toyRect(p));
+    for (const p of lv.props) if (p.kind === 'step' && p.state !== 'hidden') out.push(stepRect(p));
     return out;
   }
 
@@ -741,21 +772,24 @@
         }
       }
 
-      // FunnyBunny laughs the tall toys over
-      if (h.toy && h.toy.state === 'up' && Math.abs((player.x + PW / 2) - h.toy.x) < 120) {
-        h.toy.state = 'falling';
-        h.toy.t = 0;
-        h.laugh = 1.4;
-        sfxLaugh();
-        popup(h.x + 10, h.y - 14, 'HA HA HA!', '#ffd08a');
+      // FunnyBunny builds a step as you come up to the tall toy (only while you're still
+      // in front of where it goes, so it never pops up under you)
+      if (h.step && h.step.state === 'hidden') {
+        const gap = h.step.x - (player.x + PW);
+        if (gap > 2 && gap < 120) {
+          h.step.state = 'growing';
+          h.laugh = 1.4;
+          sfxLaugh();
+          popup(h.x + 10, h.y - 14, 'HERE YOU GO!', '#ffd08a');
+        }
       }
     }
     for (const p of lv.props) {
-      if (p.kind === 'toy' && p.state === 'falling') {
-        p.t += dt;
-        if (p.t >= 0.5) {
-          p.state = 'down';
-          spawnParticles(p.x + p.standH / 2, p.baseY, 8, '#d9c9b0', 70);
+      if (p.kind === 'step' && p.state === 'growing') {
+        p.grow = Math.min(1, p.grow + dt * 2.5);
+        if (p.grow >= 1) {
+          p.state = 'up';
+          spawnParticles(p.x + p.w / 2, p.baseY - p.h, 10, '#ffe14f', 80);
         }
       }
     }
@@ -799,6 +833,7 @@
     const key = L.key;
     newBest = !save.best[key] || score > save.best[key];
     if (newBest) save.best[key] = score;
+    if (window.MickleScores) MickleScores.record('snowbell-carrot-quest', score, { category: L.name, order: levelIndex });
     if (levelIndex + 1 >= save.unlocked && levelIndex + 1 < LEVELS.length) save.unlocked = levelIndex + 2;
     if (levelIndex === LEVELS.length - 1) save.tablet = true;
     persist();
@@ -1265,7 +1300,7 @@
       ctx.font = 'bold 9px monospace';
       ctx.fillText('A', s.x + s.w / 2 - 3, s.y + 11);
     } else if (style === 'toy') {
-      // teddy-ish tall toy, drawn either standing or toppled
+      // teddy-ish tall toy (too tall to hop -- FunnyBunny builds you a step)
       const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
       ctx.save();
       ctx.translate(cx, cy);
@@ -1321,18 +1356,7 @@
       else drawBlock(s);
     }
     for (const p of lv.props) {
-      if (p.kind !== 'toy') continue;
-      const r = toyRect(p);
-      if (p.state === 'falling') {
-        const k = clamp(p.t / 0.5, 0, 1);
-        ctx.save();
-        ctx.translate(p.x, p.baseY);
-        ctx.rotate(k * Math.PI / 2);
-        drawBlock({ x: 0, y: -p.standH, w: p.standW, h: p.standH, style: 'toy' });
-        ctx.restore();
-      } else {
-        drawBlock(r);
-      }
+      if (p.kind === 'step' && p.state !== 'hidden') drawBlock(stepRect(p));
     }
   }
 
@@ -1407,7 +1431,7 @@
         if (laughing) {
           ctx.fillStyle = '#ffe14f';
           ctx.font = 'bold 9px monospace';
-          ctx.fillText('HA!', h.x + 20, h.y - 6 - Math.sin(elapsed * 8) * 3);
+          ctx.fillText('YAY!', h.x + 20, h.y - 6 - Math.sin(elapsed * 8) * 3);
         }
       }
       // name tag
@@ -1606,6 +1630,8 @@
     ctx.textAlign = 'left';
   }
 
+  const SEL_SPACING = 118; // land picker: distance between card centers, in canvas units
+
   function drawSelect() {
     ctx.save();
     ctx.fillStyle = 'rgba(10,6,24,0.45)';
@@ -1617,64 +1643,85 @@
     ctx.fillText('PICK A LAND', W / 2, 30);
     ctx.shadowBlur = 0;
 
-    const cw = 84, gap = 8;
-    const totalW = LEVELS.length * cw + (LEVELS.length - 1) * gap;
-    const x0 = (W - totalW) / 2;
-    LEVELS.forEach((lev, i) => {
-      const x = x0 + i * (cw + gap);
+    // Xbox 360-style carousel: the picked land big in the middle, the others shrinking,
+    // squashing (a fake 3D tilt) and fading away to each side. Far cards draw first.
+    const cw = 96, ch = 112, cy = 108;
+    const order = LEVELS.map((lev, i) => i)
+      .filter((i) => Math.abs(i - selAnim) < 2.8)
+      .sort((a, b) => Math.abs(b - selAnim) - Math.abs(a - selAnim));
+    for (const i of order) {
+      const lev = LEVELS[i];
+      const d = i - selAnim, ad = Math.abs(d);
       const sel = i === selIndex;
       const locked = i >= save.unlocked;
-      const y = 48 + (sel ? -4 : 0);
-      ctx.fillStyle = locked ? 'rgba(30,24,50,0.85)' : sel ? 'rgba(60,40,110,0.95)' : 'rgba(28,20,60,0.85)';
-      roundRect(x, y, cw, 108, 6); ctx.fill();
+      const sc = 1.15 - Math.min(ad, 2) * 0.2;
+      const squash = 1 - Math.min(ad, 1.5) * 0.2;
+      const skew = clamp(d, -1.5, 1.5) * 0.07;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - Math.min(ad, 3) * 0.28);
+      ctx.translate(W / 2 + d * SEL_SPACING, cy);
+      ctx.transform(sc * squash, -skew * sc, 0, sc, 0, 0);
+      const x = -cw / 2, y = -ch / 2;
+
+      ctx.fillStyle = locked ? 'rgba(30,24,50,0.92)' : sel ? 'rgba(60,40,110,0.97)' : 'rgba(28,20,60,0.92)';
+      roundRect(x, y, cw, ch, 7); ctx.fill();
       ctx.strokeStyle = locked ? '#5a5470' : sel ? '#ffe14f' : '#4ff0ff';
       ctx.lineWidth = sel ? 2 : 1;
-      roundRect(x + 0.5, y + 0.5, cw - 1, 107, 6); ctx.stroke();
+      if (sel) { ctx.shadowColor = '#ff4fd8'; ctx.shadowBlur = 12; }
+      roundRect(x + 0.5, y + 0.5, cw - 1, ch - 1, 7); ctx.stroke();
+      ctx.shadowBlur = 0;
 
       // mini scene
       ctx.save();
-      ctx.beginPath(); roundRect(x + 6, y + 6, cw - 12, 42, 4); ctx.clip();
+      ctx.beginPath(); roundRect(x + 6, y + 6, cw - 12, 48, 4); ctx.clip();
       const pal = {
         grass: ['#5fc8f5', '#5fc24f'], computer: ['#0b2230', '#1c5c47'],
         lego: ['#4fa9ff', '#4f9e3f'], house: ['#e6c8a4', '#c98f62'], volcano: ['#7a2410', '#2b1a18'],
       }[lev.key];
-      ctx.fillStyle = pal[0]; ctx.fillRect(x + 6, y + 6, cw - 12, 42);
-      ctx.fillStyle = pal[1]; ctx.fillRect(x + 6, y + 34, cw - 12, 14);
-      if (!locked) drawBunny(x + cw / 2 - 12, y + 36, BUNNIES.snowbell, { face: 1, smile: true, scale: 0.75 });
-      drawCarrotIcon(x + cw / 2 + 14, y + 26, i === 4 ? 'jewel' : 'gold', 0.9);
+      ctx.fillStyle = pal[0]; ctx.fillRect(x + 6, y + 6, cw - 12, 48);
+      ctx.fillStyle = pal[1]; ctx.fillRect(x + 6, y + 38, cw - 12, 16);
+      if (!locked) drawBunny(x + cw / 2 - 12, y + 40, BUNNIES.snowbell, { face: 1, smile: true, scale: 0.8 });
+      drawCarrotIcon(x + cw / 2 + 16, y + 28, i === 4 ? 'jewel' : 'gold', 1);
       ctx.restore();
 
+      ctx.textAlign = 'center';
       ctx.font = 'bold 8px monospace';
       ctx.fillStyle = locked ? '#7a7490' : '#ffe14f';
-      ctx.fillText('LAND ' + (i + 1), x + cw / 2, y + 62);
+      ctx.fillText('LAND ' + (i + 1), x + cw / 2, y + 68);
       ctx.font = '7px monospace';
       ctx.fillStyle = locked ? '#7a7490' : '#ffffff';
-      wrapText(lev.name, x + cw / 2, y + 74, cw - 10, 9);
+      wrapText(lev.name, x + cw / 2, y + 80, cw - 10, 9);
       if (locked) {
         ctx.fillStyle = '#b9b0e0';
         ctx.font = '7px monospace';
-        ctx.fillText('FINISH LAND ' + i, x + cw / 2, y + 98);
-        ctx.fillStyle = '#ffe14f';
-        fillRR(x + cw / 2 - 5, y + 84, 10, 8, 2, '#8a84a0');
+        ctx.fillText('FINISH LAND ' + i, x + cw / 2, y + 104);
+        fillRR(x + cw / 2 - 5, y + 90, 10, 8, 2, '#8a84a0');
       } else {
         ctx.fillStyle = '#4ff0ff';
         ctx.font = '7px monospace';
-        ctx.fillText('BEST ' + (save.best[lev.key] || 0), x + cw / 2, y + 98);
+        ctx.fillText('BEST ' + (save.best[lev.key] || 0), x + cw / 2, y + 104);
       }
+      ctx.restore();
+    }
+
+    // little dots under the carousel: which land of the five you're on
+    LEVELS.forEach((lev, i) => {
+      const dx = W / 2 + (i - (LEVELS.length - 1) / 2) * 10;
+      circle(dx, 180, i === selIndex ? 2.6 : 1.8, i === selIndex ? '#4ff0ff' : i < save.unlocked ? '#ffffff' : 'rgba(255,255,255,0.4)');
     });
 
     ctx.font = '9px monospace';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('LEFT / RIGHT TO PICK  --  HOP TO PLAY', W / 2, 176);
+    ctx.fillText('LEFT / RIGHT / SWIPE TO PICK  --  HOP TO PLAY', W / 2, 196);
     if (save.tablet) {
       ctx.fillStyle = '#ffc233';
       ctx.font = 'bold 10px monospace';
-      ctx.fillText('★ YOU HAVE THE GOLDEN TABLET! ★', W / 2, 196);
+      ctx.fillText('★ YOU HAVE THE GOLDEN TABLET! ★', W / 2, 210);
     }
     ctx.font = '8px monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText('SNOWBELL HOPS: ARROWS / A D    HOP: SPACE', W / 2, 218);
-    ctx.fillText('IF YOU FALL, A BUNNY FRIEND PULLS YOU BACK UP!', W / 2, 232);
+    ctx.fillText('SNOWBELL HOPS: ARROWS / A D    HOP: SPACE', W / 2, 226);
+    ctx.fillText('IF YOU FALL, A BUNNY FRIEND PULLS YOU BACK UP!', W / 2, 238);
     ctx.restore();
     ctx.textAlign = 'left';
   }
@@ -1840,7 +1887,11 @@
     lastT = t;
     if (typeof Pad360 !== 'undefined') pollGamepad();
     if (state === 'play') updatePlay(dt);
-    else { elapsed += dt; updateFx(dt); }
+    else {
+      elapsed += dt; updateFx(dt);
+      selAnim += (selIndex - selAnim) * Math.min(1, dt * 10);
+      if (state !== 'select') selAnim = selIndex;
+    }
     render();
     requestAnimationFrame(loop);
   }

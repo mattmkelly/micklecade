@@ -241,6 +241,7 @@
       highScore = score;
       localStorage.setItem(HIGH_SCORE_KEY, String(highScore));
     }
+    if (window.MickleScores) MickleScores.record('freddy-bear-run', score);
   }
 
   // ---------- Update ----------
