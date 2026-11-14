@@ -31,11 +31,14 @@
     padding: 8px;
   }
 
-  /* Same footprint as the other games: as wide as fits, but short enough that the back
-     link, the race's touch buttons and the hint always stay on screen. */
+  /* the menus have no size of their own, so the body has to be told to fill the width */
+  body { width: 100%; }
+
+  /* As big as the window allows, leaving room for the race's touch buttons (the back link
+     and the hint live in the ☰ menu -- shared/menu.js). */
   #app {
-    width: min(720px, 100%, calc((100vh - 190px) * 16 / 9));
-    width: min(720px, 100%, calc((100dvh - 190px) * 16 / 9));
+    width: min(100%, calc((100vh - 140px) * 16 / 9));
+    width: min(100%, calc((100dvh - 140px) * 16 / 9));
     min-width: min(100%, 300px);
     display: flex;
     flex-direction: column;
@@ -161,13 +164,13 @@
     border-radius: 6px;
     box-shadow: 0 0 24px rgba(79,240,255,.5);
     width: 100%;
-    max-width: 720px;
+    max-width: 100%;
     height: auto;
     background: #000;
     touch-action: none;
   }
 
-  #touchpad { display: flex; gap: 12px; width: 100%; max-width: 720px; }
+  #touchpad { display: flex; gap: 12px; width: 100%; max-width: 100%; }
   #touchpad button {
     flex: 1;
     padding: 18px 0;
@@ -238,10 +241,12 @@
   </div>
 
 </div>
+<script src="../../shared/fullscreen.js"></script>
 <script src="../../shared/gamepad.js"></script>
 <script src="../../shared/hires.js"></script>
 <script src="../../shared/scores.js"></script>
 <script src="../../shared/carousel.js"></script>
+<script src="../../shared/menu.js" data-frame="#game, #app" data-at="0,1|0,0"></script>
 <script src="game.js"></script>
 </body>
 </html>

@@ -33,16 +33,16 @@
     box-sizing: border-box;
   }
 
-  /* As wide as fits, but short enough that the back link above the game and the
-     hint below it always stay on screen. */
+  /* As big as the window allows -- the back link and the how-to-play text live in the ☰ menu
+     (shared/menu.js), so nothing outside the frame needs room. */
   #wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
     padding: 8px;
-    width: min(100%, 960px, calc((100vh - 110px) * 16 / 9 + 16px));
-    width: min(100%, 960px, calc((100dvh - 110px) * 16 / 9 + 16px));
+    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
     min-width: min(100%, 300px);
     touch-action: manipulation;
   }
@@ -126,15 +126,17 @@
     <div id="stage">
       <canvas id="view"></canvas>
       <canvas id="hud" width="480" height="270"></canvas>
-      <input id="nameBox" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="TYPE YOUR NAME" hidden>
+      <input id="nameBox" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="TYPE YOUR NAME" hidden>
     </div>
     <div id="hint"></div>
   </div>
+  <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/three.min.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/hires.js"></script>
   <script src="../../shared/scores.js"></script>
   <script src="../../shared/touchpad.js"></script>
+  <script src="../../shared/menu.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

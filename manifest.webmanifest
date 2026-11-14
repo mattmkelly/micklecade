@@ -4,7 +4,8 @@
   "description": "The MickleKids arcade: little games to play in the browser.",
   "start_url": "launcher/index.html",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "background_color": "#120b28",
   "theme_color": "#120b28",
   "icons": [

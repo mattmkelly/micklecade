@@ -1511,18 +1511,26 @@
   let marbleSel = Math.max(0, MARBLES.findIndex((mb) => mb.id === save.marble));
   let levelSel = Math.min(LEVELS.length, save.story.done + 1);
   const nameBox = document.getElementById('nameBox');
+  // the arcade keeps names to 10 letters (shared/scores.js), so the box does too --
+  // what you type is exactly what shows on the scoreboards
+  const NAME_MAX = 10;
+  nameBox.maxLength = NAME_MAX;
   nameBox.value = playerName() === 'YOU' ? '' : playerName();
+  let shownName = nameBox.value;   // what the box held when it was last filled in or saved
   function commitName() {
     const typed = nameBox.value;
-    const clean = window.MickleScores ? MickleScores.setPlayer(typed) : typed.toUpperCase().trim().slice(0, 12);
+    // nothing typed since? leave the player alone (another page may have picked someone else)
+    if (typed === shownName) return;
+    shownName = typed;
+    const clean = window.MickleScores ? MickleScores.setPlayer(typed) : typed.toUpperCase().trim().slice(0, NAME_MAX);
     if (!clean) return;
     save.name = clean;
-    nameBox.value = clean;
+    nameBox.value = shownName = clean;
     writeSave();
     applyMarble();
   }
   nameBox.addEventListener('input', () => {
-    const v = nameBox.value.toUpperCase().replace(/[^A-Z0-9 ]/g, '');
+    const v = nameBox.value.toUpperCase().replace(/[^A-Z0-9 ]/g, '').slice(0, NAME_MAX);
     if (v !== nameBox.value) nameBox.value = v;
   });
   nameBox.addEventListener('change', commitName);
@@ -1751,6 +1759,12 @@
     hctx.fillText(str, x, y);
     hctx.shadowBlur = 0;
   }
+  // text() that steps its size down until it fits in maxW (never below 6px)
+  function fitText(str, x, y, px, color, maxW) {
+    hctx.font = font(px);
+    while (px > 6 && hctx.measureText(str).width > maxW) hctx.font = font(px -= 0.5);
+    text(str, x, y, px, color);
+  }
   function roundRect(x, y, w, h, r) {
     hctx.beginPath();
     hctx.moveTo(x + r, y);
@@ -1912,7 +1926,7 @@
 
   function drawLevelsHud() {
     text('STORY MODE', W / 2, 18, 16, '#5dff8a', 'center', '#5dff8a');
-    button('\u25C0 MENU', 8, 8, 60, 20, '#9fd8ff', toMenu);
+    button('\u25C0 MENU', 30, 8, 60, 20, '#9fd8ff', toMenu);
     const cw = 58, ch = 40, gap = 6, x0 = (W - (6 * cw + 5 * gap)) / 2;
     LEVELS.forEach((L, i) => {
       const n = i + 1, col = i % 6, row = Math.floor(i / 6);
@@ -1952,10 +1966,11 @@
 
   function drawBuildHud() {
     const n = lay.pieces.length - 1;
-    text('BUILD YOUR MARBLE RUN', 10, 14, 12, '#5ff3ff', 'left', '#5ff3ff');
-    text('PIECES ' + n + '/' + MAX_PIECES + '   LEVEL ' + lay.next.level, 10, 30, 9, '#ffffff');
+    // (x 32, not 10: the ☰ menu button sits in the top-left corner)
+    text('BUILD YOUR MARBLE RUN', 32, 14, 12, '#5ff3ff', 'left', '#5ff3ff');
+    text('PIECES ' + n + '/' + MAX_PIECES + '   LEVEL ' + lay.next.level, 32, 30, 9, '#ffffff');
     const best = save.best[save.track.join('.')];
-    if (best) text('BEST TIME ' + best.toFixed(2) + 's', 10, 43, 9, '#ffe14f');
+    if (best) text('BEST TIME ' + best.toFixed(2) + 's', 32, 43, 9, '#ffe14f');
 
     button('RACE! ▶', W - 96, 8, 88, 30, '#5dff8a', tryRace, true);
     button('UNDO', 8, 56, 66, 20, '#ffffff', undoPiece);
@@ -2010,8 +2025,8 @@
     }
 
     const place = marbles.slice().sort((a, b) => progressOf(b) - progressOf(a)).indexOf(player);
-    text(fmtTime(player.finished ? player.finishTime : raceTime), 10, 14, 13, '#ffffff');
-    text('★ ' + starsGot, 10, 32, 12, '#ffd400');
+    text(fmtTime(player.finished ? player.finishTime : raceTime), 32, 14, 13, '#ffffff');
+    text('★ ' + starsGot, 32, 32, 12, '#ffd400');
     text(placeName(place), W / 2, 18, 20, ['#ffd400', '#e0e6ff', '#ffb06b', '#ffffff'][place], 'center', '#000');
     button(raceKind === 'story' ? '\u25C0 LEVELS' : '\u25C0 BUILD', W - 74, 8, 66, 20, '#9fd8ff', leaveRace);
     if (raceKind === 'story') text('LEVEL ' + storyLevel + ': ' + LEVELS[storyLevel - 1].name, W - 10, 38, 8, '#ffffff', 'right');
@@ -2058,8 +2073,12 @@
       text(placeName(i), x + 30, yy, 10, '#ffffff');
       hctx.fillStyle = m.rc.color;
       hctx.beginPath(); hctx.arc(x + 70, yy, 5, 0, Math.PI * 2); hctx.fill();
-      text(m.rc.name, x + 82, yy, 10, m === player ? '#ffe14f' : '#ffffff');
-      text(m.finished ? fmtTime(m.finishTime) : 'ROLLING...', x + w - 24, yy, 10, '#ffffff', 'right');
+      // the name gets everything up to the time column (and shrinks rather than run into it)
+      const timeStr = m.finished ? fmtTime(m.finishTime) : 'ROLLING...';
+      hctx.font = font(10);
+      const nameRoom = x + w - 24 - hctx.measureText(timeStr).width - 8 - (x + 82);
+      fitText(m.rc.name, x + 82, yy, 10, m === player ? '#ffe14f' : '#ffffff', nameRoom);
+      text(timeStr, x + w - 24, yy, 10, '#ffffff', 'right');
     });
     text('\u2605 ' + results.stars + ' STARS   TIME ' + fmtTime(results.time) + (results.newBest ? '  NEW BEST!' : ''), W / 2, y + 122, 9, '#ffd400', 'center');
     text('SCORE ' + results.score, W / 2, y + 138, 12, '#5dff8a', 'center', '#5dff8a');

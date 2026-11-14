@@ -230,61 +230,90 @@
     transform: scale(1.3);
   }
 
-  /* ---- High-score board for the selected game ---- */
+  /* ---- HIGH SCORES and CREDITS: tiles on the shelf that open a full-screen sheet ---- */
 
-  .board {
-    margin: 14px auto 0;
-    width: min(540px, 100%);
-    border: 2px solid rgba(79, 240, 255, 0.55);
-    border-radius: 10px;
-    background: rgba(20, 12, 48, 0.75);
-    box-shadow: 0 0 12px rgba(79, 240, 255, 0.25), inset 0 0 18px rgba(79, 240, 255, 0.06);
-    padding: 8px 12px 10px;
-    text-align: left;
-  }
-  .board[hidden] { display: none; }
+  .cabinet.special .art { background: radial-gradient(circle at 50% 40%, #2a1660 0%, #0c0624 75%); }
+  .cabinet.special .art svg { width: 100%; height: 100%; }
 
-  .board-head {
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(5, 3, 14, 0.9);
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 0.8rem;
-    letter-spacing: 2px;
-    color: var(--neon-cyan);
-    text-shadow: 0 0 6px var(--neon-cyan);
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(79, 240, 255, 0.25);
+    justify-content: center;
+    padding: 16px;
   }
-  .board-head .cat { color: var(--neon-yellow); text-shadow: 0 0 6px var(--neon-yellow); flex: 1; text-align: center; }
-  .board-head button {
-    background: none;
-    border: 0;
-    color: var(--neon-cyan);
-    font: bold 0.9rem 'Courier New', Courier, monospace;
+  .sheet[hidden] { display: none; }
+  .sheet-panel {
+    width: min(720px, 100%);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #1e1440 0%, #140c30 100%);
+    border: 3px solid var(--neon-cyan);
+    border-radius: 14px;
+    box-shadow: 0 0 30px rgba(79, 240, 255, 0.45);
+    padding: 18px 20px;
+  }
+  .sheet h2 {
+    margin: 0 0 12px;
+    text-align: center;
+    font-size: 1.6rem;
+    letter-spacing: 4px;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 8px var(--neon-yellow), 0 0 22px var(--neon-pink);
+  }
+  .sheet-body { overflow-y: auto; padding-right: 4px; }
+  .sheet .close {
+    align-self: center;
+    margin-top: 14px;
+    padding: 10px 26px;
+    font: bold 1rem 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+    color: #fff;
+    background: rgba(10, 6, 24, 0.8);
+    border: 2px solid var(--neon-pink);
+    border-radius: 999px;
     cursor: pointer;
-    padding: 2px 6px;
     touch-action: manipulation;
   }
-  .board-head button[hidden] { visibility: hidden; display: inline; }
+  .sheet .close:hover, .sheet .close:focus-visible { outline: none; box-shadow: 0 0 14px var(--neon-pink); }
 
-  .board ol { list-style: none; margin: 6px 0 0; padding: 0; }
-  .board li {
-    display: grid;
-    grid-template-columns: 2.4em 1fr auto 6.5em;
-    gap: 8px;
-    align-items: baseline;
-    font-size: 0.9rem;
-    letter-spacing: 1px;
-    padding: 2px 0;
-    color: #d9d2ff;
+  /* every game's boards, one section per game */
+  .hs-game { margin-bottom: 14px; }
+  .hs-game h3 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    letter-spacing: 3px;
+    color: var(--neon-pink);
+    text-shadow: 0 0 6px var(--neon-pink);
+    border-bottom: 1px solid rgba(255, 79, 216, 0.3);
+    padding-bottom: 4px;
   }
-  .board li .rank { color: #8a7fc0; }
-  .board li .score { color: var(--neon-yellow); text-align: right; }
-  .board li .date { color: #8a7fc0; font-size: 0.75rem; text-align: right; }
-  .board li.first .rank { color: var(--neon-yellow); text-shadow: 0 0 6px var(--neon-yellow); }
-  .board li.me .name { color: var(--neon-pink); text-shadow: 0 0 6px var(--neon-pink); }
-  .board li.empty { display: block; text-align: center; color: #8a7fc0; font-size: 0.85rem; letter-spacing: 1px; padding: 10px 0 4px; }
+  .hs-boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 14px; }
+  .hs-board {
+    border: 1px solid rgba(79, 240, 255, 0.35);
+    border-radius: 8px;
+    background: rgba(10, 6, 24, 0.5);
+    padding: 6px 10px 8px;
+  }
+  .hs-board .cat { font-size: 0.72rem; letter-spacing: 2px; color: var(--neon-cyan); margin-bottom: 2px; }
+  .hs-board ol { list-style: none; margin: 0; padding: 0; }
+  .hs-board li { display: grid; grid-template-columns: 1.6em 1fr auto; gap: 6px; font-size: 0.85rem; letter-spacing: 1px; color: #d9d2ff; padding: 1px 0; }
+  .hs-board li .rank { color: #8a7fc0; }
+  .hs-board li .score { color: var(--neon-yellow); }
+  .hs-board li.first .rank { color: var(--neon-yellow); text-shadow: 0 0 6px var(--neon-yellow); }
+  .hs-board li.me .name { color: var(--neon-pink); text-shadow: 0 0 6px var(--neon-pink); }
+  .hs-empty { font-size: 0.85rem; letter-spacing: 1px; color: #8a7fc0; }
+
+  /* credits */
+  .credits { text-align: center; letter-spacing: 2px; line-height: 1.6; color: #d9d2ff; }
+  .credits .big { font-size: 1.3rem; color: var(--neon-yellow); text-shadow: 0 0 8px var(--neon-yellow); margin: 4px 0 12px; }
+  .credits h3 { margin: 16px 0 4px; font-size: 0.85rem; letter-spacing: 3px; color: var(--neon-cyan); }
+  .credits ul { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; }
+  .credits .small { font-size: 0.75rem; color: #8a7fc0; }
 
   /* ---- Player badge + "who's playing?" picker ---- */
 
@@ -384,26 +413,14 @@
   }
   .picker .close { margin-top: 16px; color: #b9b0e0; border-color: #3a2e6e; }
 
-  footer {
-    margin-top: auto;
-    padding-top: 24px;
-    font-size: 0.7rem;
-    color: #6a5fa0;
-    letter-spacing: 1px;
-    text-align: center;
-  }
-
   @media (max-width: 600px) {
     :root { --card-w: 62vw; }
     .nav { display: none; }
     .player-badge { position: static; margin: 0 auto 12px; max-width: 90vw; }
-    .board li { grid-template-columns: 2em 1fr auto; }
-    .board li .date { display: none; }
   }
 
-  @media (max-height: 720px) {
+  @media (max-height: 560px) {
     .info .blurb { display: none; }
-    .board { margin-top: 8px; }
   }
 
   @media (max-height: 560px) {
@@ -480,6 +497,42 @@
         <div class="title">COMING SOON</div>
         <div class="blurb">Our next game<br>goes here!</div>
       </div>
+
+      <div class="cabinet special" data-sheet="scores">
+        <div class="art">
+          <svg viewBox="0 0 160 120" aria-hidden="true">
+            <g fill="#ffe14f" opacity="0.9">
+              <path d="M22 22 l3 7 7 1 -5 5 1 7 -6 -3 -6 3 1 -7 -5 -5 7 -1z"/>
+              <path d="M136 30 l2 5 5 1 -4 3 1 5 -4 -2 -4 2 1 -5 -4 -3 5 -1z"/>
+              <path d="M128 86 l2 4 4 1 -3 3 1 4 -4 -2 -4 2 1 -4 -3 -3 4 -1z"/>
+            </g>
+            <path d="M58 22 h44 v18 a22 22 0 0 1 -44 0z" fill="#ffd23f" stroke="#b08a00" stroke-width="3"/>
+            <path d="M58 28 h-12 a10 12 0 0 0 14 18 M102 28 h12 a10 12 0 0 1 -14 18" fill="none" stroke="#ffd23f" stroke-width="5"/>
+            <rect x="74" y="60" width="12" height="16" fill="#e0b020"/>
+            <rect x="60" y="76" width="40" height="10" rx="3" fill="#ffd23f" stroke="#b08a00" stroke-width="2"/>
+            <rect x="54" y="86" width="52" height="14" rx="3" fill="#7a3fe0"/>
+            <path d="M69 30 q4 18 14 22" stroke="#fff8c0" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.8"/>
+          </svg>
+        </div>
+        <div class="title">HIGH SCORES</div>
+        <div class="blurb">Every game's best players,<br>all in one place!</div>
+      </div>
+
+      <div class="cabinet special" data-sheet="credits">
+        <div class="art">
+          <svg viewBox="0 0 160 120" aria-hidden="true">
+            <path d="M80 100 C30 70 30 30 56 28 C68 27 76 36 80 44 C84 36 92 27 104 28 C130 30 130 70 80 100z"
+                  fill="#ff4fd8" stroke="#ffd0f4" stroke-width="3"/>
+            <text x="80" y="66" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="bold"
+                  font-size="20" fill="#fff">MK</text>
+            <g fill="#4ff0ff">
+              <circle cx="24" cy="30" r="3"/><circle cx="138" cy="24" r="2.5"/><circle cx="140" cy="92" r="3"/><circle cx="20" cy="90" r="2"/>
+            </g>
+          </svg>
+        </div>
+        <div class="title">CREDITS</div>
+        <div class="blurb">Who made the MickleCade?<br>The MickleKids!</div>
+      </div>
     </div>
 
     <button class="nav next" type="button" aria-label="Next game">&#9654;</button>
@@ -489,14 +542,36 @@
     <p class="now"></p>
     <p class="blurb"></p>
     <div class="dots"></div>
-    <div class="board" hidden>
-      <div class="board-head">
-        <button class="cat-prev" type="button" aria-label="Previous board">&#9650;</button>
-        <span>HIGH SCORES</span>
-        <span class="cat"></span>
-        <button class="cat-next" type="button" aria-label="Next board">&#9660;</button>
+  </div>
+
+  <div class="sheet" data-sheet="scores" hidden>
+    <div class="sheet-panel" role="dialog" aria-label="High scores">
+      <h2>&#9733; HIGH SCORES &#9733;</h2>
+      <div class="sheet-body hs-list"></div>
+      <button class="close" type="button">CLOSE</button>
+    </div>
+  </div>
+
+  <div class="sheet" data-sheet="credits" hidden>
+    <div class="sheet-panel" role="dialog" aria-label="Credits">
+      <h2>CREDITS</h2>
+      <div class="sheet-body credits">
+        <div>THE MICKLECADE</div>
+        <div class="big">MADE BY THE MICKLEKIDS</div>
+        <h3>THE GAMES</h3>
+        <ul class="credit-games"></ul>
+        <h3>HOW TO USE THE ARCADE</h3>
+        <ul>
+          <li>&#9664; &#9654; / SWIPE / D-PAD &mdash; PICK A GAME</li>
+          <li>TAP IT / A / ENTER &mdash; PLAY</li>
+          <li>Y / P / TAP THE STAR &mdash; WHO'S PLAYING</li>
+          <li>&#9776; IN A GAME &mdash; MENU, FULL SCREEN, HOW TO PLAY</li>
+        </ul>
+        <h3>THANK YOU</h3>
+        <div class="small">3D in Marble Rumble by three.js (MIT licence)</div>
+        <div class="big" style="margin-top:14px">THANKS FOR PLAYING!</div>
       </div>
-      <ol></ol>
+      <button class="close" type="button">CLOSE</button>
     </div>
   </div>
 
@@ -513,8 +588,7 @@
     </div>
   </div>
 
-  <footer>MADE BY THE MICKLEKIDS &mdash; &#9664; &#9654; TO BROWSE &mdash; &#9650; &#9660; HIGH SCORES &mdash; A / ENTER TO PLAY &mdash; Y / P TO PICK PLAYER</footer>
-
+<script src="../shared/fullscreen.js" data-corner="left"></script>
 <script src="../shared/gamepad.js"></script>
 <script src="../shared/scores.js"></script>
 <script src="../shared/carousel.js"></script>
@@ -523,18 +597,17 @@
   // cabinet in the middle is "selected". Arrows / D-pad / left stick / LB-RB / mouse wheel
   // move one cabinet at a time; A, Enter or tapping the selected cabinet opens it. Tapping
   // a side cabinet just slides it to the middle.
-  // Under the strip, the selected game's high-score board (shared/scores.js); up/down flip
-  // between its tracks / lands / grades. The badge top-right (or Y / P) picks the player.
+  // The last tiles aren't games: HIGH SCORES opens every game's boards (shared/scores.js) and
+  // CREDITS opens the credits, each as a full-screen sheet. The badge top-right (or Y / P)
+  // picks the player.
   (function () {
     const strip = document.querySelector('.cabinet-strip');
     const items = Array.from(strip.querySelectorAll('.cabinet'));
     const nowEl = document.querySelector('.info .now');
     const blurbEl = document.querySelector('.info .blurb');
-    const boardEl = document.querySelector('.board');
-    const boardCatEl = boardEl.querySelector('.cat');
-    const boardListEl = boardEl.querySelector('ol');
-    const catPrevBtn = boardEl.querySelector('.cat-prev');
-    const catNextBtn = boardEl.querySelector('.cat-next');
+    const sheets = {};
+    document.querySelectorAll('.sheet').forEach((el) => { sheets[el.dataset.sheet] = el; });
+    const hsList = document.querySelector('.hs-list');
     const badge = document.querySelector('.player-badge');
     const picker = document.querySelector('.picker');
     const playerList = picker.querySelector('.player-list');
@@ -559,7 +632,6 @@
       dots.forEach((dot, j) => dot.classList.toggle('on', j === i));
       nowEl.textContent = el.querySelector('.title').textContent;
       blurbEl.innerHTML = el.querySelector('.blurb').innerHTML;
-      openBoard();
       prevBtn.disabled = i === 0;
       nextBtn.disabled = i === items.length - 1;
       try { localStorage.setItem(STORE_KEY, String(i)); } catch (e) {}
@@ -570,78 +642,82 @@
 
     function launch() {
       const el = items[selected];
-      if (el && !el.classList.contains('locked')) window.location.href = el.href;
+      if (!el) return;
+      if (el.dataset.sheet) openSheet(el.dataset.sheet);
+      else if (!el.classList.contains('locked')) window.location.href = el.href;
     }
 
-    // ---- High-score board ----
+    // ---- HIGH SCORES and CREDITS sheets ----
 
-    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    const BOARD_ROWS = 5;
-    let boards = [], boardIdx = 0;
+    const HS_ROWS = 3;
+    let openSheetEl = null;
+    function sheetOpen() { return !!openSheetEl; }
 
     // The game id is its folder name: ../games/<id>/index.html
     function gameId(el) {
       const m = /games\/([^/]+)\//.exec(el.getAttribute('href') || '');
       return m ? m[1] : '';
     }
+    const games = items.filter((el) => gameId(el));
 
-    function fmtDate(iso) {
-      const [y, m, d] = String(iso).split('-').map(Number);
-      if (!y || !m || !d) return '';
-      const label = MONTHS[m - 1] + ' ' + d;
-      return y === new Date().getFullYear() ? label : label + ' ' + y;
+    function cell(tag, cls, text) {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (text !== undefined) el.textContent = text;
+      return el;
     }
 
-    // Show the selected game's board, starting on whichever track / land / grade was played last.
-    function openBoard() {
-      const id = gameId(items[selected]);
-      boards = id ? MickleScores.boards(id) : [];
-      const last = id ? MickleScores.lastCategory(id) : '';
-      boardIdx = Math.max(0, boards.findIndex((b) => b.category === last));
-      boardEl.hidden = !id;
-      renderBoard();
-    }
-
-    function cycleBoard(dir) {
-      if (boards.length < 2) return;
-      boardIdx = (boardIdx + dir + boards.length) % boards.length;
-      renderBoard();
-    }
-
-    function renderBoard() {
-      const b = boards[boardIdx];
-      catPrevBtn.hidden = catNextBtn.hidden = boards.length < 2;
-      boardCatEl.textContent = b && b.category ? b.category : '';
-      boardListEl.textContent = '';
-      if (!b || !b.list.length) {
-        const li = document.createElement('li');
-        li.className = 'empty';
-        li.textContent = 'NO SCORES YET \u2014 BE THE FIRST!';
-        boardListEl.appendChild(li);
-        return;
-      }
+    // Every game, each of its boards (tracks, lands, grades...), top 3 of each.
+    function renderScores() {
+      hsList.textContent = '';
       const me = MickleScores.player();
-      b.list.slice(0, BOARD_ROWS).forEach((entry, i) => {
-        const li = document.createElement('li');
-        if (i === 0) li.classList.add('first');
-        if (me && entry.name === me) li.classList.add('me');
-        [
-          ['rank', i === 0 ? '\u2605' : (i + 1) + '.'],
-          ['name', entry.name],
-          ['score', MickleScores.formatScore(entry.score, b.format)],
-          ['date', fmtDate(entry.date)],
-        ].forEach(([cls, text]) => {
-          const span = document.createElement('span');
-          span.className = cls;
-          span.textContent = text;
-          li.appendChild(span);
+      games.forEach((el) => {
+        const sec = cell('div', 'hs-game');
+        sec.appendChild(cell('h3', '', el.querySelector('.title').textContent));
+        const boards = MickleScores.boards(gameId(el)).filter((b) => b.list.length);
+        if (!boards.length) sec.appendChild(cell('div', 'hs-empty', 'NO SCORES YET \u2014 BE THE FIRST!'));
+        const grid = cell('div', 'hs-boards');
+        boards.forEach((b) => {
+          const box = cell('div', 'hs-board');
+          if (b.category) box.appendChild(cell('div', 'cat', b.category));
+          const ol = cell('ol');
+          b.list.slice(0, HS_ROWS).forEach((entry, i) => {
+            const li = cell('li', (i === 0 ? 'first' : '') + (me && entry.name === me ? ' me' : ''));
+            li.append(cell('span', 'rank', i === 0 ? '\u2605' : (i + 1) + '.'), cell('span', 'name', entry.name),
+              cell('span', 'score', MickleScores.formatScore(entry.score, b.format)));
+            ol.appendChild(li);
+          });
+          box.appendChild(ol);
+          grid.appendChild(box);
         });
-        boardListEl.appendChild(li);
+        sec.appendChild(grid);
+        hsList.appendChild(sec);
       });
     }
 
-    catPrevBtn.addEventListener('click', () => cycleBoard(-1));
-    catNextBtn.addEventListener('click', () => cycleBoard(1));
+    // the credits list the games from the shelf, so a new game shows up by itself
+    const creditGames = document.querySelector('.credit-games');
+    games.forEach((el) => creditGames.appendChild(cell('li', '', el.querySelector('.title').textContent)));
+
+    function openSheet(name) {
+      if (name === 'scores') renderScores();
+      openSheetEl = sheets[name];
+      openSheetEl.hidden = false;
+      openSheetEl.querySelector('.sheet-body').scrollTop = 0;
+      openSheetEl.querySelector('.close').focus();
+    }
+    function closeSheet() {
+      if (!openSheetEl) return;
+      openSheetEl.hidden = true;
+      openSheetEl = null;
+    }
+    function scrollSheet(dir) {
+      if (openSheetEl) openSheetEl.querySelector('.sheet-body').scrollBy({ top: dir * 90, behavior: 'smooth' });
+    }
+    Object.values(sheets).forEach((el) => {
+      el.querySelector('.close').addEventListener('click', closeSheet);
+      el.addEventListener('click', (e) => { if (e.target === el) closeSheet(); });
+    });
 
     // ---- Player picker ----
 
@@ -706,7 +782,6 @@
       picker.hidden = true;
       try { sessionStorage.setItem(ASKED_KEY, '1'); } catch (e) {}
       updateBadge();
-      renderBoard();
       badge.blur();
     }
 
@@ -744,10 +819,14 @@
         }
         return;
       }
+      if (sheetOpen()) {
+        if (e.key === 'Escape' || e.key === 'Backspace') { closeSheet(); e.preventDefault(); }
+        else if (e.key === 'ArrowDown') { scrollSheet(1); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { scrollSheet(-1); e.preventDefault(); }
+        return;
+      }
       if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
       else if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
-      else if (e.key === 'ArrowDown') { cycleBoard(1); e.preventDefault(); }
-      else if (e.key === 'ArrowUp') { cycleBoard(-1); e.preventDefault(); }
       else if (e.key === 'p' || e.key === 'P') { openPicker(); e.preventDefault(); }
       else if (e.key === 'Home') { goTo(0); e.preventDefault(); }
       else if (e.key === 'End') { goTo(items.length - 1); e.preventDefault(); }
@@ -755,8 +834,8 @@
     });
 
     // Xbox 360 controller: D-pad/left stick left-right (with hold-to-repeat) and LB/RB
-    // browse, up-down flips the high-score board, A or Start opens the selected cabinet,
-    // Y picks the player. In the picker: D-pad moves, A presses, B (or Y) closes.
+    // browse, A or Start opens the selected cabinet, Y picks the player. In the picker:
+    // D-pad moves, A presses, B (or Y) closes. In a sheet: up-down scrolls, A or B closes.
     let holdDir = 0, holdNext = 0;
     function loop(t) {
       if (typeof Pad360 !== 'undefined' && pickerOpen()) {
@@ -770,9 +849,13 @@
           closePicker();
         }
         holdDir = 0;
+      } else if (typeof Pad360 !== 'undefined' && sheetOpen()) {
+        Pad360.poll();
+        if (Pad360.dyPressed()) scrollSheet(Pad360.dyPressed());
+        if (Pad360.pressed(Pad360.BTN.A) || Pad360.pressed(Pad360.BTN.B) || Pad360.pressed(Pad360.BTN.BACK)) closeSheet();
+        holdDir = 0;
       } else if (typeof Pad360 !== 'undefined') {
         Pad360.poll();
-        if (Pad360.dyPressed()) cycleBoard(Pad360.dyPressed());
         if (Pad360.pressed(Pad360.BTN.Y)) openPicker();
         const dir = Pad360.dx();
         if (dir !== holdDir) {
@@ -795,8 +878,10 @@
     const shelf = MickleCarousel.create(strip, {
       start: Math.min(start, items.length - 1),
       onSelect: select,
+      // game tiles are links and open themselves; HIGH SCORES / CREDITS open their sheet
+      onActivate: (i, card) => { if (card.dataset.sheet) openSheet(card.dataset.sheet); },
       wheel: window,
-      wheelEnabled: () => !pickerOpen(),
+      wheelEnabled: () => !pickerOpen() && !sheetOpen(),
     });
     updateBadge();
     requestAnimationFrame(loop);

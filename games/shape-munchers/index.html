@@ -30,16 +30,16 @@
     box-sizing: border-box;
   }
 
-  /* As wide as fits, but short enough that the back link above the game and the
-     controls / hint below it always stay on screen. */
+  /* As big as the window allows -- the back link and the how-to-play text live in the ☰ menu
+     (shared/menu.js), so nothing outside the frame needs room. */
   #wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
     padding: 8px;
-    width: min(100%, 720px, calc((100vh - 110px) * 16 / 9 + 16px));
-    width: min(100%, 720px, calc((100dvh - 110px) * 16 / 9 + 16px));
+    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
     min-width: min(100%, 300px);
     touch-action: manipulation;
   }
@@ -58,7 +58,7 @@
     border-radius: 6px;
     box-shadow: 0 0 24px rgba(107, 224, 79, 0.45);
     width: 100%;
-    max-width: 720px;
+    max-width: 100%;
     height: auto;
     background: #000;
     touch-action: none;
@@ -79,9 +79,11 @@
     <canvas id="game" width="480" height="270"></canvas>
     <div id="hint">ARROWS / D-PAD TO MOVE &mdash; SPACE / A BUTTON TO MUNCH &mdash; OR JUST TAP A SHAPE</div>
   </div>
+  <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/hires.js"></script>
   <script src="../../shared/scores.js"></script>
+  <script src="../../shared/menu.js" data-at="0.158,0"></script>
   <script src="game.js"></script>
 </body>
 </html>
