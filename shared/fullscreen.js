@@ -8,8 +8,10 @@
 // the top-right corner (data-corner="left" on the script tag puts it top-left instead).
 // While in full screen, <html> gets the class "mc-full" and --mc-max is lifted, so a game
 // whose width is min(100%, var(--mc-max, 720px), ...) grows to fill the screen.
-// Opened from a home-screen icon (manifest display: fullscreen) it is already full screen,
-// and the button hides itself.
+// The home-screen icon opens as an app window (manifest display: standalone), where this
+// button still works -- so full screen can always be left from the ☰ menu. A shortcut made
+// while the manifest said "fullscreen" can't be taken out of full screen by a page, so the
+// button hides itself there (re-add the shortcut to get it back).
 (function (global) {
   var KEY = 'micklecade.fullscreen';
   var root = document.documentElement;
