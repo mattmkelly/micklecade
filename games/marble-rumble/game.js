@@ -1530,6 +1530,25 @@
     e.stopPropagation();
     if (e.key === 'Enter') { nameBox.blur(); commitName(); sfxPlace(); }
   });
+  // typed a name and then went back to the arcade or closed the tab? still keep it
+  window.addEventListener('pagehide', () => { if (mode === 'menu') commitName(); });
+
+  // Names saved in this browser (shared with the whole arcade), newest last, as tap-to-pick
+  // chips under the name box.
+  const NAME_CHIPS = 6;
+  let nameSel = 0;
+  function savedNames() {
+    const all = window.MickleScores ? MickleScores.players() : (save.name ? [save.name] : []);
+    return all.slice(-NAME_CHIPS);
+  }
+  function pickName(i) {
+    const names = savedNames();
+    if (!names.length) return;
+    nameSel = (i + names.length) % names.length;
+    nameBox.value = names[nameSel];
+    commitName();
+    sfxSelect();
+  }
 
   function pickMarble(i) {
     marbleSel = (i + MARBLES.length) % MARBLES.length;
@@ -1544,15 +1563,18 @@
     sfxSelect();
     rebuildTrack(false, layout(storyTrack(levelSel)));
   }
+  // menuFocus -1 is the row of saved names (only there when there are some)
   function menuMove(dx, dy) {
-    if (dy < 0) menuFocus = 0;
-    else if (dy > 0 && menuFocus === 0) menuFocus = 1;
+    if (dy < 0) menuFocus = menuFocus >= 1 ? 0 : savedNames().length ? -1 : 0;
+    else if (dy > 0) menuFocus = menuFocus === -1 ? 0 : menuFocus === 0 ? 1 : menuFocus;
+    else if (dx && menuFocus === -1) { pickName(nameSel + dx); return; }
     else if (dx && menuFocus === 0) { pickMarble(marbleSel + dx); return; }
     else if (dx) menuFocus = dx < 0 ? 1 : 2;
+    if (menuFocus === -1) nameSel = Math.max(0, savedNames().indexOf(nameBox.value));
     sfxSelect();
   }
   function menuChoose() {
-    if (menuFocus === 0) menuFocus = 1;
+    if (menuFocus <= 0) menuFocus = 1;
     else if (menuFocus === 1) toLevels();
     else backToBuild();
     sfxPlace();
@@ -1709,7 +1731,7 @@
 
   function setHint() {
     hintEl.textContent = {
-      menu: 'ARROWS PICK — SPACE / A CHOOSE — TAP THE BOX TO TYPE YOUR NAME',
+      menu: 'ARROWS PICK — SPACE / A CHOOSE — TAP A NAME, OR THE BOX TO TYPE A NEW ONE',
       levels: 'ARROWS PICK A LEVEL — SPACE / A PLAY — ESC / B BACK',
       build: 'LEFT/RIGHT PICK A PIECE — SPACE / A ADDS IT — BACKSPACE / B UNDO — R / Y RACE! — ESC MENU',
       race: 'ARROWS / STICK ROLL — SPACE / A JUMP — ESC / B BACK',
@@ -1834,13 +1856,33 @@
     text('MARBLE RUMBLE', W / 2, 26, 26, '#ffe14f', 'center', '#ff6b2c');
     text('YOUR NAME', W / 2, 58, 9, '#5ff3ff', 'center');
 
+    // saved names: tap one to be that player again
+    const names = savedNames();
+    if (names.length) {
+      hctx.font = font(8);
+      const widths = names.map((nm) => hctx.measureText(nm).width + 14);
+      let cx = W / 2 - (widths.reduce((a, b) => a + b, 0) + 5 * (names.length - 1)) / 2;
+      names.forEach((nm, i) => {
+        const w = widths[i], current = nm === nameBox.value, focused = menuFocus === -1 && i === nameSel;
+        roundRect(cx, 94, w, 13, 6);
+        hctx.fillStyle = current ? 'rgba(95,243,255,0.3)' : 'rgba(10,12,40,0.75)'; hctx.fill();
+        hctx.lineWidth = focused ? 2.5 : 1.2;
+        hctx.strokeStyle = focused ? '#ffe14f' : current ? '#5ff3ff' : 'rgba(255,255,255,0.5)';
+        hctx.stroke();
+        text(nm, cx + w / 2, 101, 8, current ? '#ffffff' : '#cfe8ff', 'center');
+        const at = cx;
+        hudButtons.push({ x: at, y: 92, w, h: 17, fn: () => { menuFocus = -1; pickName(i); } });
+        cx += w + 5;
+      });
+    }
+
     const mb = MARBLES[marbleSel];
     const open = unlocked(mb);
     text(open ? 'YOUR MARBLE: ' + mb.name : mb.name + ' -- FINISH STORY LEVEL ' + mb.unlock + ' TO UNLOCK',
-      W / 2, 112, 9, open ? '#ffffff' : '#ffb0b0', 'center');
+      W / 2, 117, 9, open ? '#ffffff' : '#ffb0b0', 'center');
     const gap = 46, x0 = W / 2 - gap * (MARBLES.length - 1) / 2;
     MARBLES.forEach((spec, i) => {
-      const x = x0 + i * gap, y = 138, on = i === marbleSel, r = on ? 17 : 14;
+      const x = x0 + i * gap, y = 142, on = i === marbleSel, r = on ? 17 : 14;
       if (on) {
         hctx.beginPath(); hctx.arc(x, y, r + 4, 0, Math.PI * 2);
         hctx.strokeStyle = menuFocus === 0 ? '#ffe14f' : 'rgba(255,225,79,0.5)'; hctx.lineWidth = 3;
