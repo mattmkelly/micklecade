@@ -80,6 +80,30 @@
     touch-action: none;
   }
 
+  /* name entry on the title screen, laid over the HUD */
+  #nameBox {
+    position: absolute;
+    left: 31%;
+    top: 24.5%;
+    width: 38%;
+    height: 9%;
+    font: bold clamp(12px, 2.6vw, 22px) 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+    text-align: center;
+    text-transform: uppercase;
+    color: #ffe14f;
+    background: rgba(10, 12, 40, 0.85);
+    border: 3px solid #5ff3ff;
+    border-radius: 10px;
+    outline: none;
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+  }
+  #nameBox:focus { border-color: #ffe14f; box-shadow: 0 0 12px #ffe14f; }
+  #nameBox::placeholder { color: rgba(255, 255, 255, 0.45); }
+  #nameBox[hidden] { display: none; }
+
   #hint {
     color: #ffe14f;
     font-size: 0.72rem;
@@ -97,6 +121,7 @@
     <div id="stage">
       <canvas id="view"></canvas>
       <canvas id="hud" width="480" height="270"></canvas>
+      <input id="nameBox" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="TYPE YOUR NAME" hidden>
     </div>
     <div id="hint"></div>
   </div>
