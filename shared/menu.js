@@ -65,6 +65,14 @@
   function open() { if (!panel) return; panel.hidden = false; btn.classList.remove('nudge'); }
   function close() { if (!panel) return; panel.hidden = true; btn.blur(); }
 
+  // Back to the arcade: inside the launcher's game frame, ask it to close the game (so full
+  // screen stays on); opened on its own, just go to the launcher page.
+  function backToArcade() {
+    if (global.parent !== global) { global.parent.postMessage({ mc: 'back' }, '*'); return; }
+    var back = document.getElementById('back');
+    global.location.href = back ? back.href : '../../launcher/index.html';
+  }
+
   // the first frame (in data-frame's order) that is showing, and its index
   function shownFrame() {
     for (var i = 0; i < frames.length; i++) if (frames[i] && frames[i].getBoundingClientRect().width > 0) return i;
@@ -114,7 +122,10 @@
 
     // everything that used to sit outside the frame moves in here
     var back = document.getElementById('back');
-    if (back) items.appendChild(back);
+    if (back) {
+      items.appendChild(back);
+      back.addEventListener('click', function (e) { e.preventDefault(); backToArcade(); });
+    }
     var bar = document.getElementById('topbar');
     if (bar) {
       while (bar.firstChild) {
@@ -178,5 +189,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
   else setup();
 
-  global.MickleMenu = { open: open, close: close, isOpen: isOpen };
+  global.MickleMenu = { open: open, close: close, isOpen: isOpen, backToArcade: backToArcade };
 })(window);

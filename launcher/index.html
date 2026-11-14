@@ -230,6 +230,18 @@
     transform: scale(1.3);
   }
 
+  /* ---- A game, opened over the shelf (so full screen stays on from game to game) ---- */
+
+  .game-frame {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    z-index: 200;
+    background: #000;
+  }
+
   /* ---- HIGH SCORES and CREDITS: tiles on the shelf that open a full-screen sheet ---- */
 
   .cabinet.special .art { background: radial-gradient(circle at 50% 40%, #2a1660 0%, #0c0624 75%); }
@@ -644,8 +656,55 @@
       const el = items[selected];
       if (!el) return;
       if (el.dataset.sheet) openSheet(el.dataset.sheet);
-      else if (!el.classList.contains('locked')) window.location.href = el.href;
+      else if (!el.classList.contains('locked')) openGame(el.href);
     }
+
+    // ---- Games open over the shelf, in a frame that fills the screen ----
+    // Going to another page always drops full screen, so the arcade never leaves this page:
+    // the game runs in an iframe on top, and the launcher keeps full screen the whole time.
+    // The game page talks to us with postMessage (works from file:// too):
+    //   { mc: 'back' }                 its BACK TO MICKLECADE link -> close the game
+    //   { mc: 'fullscreen', on }       its FULL SCREEN button -> we switch full screen
+    //   { mc: 'hello' }                it just loaded -> tell it whether we're full screen
+    // and we send it { mc: 'fs', full } whenever full screen changes.
+    let gameFrame = null;
+    function gameOpen() { return !!gameFrame; }
+    function tellGame() {
+      if (gameFrame && gameFrame.contentWindow) {
+        const F = window.MickleFull;
+        gameFrame.contentWindow.postMessage({ mc: 'fs', full: !!F && F.isFull(), can: !!F && F.canSwitch() }, '*');
+      }
+    }
+    function openGame(url) {
+      if (gameFrame) return;
+      gameFrame = document.createElement('iframe');
+      gameFrame.className = 'game-frame';
+      gameFrame.allow = 'fullscreen; gamepad; autoplay';
+      gameFrame.setAttribute('allowfullscreen', '');
+      gameFrame.title = 'Game';
+      gameFrame.src = url;
+      gameFrame.addEventListener('load', () => { if (gameFrame) { gameFrame.focus(); tellGame(); } });
+      document.body.appendChild(gameFrame);
+      // the tablet's back button closes the game instead of leaving the arcade
+      try { history.pushState({ mcGame: url }, ''); } catch (e) {}
+    }
+    function closeGame(fromHistory) {
+      if (!gameFrame) return;
+      gameFrame.remove();
+      gameFrame = null;
+      updateBadge();   // a name may have been typed in the game
+      if (!fromHistory) { try { history.back(); } catch (e) {} }
+      window.focus();  // keys and taps come back to the shelf
+    }
+    window.addEventListener('popstate', () => closeGame(true));
+    window.addEventListener('message', (e) => {
+      if (!gameFrame || e.source !== gameFrame.contentWindow || !e.data || typeof e.data !== 'object') return;
+      if (e.data.mc === 'back') closeGame(false);
+      else if (e.data.mc === 'hello') tellGame();
+      else if (e.data.mc === 'fullscreen' && window.MickleFull) MickleFull.set(!!e.data.on);
+    });
+    document.addEventListener('fullscreenchange', tellGame);
+    document.addEventListener('webkitfullscreenchange', tellGame);
 
     // ---- HIGH SCORES and CREDITS sheets ----
 
@@ -810,6 +869,7 @@
     nextBtn.addEventListener('click', () => step(1));
 
     document.addEventListener('keydown', (e) => {
+      if (gameOpen()) return;   // keys are the game's while it's open
       if (pickerOpen()) {
         // Buttons click themselves on Enter/Space; arrows walk between them (not inside the name box).
         if (e.key === 'Escape') { closePicker(); e.preventDefault(); }
@@ -836,9 +896,15 @@
     // Xbox 360 controller: D-pad/left stick left-right (with hold-to-repeat) and LB/RB
     // browse, A or Start opens the selected cabinet, Y picks the player. In the picker:
     // D-pad moves, A presses, B (or Y) closes. In a sheet: up-down scrolls, A or B closes.
-    let holdDir = 0, holdNext = 0;
+    let holdDir = 0, holdNext = 0, padQuietUntil = 0;
     function loop(t) {
-      if (typeof Pad360 !== 'undefined' && pickerOpen()) {
+      if (gameOpen() || t < padQuietUntil) {
+        // the controller belongs to the game while it's open -- and for a moment after it
+        // closes, so a held A doesn't launch something straight away
+        if (typeof Pad360 !== 'undefined') Pad360.poll();
+        if (gameOpen()) padQuietUntil = t + 400;
+        holdDir = 0;
+      } else if (typeof Pad360 !== 'undefined' && pickerOpen()) {
         Pad360.poll();
         const move = Pad360.dxPressed() || Pad360.dyPressed();
         if (move) movePickerFocus(move);
@@ -878,10 +944,14 @@
     const shelf = MickleCarousel.create(strip, {
       start: Math.min(start, items.length - 1),
       onSelect: select,
-      // game tiles are links and open themselves; HIGH SCORES / CREDITS open their sheet
-      onActivate: (i, card) => { if (card.dataset.sheet) openSheet(card.dataset.sheet); },
+      // HIGH SCORES / CREDITS open their sheet; game tiles are links, but open over the shelf
+      // instead of going to another page (so full screen stays on)
+      onActivate: (i, card, e) => {
+        if (card.dataset.sheet) openSheet(card.dataset.sheet);
+        else if (card.href) { if (e) e.preventDefault(); openGame(card.href); }
+      },
       wheel: window,
-      wheelEnabled: () => !pickerOpen() && !sheetOpen(),
+      wheelEnabled: () => !pickerOpen() && !sheetOpen() && !gameOpen(),
     });
     updateBadge();
     requestAnimationFrame(loop);

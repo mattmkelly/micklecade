@@ -439,7 +439,7 @@
     else if (state === 'clear') { level++; newLevel(); }
   }
   function onBack() {
-    if (state === 'title') window.location.href = '../../launcher/index.html';
+    if (state === 'title') { if (window.MickleMenu) MickleMenu.backToArcade(); else window.location.href = '../../launcher/index.html'; }
     else backToTitle();
   }
 

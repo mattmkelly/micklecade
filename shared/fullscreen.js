@@ -1,13 +1,15 @@
 // Full screen for MickleCade pages. Browsers only allow full screen after a tap or key
-// press, and drop it whenever you go to another page (launcher -> game -> launcher). So this
-// remembers that you wanted it (micklecade.fullscreen, shared by every page) and goes back
-// to full screen on your first tap or key press on each page.
+// press, and drop it whenever you go to another page. So the launcher opens games over
+// itself in an iframe (see launcher/index.html) and keeps full screen the whole time, and
+// this file remembers that you wanted it (micklecade.fullscreen, shared by every page) and
+// goes back to full screen on your first tap or key press on a page you went to directly.
 //
 // Plain <script src="../../shared/fullscreen.js"></script> -- no modules, works from file://.
 // It adds a FULL SCREEN button by itself: inside #topbar if the page has one, otherwise in
 // the top-right corner (data-corner="left" on the script tag puts it top-left instead).
-// While in full screen, <html> gets the class "mc-full" and --mc-max is lifted, so a game
-// whose width is min(100%, var(--mc-max, 720px), ...) grows to fill the screen.
+// While in full screen, <html> gets the class "mc-full".
+// Inside the launcher's game frame, full screen belongs to the launcher: the button asks it
+// to switch (postMessage { mc: 'fullscreen', on }) and shows what it reports back.
 // The home-screen icon opens as an app window (manifest display: standalone), where this
 // button still works -- so full screen can always be left from the ☰ menu. A shortcut made
 // while the manifest said "fullscreen" can't be taken out of full screen by a page, so the
@@ -17,6 +19,8 @@
   var root = document.documentElement;
   var script = document.currentScript;
   var corner = (script && script.getAttribute('data-corner')) || 'right';
+  var embedded = global.parent !== global;   // a game running inside the launcher
+  var host = { full: false, can: true };       // the launcher's full screen, when embedded
   var leaving = false;
   var btn = null;
 
@@ -35,8 +39,16 @@
 
   function supported() { return !!(root.requestFullscreen || root.webkitRequestFullscreen); }
   function apiFull() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-  function appFull() { return !!(global.matchMedia && global.matchMedia('(display-mode: fullscreen)').matches); }
-  function isFull() { return apiFull() || appFull(); }
+  // Full screen we didn't ask for and can't undo: an old fullscreen home-screen shortcut, or
+  // F11. Chrome and the Fire tablet's Silk also report display-mode: fullscreen while *we*
+  // are full screen, so that case doesn't count -- otherwise EXIT FULL SCREEN would vanish.
+  function appFull() {
+    return !apiFull() && !!(global.matchMedia && global.matchMedia('(display-mode: fullscreen)').matches);
+  }
+  function isFull() { return embedded ? host.full : apiFull() || appFull(); }
+  // full screen we switched on, so the button can switch it off again
+  function ownFull() { return embedded ? host.full : apiFull(); }
+  function canSwitch() { return embedded ? host.can : supported() && !appFull(); }
   function wanted() { try { return localStorage.getItem(KEY) === 'on'; } catch (e) { return false; } }
   function setWanted(v) { try { localStorage.setItem(KEY, v ? 'on' : 'off'); } catch (e) {} }
 
@@ -51,13 +63,19 @@
     if (!f || !apiFull()) return;
     try { quiet(f.call(document)); } catch (e) {}
   }
+  // turn full screen on or off and remember it (the launcher does this for its game frame)
+  function set(on) {
+    if (embedded) { global.parent.postMessage({ mc: 'fullscreen', on: !!on }, '*'); return; }
+    setWanted(on);
+    if (on) enter(); else exit();
+  }
 
   function sync() {
     root.classList.toggle('mc-full', isFull());
     if (!btn) return;
-    btn.hidden = !supported() || appFull();
-    btn.classList.toggle('on', apiFull());
-    btn.textContent = apiFull() ? 'EXIT FULL SCREEN' : '⛶ FULL SCREEN';
+    btn.hidden = !canSwitch();
+    btn.classList.toggle('on', ownFull());
+    btn.textContent = ownFull() ? 'EXIT FULL SCREEN' : '⛶ FULL SCREEN';
     // games that size their canvas on resize get a nudge once the screen has changed size
     global.dispatchEvent(new Event('resize'));
   }
@@ -80,7 +98,7 @@
     btn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (apiFull()) { setWanted(false); exit(); } else { setWanted(true); enter(); }
+      set(!ownFull());
       btn.blur();
     });
     var bar = document.getElementById('topbar');
@@ -92,16 +110,26 @@
   // first tap or key press on a page goes back to full screen if you had it on
   function onGesture(e) {
     if (btn && e.target === btn) return;
-    if (wanted() && !isFull() && supported()) enter();
+    if (wanted() && !isFull() && canSwitch()) set(true);
   }
   document.addEventListener('pointerdown', onGesture, true);
   document.addEventListener('keydown', onGesture, true);
-  document.addEventListener('fullscreenchange', onChange);
-  document.addEventListener('webkitfullscreenchange', onChange);
-  global.addEventListener('pagehide', function () { leaving = true; });
+  if (embedded) {
+    global.addEventListener('message', function (e) {
+      if (e.source !== global.parent || !e.data || e.data.mc !== 'fs') return;
+      host.full = !!e.data.full;
+      host.can = e.data.can !== false;
+      sync();
+    });
+    global.parent.postMessage({ mc: 'hello' }, '*');
+  } else {
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    global.addEventListener('pagehide', function () { leaving = true; });
+  }
 
   if (document.body) addButton();
   else document.addEventListener('DOMContentLoaded', addButton);
 
-  global.MickleFull = { isFull: isFull, enter: enter, exit: exit };
+  global.MickleFull = { isFull: isFull, canSwitch: canSwitch, enter: enter, exit: exit, set: set };
 })(window);
