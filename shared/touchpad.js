@@ -11,6 +11,8 @@
 //     onStep(dx) {},                                     // the stick was nudged left/right (-1 / 1), for menus
 //   });
 //   pad.dx()          // -1 / 0 / 1 while the stick is held left / centre / right
+//   pad.dy()          // -1 / 0 / 1 while the stick is held up / centre / down
+//   pad.ax(), pad.ay() // analog -1..1 stick position, for rolling in any direction
 //   pad.down('hop')   // is that button held?
 // Touches on the controls never reach the page, so "tap anywhere" game handlers are safe.
 (function (global) {
@@ -54,7 +56,7 @@
     opts = opts || {};
     injectCss();
     var on = loadOn();
-    var stickX = 0;
+    var stickX = 0, stickY = 0, stickAX = 0, stickAY = 0;
     var held = {};
 
     var layer = document.createElement('div');
@@ -77,13 +79,15 @@
       if (len > max) { x *= max / len; y *= max / len; }
       knob.style.transform = 'translate(' + x + 'px,' + y + 'px)';
       var prev = stickX;
-      var nx = x / max;
+      var nx = x / max, ny = y / max;
       stickX = nx < -DEAD ? -1 : nx > DEAD ? 1 : 0;
+      stickY = ny < -DEAD ? -1 : ny > DEAD ? 1 : 0;
+      stickAX = nx; stickAY = ny;
       if (stickX && stickX !== prev && opts.onStep) opts.onStep(stickX);
     }
     function releaseStick() {
       stickPointer = null;
-      stickX = 0;
+      stickX = 0; stickY = 0; stickAX = 0; stickAY = 0;
       knob.style.transform = '';
     }
     stick.addEventListener('pointerdown', function (e) {
@@ -167,6 +171,9 @@
 
     return {
       dx: function () { return on ? stickX : 0; },
+      dy: function () { return on ? stickY : 0; },
+      ax: function () { return on ? stickAX : 0; },
+      ay: function () { return on ? stickAY : 0; },
       down: function (id) { return on && !!held[id]; },
       enabled: function () { return on; },
     };

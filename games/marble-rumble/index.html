@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marble Rumble</title>
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #0b1030;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* the 3D stage has no size of its own, so the body has to be told to fill the width */
+  body { width: 100%; }
+
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  /* As wide as fits, but short enough that the back link above the game and the
+     hint below it always stay on screen. */
+  #wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    width: min(100%, 960px, calc((100vh - 110px) * 16 / 9 + 16px));
+    width: min(100%, 960px, calc((100dvh - 110px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
+    touch-action: manipulation;
+  }
+
+  #topbar {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  #back {
+    color: #5ff3ff;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px #5ff3ff;
+  }
+
+  /* The 3D view and the HUD canvas drawn over it. */
+  #stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 4px solid #5ff3ff;
+    border-radius: 6px;
+    box-shadow: 0 0 24px rgba(95, 243, 255, 0.45);
+    background: #000;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  #stage canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  #hint {
+    color: #ffe14f;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-align: center;
+    text-shadow: 0 0 6px #ffe14f;
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="topbar">
+      <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+    </div>
+    <div id="stage">
+      <canvas id="view"></canvas>
+      <canvas id="hud" width="480" height="270"></canvas>
+    </div>
+    <div id="hint"></div>
+  </div>
+  <script src="../../shared/three.min.js"></script>
+  <script src="../../shared/gamepad.js"></script>
+  <script src="../../shared/hires.js"></script>
+  <script src="../../shared/scores.js"></script>
+  <script src="../../shared/touchpad.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
