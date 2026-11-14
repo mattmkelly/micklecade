@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cozy Cove</title>
+<link rel="icon" type="image/png" sizes="48x48" href="../../assets/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../../assets/icon-192.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../manifest.webmanifest">
+<meta name="theme-color" content="#120b28">
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #0d2a3f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* the 3D stage has no size of its own, so the body has to be told to fill the width */
+  body { width: 100%; }
+
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  #wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
+    touch-action: manipulation;
+  }
+
+  #topbar {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  #back {
+    color: #5ff3ff;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px #5ff3ff;
+  }
+
+  #newIsland {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 2px solid #ffb38a;
+    background: transparent;
+    color: #ffb38a;
+    font: bold 0.8rem 'Courier New', Courier, monospace;
+    letter-spacing: 1px;
+    cursor: pointer;
+  }
+
+  #stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 4px solid #fff3d6;
+    border-radius: 10px;
+    box-shadow: 0 0 24px rgba(255, 243, 214, 0.35);
+    background: #a6e3ff;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  #view {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  /* Everything in the UI is sized in em; game.js sets #ui's font-size from the stage width. */
+  #ui {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font-size: 16px;
+    font-weight: bold;
+    color: #4a3b2a;
+  }
+  #ui button {
+    pointer-events: auto;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border: 0.14em solid #fff;
+    background: rgba(255, 248, 232, 0.92);
+    border-radius: 0.8em;
+    box-shadow: 0 0.2em 0 rgba(60, 40, 20, 0.28);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    transition: transform 0.08s;
+  }
+  #ui button:active { transform: translateY(0.12em) scale(0.96); }
+  #ui button svg { width: 1.9em; height: 1.9em; display: block; }
+  #ui button .lbl { font-size: 0.5em; letter-spacing: 0.06em; margin-top: 0.1em; }
+
+  #tools {
+    position: absolute;
+    left: 50%;
+    bottom: 0.6em;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.35em;
+    align-items: flex-end;
+  }
+  #tools button { width: 3.3em; height: 3.3em; }
+  #tools button.on {
+    background: #ffe27a;
+    border-color: #ff9d3c;
+    transform: translateY(-0.4em) scale(1.08);
+    box-shadow: 0 0.5em 0.6em rgba(60, 40, 20, 0.3);
+  }
+  #swatch { margin-left: 0.5em; }
+  #swatch .chip {
+    width: 1.8em; height: 1.8em; border-radius: 50%;
+    border: 0.12em solid #4a3b2a;
+  }
+
+  .corner { position: absolute; display: flex; gap: 0.35em; }
+  .corner button { width: 2.6em; height: 2.6em; }
+  .corner button .big { font-size: 1.4em; line-height: 1; }
+  #cornerR { right: 0.6em; top: 0.6em; }
+  #spinL { left: 0.6em; bottom: 0.6em; }
+  #spinR { right: 0.6em; bottom: 0.6em; }
+
+  #stat {
+    position: absolute;
+    left: 50%;
+    top: 0.6em;
+    transform: translateX(-50%);
+    padding: 0.25em 0.9em;
+    border-radius: 999px;
+    background: rgba(255, 248, 232, 0.85);
+    font-size: 0.8em;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+
+  #toast {
+    position: absolute;
+    left: 50%;
+    top: 22%;
+    transform: translateX(-50%);
+    padding: 0.4em 1.1em;
+    border-radius: 999px;
+    background: #fff8e8;
+    border: 0.14em solid #ff9d3c;
+    font-size: 1.1em;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    opacity: 0;
+  }
+  #toast.show { animation: toast 2.4s ease-out forwards; }
+  #toast.big { font-size: 1.7em; border-color: #ff5fa2; }
+  @keyframes toast {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    10% { opacity: 1; transform: translateX(-50%) scale(1.1); }
+    18% { transform: translateX(-50%) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-0.6em); }
+  }
+
+  #title {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    background: rgba(20, 50, 80, 0.35);
+    pointer-events: auto;
+    cursor: pointer;
+    text-align: center;
+    transition: opacity 0.5s;
+  }
+  #title.gone { opacity: 0; pointer-events: none; }
+  #title h1 {
+    margin: 0;
+    font-size: 4.2em;
+    letter-spacing: 0.1em;
+    color: #fff8e8;
+    text-shadow: 0 0.06em 0 #ff9d3c, 0 0.14em 0.3em rgba(0, 0, 0, 0.35);
+  }
+  #title p {
+    margin: 0;
+    font-size: 1.1em;
+    letter-spacing: 0.12em;
+    color: #fff;
+    text-shadow: 0 0.1em 0.2em rgba(0, 0, 0, 0.5);
+  }
+  #title .go { margin-top: 0.8em; animation: bob 1.2s ease-in-out infinite; color: #ffe27a; }
+  @keyframes bob { 50% { transform: translateY(-0.3em); } }
+
+  #hint {
+    color: #ffe14f;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="topbar">
+      <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+      <button id="newIsland" type="button">NEW ISLAND</button>
+    </div>
+    <div id="stage">
+      <canvas id="view"></canvas>
+      <div id="ui">
+        <div id="stat">HOMES 1</div>
+        <div id="toast"></div>
+
+        <div id="cornerR" class="corner">
+          <button id="undo" type="button" aria-label="Undo"><span class="big">&#8630;</span><span class="lbl">UNDO</span></button>
+          <button id="night" type="button" aria-label="Day or night">
+            <svg viewBox="0 0 24 24"><circle id="sunIco" cx="12" cy="12" r="6" fill="#ffb52e"/><path id="moonIco" d="M15 4a8 8 0 1 0 5 13A7 7 0 0 1 15 4z" fill="#5a6fd0" opacity="0"/></svg>
+            <span class="lbl" id="nightLbl">DAY</span>
+          </button>
+        </div>
+        <div id="spinL" class="corner">
+          <button id="rotL" type="button" aria-label="Turn left"><span class="big">&#8634;</span><span class="lbl">TURN</span></button>
+        </div>
+        <div id="spinR" class="corner">
+          <button id="rotR" type="button" aria-label="Turn right"><span class="big">&#8635;</span><span class="lbl">TURN</span></button>
+        </div>
+
+        <div id="tools">
+          <button type="button" data-tool="land">
+            <svg viewBox="0 0 24 24"><path d="M1 17q3-3 6 0t6 0 6 0 4 0v6H1z" fill="#39bfd6"/><path d="M4 16q2-9 8-9t8 9z" fill="#f2dc9b"/><path d="M6.5 14.5q1.500-6 5.500-6t5.500 6z" fill="#7ccf5a"/></svg>
+            <span class="lbl">LAND</span>
+          </button>
+          <button type="button" data-tool="house">
+            <svg viewBox="0 0 24 24"><path d="M5 11h14v10H5z" fill="#fff1d0" stroke="#b9a27a" stroke-width=".6"/><path d="M2.500 12 12 3l9.500 9z" fill="#d9623b"/><path d="M10.500 15h3v6h-3z" fill="#8a5a36"/><path d="M15 13.500h2.500V16H15z" fill="#6aa6d8"/></svg>
+            <span class="lbl">HOUSE</span>
+          </button>
+          <button type="button" data-tool="nature">
+            <svg viewBox="0 0 24 24"><path d="M10.800 14h2.400v8h-2.400z" fill="#8a5a36"/><circle cx="12" cy="9" r="6.500" fill="#4fb04a"/><circle cx="15" cy="6.500" r="3" fill="#7ccf5a"/></svg>
+            <span class="lbl">NATURE</span>
+          </button>
+          <button type="button" data-tool="path">
+            <svg viewBox="0 0 24 24"><path d="M8 22 10 2h4l2 20z" fill="#e2d2b0"/><g fill="#bfae8c"><rect x="10.500" y="4" width="3" height="2" rx=".6"/><rect x="10" y="9" width="4" height="2.400" rx=".6"/><rect x="9.600" y="14.500" width="4.800" height="2.600" rx=".6"/></g></svg>
+            <span class="lbl">PATH</span>
+          </button>
+          <button type="button" data-tool="dock">
+            <svg viewBox="0 0 24 24"><path d="M1 18q3-3 6 0t6 0 6 0 4 0v5H1z" fill="#39bfd6"/><path d="M3 9h18v3.500H3z" fill="#b98652"/><path d="M5 12.500h2.400V19H5zM16.600 12.500H19V19h-2.400z" fill="#8a5a36"/><path d="M9 9V10M15 9v1" stroke="#8a5a36"/></svg>
+            <span class="lbl">DOCK</span>
+          </button>
+          <button type="button" data-tool="dig">
+            <svg viewBox="0 0 24 24"><path d="M14.500 3.500 20.500 9.500" stroke="#8a5a36" stroke-width="2.600" stroke-linecap="round"/><path d="M17.500 6.500 9 15" stroke="#8a5a36" stroke-width="2.200" stroke-linecap="round"/><path d="M4 20q-1-5 3.500-8l4.500 4.500q-3 4.500-8 3.500z" fill="#9aa3ad"/></svg>
+            <span class="lbl">DIG</span>
+          </button>
+          <button type="button" id="swatch" aria-label="House colour">
+            <span class="chip" id="chip"></span>
+            <span class="lbl">COLOR</span>
+          </button>
+        </div>
+
+        <div id="title">
+          <h1>COZY COVE</h1>
+          <p>BUILD YOUR OWN LITTLE ISLAND TOWN</p>
+          <p class="go">TAP TO START</p>
+        </div>
+      </div>
+    </div>
+    <div id="hint">
+      <span>PICK A TOOL, THEN TAP OR DRAG ON THE ISLAND.</span>
+      <span>LAND GROWS THE ISLAND. HOUSES NEXT TO EACH OTHER JOIN UP.</span>
+      <span>TAP A HOUSE AGAIN TO BUILD IT TALLER.</span>
+      <span>TAP A TREE, PATH OR DOCK AGAIN TO CHANGE IT.</span>
+      <span>TWO FINGERS: PINCH, TWIST AND SLIDE THE VIEW.</span>
+      <span>KEYS: ARROWS + SPACE, 1-6 TOOLS, Q/E TURN, C COLOR, N NIGHT, Z UNDO.</span>
+      <span>CONTROLLER: A BUILD, B DIG, LB/RB TOOL, X COLOR, Y NIGHT.</span>
+    </div>
+  </div>
+  <script src="../../shared/fullscreen.js"></script>
+  <script src="../../shared/three.min.js"></script>
+  <script src="../../shared/gamepad.js"></script>
+  <script src="../../shared/scores.js"></script>
+  <script src="../../shared/menu.js" data-at="0,0"></script>
+  <script src="game.js"></script>
+</body>
+</html>
