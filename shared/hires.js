@@ -12,9 +12,11 @@
 (function (global) {
   var MAX_SCALE = 4;
 
-  function setup(canvas, w, h, onReset) {
+  // opts.maxScale (optional) caps the buffer below MAX_SCALE -- a slow tablet can ask for 2x.
+  function setup(canvas, w, h, onReset, opts) {
     var ctx = canvas.getContext('2d');
     var scale = 1;
+    var maxScale = (opts && opts.maxScale) || MAX_SCALE;
 
     // The transform doesn't apply to shadows, so scale glow sizes by hand --
     // otherwise every shadowBlur would shrink as the buffer grows.
@@ -30,7 +32,7 @@
       var dpr = global.devicePixelRatio || 1;
       var shown = canvas.clientWidth || w;
       // Whole-number scales keep tiles drawn edge to edge from showing seams.
-      var s = Math.max(1, Math.min(MAX_SCALE, Math.round(shown * dpr / w)));
+      var s = Math.max(1, Math.min(maxScale, Math.round(shown * dpr / w)));
       if (s === scale && !force) return;
       scale = s;
       canvas.width = w * s;  // resets all context state

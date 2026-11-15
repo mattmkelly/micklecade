@@ -12,7 +12,6 @@
   const stage = document.getElementById('stage');
 
   const W = 480, H = 270;
-  const hctx = HiRes.setup(hud, W, H);
 
   const PI = Math.PI, TAU = PI * 2;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -31,7 +30,7 @@
   function loadSave() {
     const s = {
       look: [{ racer: 0, hat: 'none', paint: 'own' }, { racer: 2, hat: 'none', paint: 'own' }],
-      speed: 0, players: 1, music: true, coins: 0, gold: false,
+      speed: 0, players: 1, music: true, coins: 0, gold: false, gfx: 'auto',
       my: [blankTrack(), blankTrack(), blankTrack()], best: {}, cups: {}, gp: {},
     };
     try {
@@ -45,6 +44,7 @@
           if (i < 3 && t && Array.isArray(t.cells) && t.cells.length) s.my[i] = Object.assign(blankTrack(), t);
         });
         ['best', 'cups', 'gp'].forEach((k) => { if (v[k] && typeof v[k] === 'object') s[k] = v[k]; });
+        if (v.gfx === 'fast' || v.gfx === 'nice') s.gfx = v.gfx;
       }
     } catch (e) {}
     return s;
@@ -53,6 +53,14 @@
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
   }
   const save = loadSave();
+
+  // FAST graphics for tablets and phones (Fire tablets especially): no smoothing of edges, fewer
+  // pixels, a softer HUD, fewer trees and particles. Picked by itself unless the menu button says.
+  const looksLikeTablet = /Android|Silk|KF[A-Z]{2,}|iPad|iPhone|Mobile/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && !(window.matchMedia && matchMedia('(pointer: fine)').matches));
+  const FAST = save.gfx === 'fast' || (save.gfx === 'auto' && looksLikeTablet);
+  // the HUD canvas: on FAST it stays at 2x the 480x270 picture instead of up to 4x
+  const hctx = HiRes.setup(hud, W, H, null, { maxScale: FAST ? 2 : 4 });
 
   // ---------- Sound ----------
   let audioCtx = null, engine = null, sfxBus = null, musicBus = null, noiseBuf = null;
@@ -186,10 +194,24 @@
   musicBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   musicBtn.addEventListener('click', (e) => { e.stopPropagation(); unlockAudio(); setMusic(!save.music); musicBtn.blur(); });
   document.getElementById('topbar').appendChild(musicBtn);
+  // edge smoothing can only be picked when the page starts, so changing this reloads the game
+  const gfxBtn = document.createElement('button');
+  gfxBtn.type = 'button';
+  gfxBtn.className = 'mt-toggle';
+  gfxBtn.textContent = 'GRAPHICS: ' + (FAST ? 'FAST' : 'NICE');
+  gfxBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  gfxBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    save.gfx = FAST ? 'nice' : 'fast';
+    writeSave();
+    location.reload();
+  });
+  document.getElementById('topbar').appendChild(gfxBtn);
 
   // ---------- three.js setup ----------
-  const renderer = new THREE.WebGLRenderer({ canvas: view, antialias: true });
-  const BASE_RATIO = Math.min(window.devicePixelRatio || 1, 1.5);
+  const renderer = new THREE.WebGLRenderer({ canvas: view, antialias: !FAST, powerPreference: 'high-performance' });
+  const BASE_RATIO = FAST ? Math.min(window.devicePixelRatio || 1, 1) : Math.min(window.devicePixelRatio || 1, 1.5);
+  const MIN_RATIO = FAST ? 0.5 : 0.6;
   let pixelRatio = BASE_RATIO;
   renderer.setPixelRatio(pixelRatio);
 
@@ -384,8 +406,8 @@
   if (save.players !== 2) save.players = 1;
 
   const GEO = {
-    sphere: new THREE.SphereGeometry(1, 14, 10),
-    dome: new THREE.SphereGeometry(1, 14, 7, 0, TAU, 0, PI / 2),
+    sphere: FAST ? new THREE.SphereGeometry(1, 10, 7) : new THREE.SphereGeometry(1, 14, 10),
+    dome: new THREE.SphereGeometry(1, FAST ? 10 : 14, FAST ? 5 : 7, 0, TAU, 0, PI / 2),
     box: new THREE.BoxGeometry(1, 1, 1),
     wheel: new THREE.CylinderGeometry(0.42, 0.42, 0.36, 12).rotateZ(PI / 2),
     cyl: new THREE.CylinderGeometry(1, 1, 1, 14),
@@ -407,6 +429,61 @@
     o.scale.set(sx, sy, sz);
     parent.add(o);
     return o;
+  }
+
+  // Glue a group's still parts into a few meshes so a racer costs ~10 draws instead of ~40 --
+  // the big win on tablets. Plain colours go into one mesh coloured per corner; parts whose
+  // material changes or glows (the kart paint, gold) get one mesh per material. Anything in
+  // `keep` (moving parts like wheels, arms, ears, the boost flame) is left alone.
+  const vcMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  function bake(group, keep = [], own = []) {
+    const buckets = new Map();
+    const rel = new THREE.Matrix4();
+    const walk = (obj, parentM) => {
+      for (const c of obj.children.slice()) {
+        if (keep.includes(c)) continue;
+        c.updateMatrix();
+        const m = new THREE.Matrix4().multiplyMatrices(parentM, c.matrix);
+        if (c.isMesh) {
+          const mat = c.material;
+          const plain = mat.isMeshLambertMaterial && !mat.transparent && !own.includes(mat) && mat.emissive.getHex() === 0;
+          const key = plain ? vcMat : mat;
+          if (!buckets.has(key)) buckets.set(key, []);
+          buckets.get(key).push({ geo: c.geometry, m, color: plain ? mat.color : null });
+          obj.remove(c);
+        } else {
+          let holdsKept = false;
+          c.traverse((x) => { if (keep.includes(x)) holdsKept = true; });
+          if (holdsKept) continue;
+          walk(c, m);
+          if (!c.children.length) obj.remove(c);
+        }
+      }
+    };
+    walk(group, rel.identity());
+    const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+    buckets.forEach((list, mat) => {
+      const pos = [], nor = [], col = [], idx = [];
+      let base = 0;
+      for (const it of list) {
+        const p = it.geo.attributes.position, n = it.geo.attributes.normal, ix = it.geo.index;
+        nm.getNormalMatrix(it.m);
+        for (let i = 0; i < p.count; i++) {
+          v.fromBufferAttribute(p, i).applyMatrix4(it.m); pos.push(v.x, v.y, v.z);
+          v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+          if (it.color) col.push(it.color.r, it.color.g, it.color.b);
+        }
+        if (ix) for (let i = 0; i < ix.count; i++) idx.push(ix.getX(i) + base);
+        else for (let i = 0; i < p.count; i++) idx.push(i + base);
+        base += p.count;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      if (col.length) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      g.setIndex(idx);
+      group.add(new THREE.Mesh(g, mat));
+    });
   }
 
   function makeHat(id) {
@@ -442,6 +519,7 @@
       }
       part(g, GEO.sphere, MAT.red, 0, 0.56, 0.36, 0.06);
     }
+    bake(g);
     return g;
   }
 
@@ -519,6 +597,13 @@
     }
     const bubble = part(g, GEO.sphere, MAT.bubble, 0, 1.3, 0, 2.6, 2.3, 2.9);
     bubble.visible = false;
+
+    // glue the still parts together (the steering wheels, arms, ears and flame keep moving)
+    bake(tilt, [flame, rider, ...wheels], [paint]);
+    wheels.forEach((w) => bake(w));
+    bake(rider, [head, ...arms]);
+    bake(head, ears);
+    ears.forEach((e) => bake(e));
 
     const shadow = new THREE.Mesh(GEO.shadow, MAT.shadow);
     shadow.rotation.order = 'YXZ';
@@ -1130,7 +1215,7 @@
     });
 
     // trees, kept clear of the road
-    const TREES = 170;
+    const TREES = FAST ? 100 : 170;
     const kind = th.tree;
     const trunkGeo = new THREE.CylinderGeometry(0.35, 0.5, 1, 6).translate(0, 0.5, 0);
     const crownGeo = kind === 'pine' ? new THREE.ConeGeometry(1, 2.4, 7).translate(0, 1.2, 0)
@@ -1161,17 +1246,21 @@
 
     // far-off hills and a few clouds
     const hillMat = lam(th.hill), cloudMat = new THREE.MeshBasicMaterial({ color: def.theme === 'night' ? 0x6a5aa8 : 0xffffff });
+    // (one instanced mesh each, so all 14 hills and all 14 clouds are just two draws)
+    const hills = shared(new THREE.InstancedMesh(GEO.cone, hillMat, 14));
+    const clouds = shared(new THREE.InstancedMesh(GEO.sphere, cloudMat, 14));
+    dummy.rotation.set(0, 0, 0);
     for (let i = 0; i < 14; i++) {
       const a = i / 14 * TAU + rand(-0.15, 0.15), r = rand(520, 660);
-      const hill = shared(new THREE.Mesh(GEO.cone, hillMat));
-      hill.scale.set(rand(110, 200), rand(80, 170), rand(110, 200));
-      hill.position.set(Math.sin(a) * r, ground.position.y + hill.scale.y / 2 - 2, Math.cos(a) * r);
-      trackGroup.add(hill);
-      const cloud = shared(new THREE.Mesh(GEO.sphere, cloudMat));
-      cloud.scale.set(rand(26, 48), rand(7, 11), rand(14, 26));
-      cloud.position.set(rand(-560, 560), rand(110, 180), rand(-560, 560));
-      trackGroup.add(cloud);
+      dummy.scale.set(rand(110, 200), rand(80, 170), rand(110, 200));
+      dummy.position.set(Math.sin(a) * r, ground.position.y + dummy.scale.y / 2 - 2, Math.cos(a) * r);
+      dummy.updateMatrix(); hills.setMatrixAt(i, dummy.matrix);
+      dummy.scale.set(rand(26, 48), rand(7, 11), rand(14, 26));
+      dummy.position.set(rand(-560, 560), rand(110, 180), rand(-560, 560));
+      dummy.updateMatrix(); clouds.setMatrixAt(i, dummy.matrix);
     }
+    hills.frustumCulled = clouds.frustumCulled = false;   // spread over the whole sky
+    trackGroup.add(hills, clouds);
 
     world = T;
     stepCoins(0);
@@ -1564,7 +1653,7 @@
     }
 
     k.pt += dt;
-    if (k.pt > 0.035) { k.pt = 0; if (nearView(k)) trail(k); }
+    if (k.pt > (FAST ? 0.07 : 0.035)) { k.pt = 0; if (nearView(k)) trail(k); }
   }
 
   function nearView(k) {
@@ -2389,11 +2478,29 @@
     if (line) { hctx.lineWidth = 1.5; hctx.strokeStyle = line; hctx.stroke(); }
   }
   function button(label, x, y, w, h, fn, o = {}) {
+    if (o.go && !o.off) return goButton(label, x, y, w, h, fn, o);
     const color = o.off ? '#7a7f96' : o.color || '#5ff3ff';
     rr(x, y, w, h, Math.min(8, h / 2));
     hctx.fillStyle = o.sel ? color : 'rgba(12,10,40,0.85)'; hctx.fill();
     hctx.lineWidth = 2; hctx.strokeStyle = color; hctx.stroke();
     text(label, x + w / 2, y + h / 2 + 0.5, o.px || 10, o.sel ? '#120b28' : color, 'center');
+    hudButtons.push({ x, y, w, h, fn });
+  }
+  // The "let's go" button on every screen: bright green with a dark edge, a white rim, a shadow
+  // and a gentle pulse, so it stands out on any background (the yellow stage, sand, snow, sky).
+  function goButton(label, x, y, w, h, fn, o) {
+    const p = 1 + Math.sin(spin * 4) * 0.035;
+    const cx = x + w / 2, cy = y + h / 2, pw = w * p, ph = h * p, px = cx - pw / 2, py = cy - ph / 2, r = Math.min(9, ph / 2);
+    rr(px + 1, py + 3, pw, ph, r);
+    hctx.fillStyle = 'rgba(0,0,0,0.45)'; hctx.fill();
+    rr(px, py, pw, ph, r);
+    const grad = hctx.createLinearGradient(0, py, 0, py + ph);
+    grad.addColorStop(0, '#5cf07a'); grad.addColorStop(1, '#17a43e');
+    hctx.fillStyle = grad; hctx.fill();
+    hctx.lineWidth = 3; hctx.strokeStyle = '#120b28'; hctx.stroke();
+    rr(px + 2.5, py + 2.5, pw - 5, ph - 5, Math.max(2, r - 2.5));
+    hctx.lineWidth = 1.5; hctx.strokeStyle = '#ffffff'; hctx.stroke();
+    text(label, cx, cy + 0.5, (o.px || 12) * p, '#ffffff', 'center', '#0d4a1e');
     hudButtons.push({ x, y, w, h, fn });
   }
   function coinIcon(x, y, r = 5) {
@@ -2499,7 +2606,7 @@
     text('FREDDY BEAR', W / 2, 34, 32, '#ffe14f', 'center', '#120b28');
     text('KART 3D', W / 2, 70, 38, '#ff7a1e', 'center', '#120b28');
     const labels = ['RACE!', 'GRAND PRIX', 'BUILD A TRACK'], cols = ['#ffe14f', '#ff9a2e', '#5ff3ff'];
-    labels.forEach((l, i) => button(l, 160, 118 + i * 30, 160, 25, () => titleChoose(i), { sel: titleSel === i, color: cols[i], px: 14 }));
+    labels.forEach((l, i) => button(l, 160, 118 + i * 30, 160, 25, () => titleChoose(i), { go: titleSel === i, color: cols[i], px: 14 }));
     button(save.players === 2 ? 'PLAYERS: 2 (SPLIT SCREEN)' : 'PLAYERS: 1', 140, 212, 200, 20, () => titleChoose(3),
       { sel: titleSel === 3, color: '#8fe36b', px: 9 });
     coinIcon(440, 16, 6);
@@ -2546,7 +2653,7 @@
     const nu = nextUnlock(rowSel === 2 ? PAINTS : HATS);
     if (nu) text('NEXT: ' + nu, W / 2, 222, 7, '#ffffff', 'center', '#120b28');
     button('BACK', 34, 238, 70, 22, back, { px: 10 });
-    button(pickIdx < save.players - 1 ? 'NEXT PLAYER' : 'THIS ONE!', 175, 236, 130, 26, pickNext, { sel: true, color: '#ffe14f', px: 13 });
+    button(pickIdx < save.players - 1 ? 'NEXT PLAYER' : 'THIS ONE!', 175, 236, 130, 26, pickNext, { go: true, px: 13 });
   }
 
   function drawTrackPick() {
@@ -2561,7 +2668,7 @@
     if (place && place <= 3) drawCup(352, 194, 0.6, place);
     text((trackSel + 1) + ' / ' + list.length, W / 2, 166, 8, '#ffffff', 'center', '#120b28');
     button('BACK', 34, 236, 70, 24, back, { px: 10 });
-    button('START!', 175, 234, 130, 28, primary, { sel: true, color: '#ffe14f', px: 14 });
+    button('START!', 175, 234, 130, 28, primary, { go: true, px: 14 });
     button('SPEED: ' + SPEEDS[save.speed].name, 336, 236, 112, 24, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
   }
 
@@ -2577,7 +2684,7 @@
     if (best) { drawCup(338, 70, 0.6, best); text('BEST', 338, 90, 7, '#ffffff', 'center'); }
     if (!save.gold) text('WIN IT TO UNLOCK THE GOLDEN KART!', W / 2, 188, 8, '#ffd23f', 'center');
     button('BACK', 34, 236, 70, 24, back, { px: 10 });
-    button('START!', 175, 234, 130, 28, primary, { sel: true, color: '#ffe14f', px: 14 });
+    button('START!', 175, 234, 130, 28, primary, { go: true, px: 14 });
     button('SPEED: ' + SPEEDS[save.speed].name, 336, 236, 112, 24, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
   }
 
@@ -2669,10 +2776,10 @@
     if (r.unlocked.length) text('NEW: ' + r.unlocked.join(', ') + '!', W / 2, y, 10, '#ff9ad6', 'center');
     if (isGp) {
       button('QUIT CUP', 96, 234, 120, 26, back, { px: 11 });
-      button(gp.idx < BUILTIN.length - 1 ? 'NEXT RACE' : 'SEE THE CUP!', 224, 234, 160, 26, primary, { sel: true, color: '#ffe14f', px: 13 });
+      button(gp.idx < BUILTIN.length - 1 ? 'NEXT RACE' : 'SEE THE CUP!', 224, 234, 160, 26, primary, { go: true, px: 13 });
     } else {
       button(r.from === 'build' ? 'BUILDER' : 'TRACKS', 96, 234, 120, 26, back, { px: 12 });
-      button('RACE AGAIN', 224, 234, 160, 26, primary, { sel: true, color: '#ffe14f', px: 13 });
+      button('RACE AGAIN', 224, 234, 160, 26, primary, { go: true, px: 13 });
     }
     drawConfetti(r.confetti);
   }
@@ -2699,7 +2806,7 @@
     });
     if (c.unlocked.length) text('NEW: ' + c.unlocked.join(', ') + '!', W / 2, 206, 11, '#ff9ad6', 'center', '#120b28');
     button('MENU', 120, 234, 110, 26, back, { px: 12 });
-    button('PLAY AGAIN', 240, 234, 130, 26, () => { sfxOk(); hideAll(); startGP(); }, { sel: true, color: '#ffe14f', px: 13 });
+    button('PLAY AGAIN', 240, 234, 130, 26, () => { sfxOk(); hideAll(); startGP(); }, { go: true, px: 13 });
     drawConfetti(c.confetti);
   }
 
@@ -2809,7 +2916,7 @@
     button('HILLS: ' + ['FLAT', 'SOFT', 'BIG'][t.hills == null ? 1 : t.hills], bx + 99, 172, bw, 22, edHills, { px: 9, color: '#8fe36b' });
     button('UNDO', bx, 198, bw, 22, edUndo, { px: 10 });
     button(clearArmed > 0 ? 'SURE?' : 'CLEAR', bx + 99, 198, bw, 22, edClear, { px: 10, color: '#ff7a6b', sel: clearArmed > 0 });
-    button('RACE IT!', bx, 226, 194, 30, edTest, { px: 15, color: '#ffe14f', sel: t.closed, off: !t.closed });
+    button('RACE IT!', bx, 226, 194, 30, edTest, { px: 15, go: true, off: !t.closed });
   }
 
   function drawHud() {
@@ -2869,16 +2976,16 @@
   }
 
   // ---------- Main loop ----------
-  let lastT = performance.now(), perfT = 0, perfN = 0;
+  let lastT = performance.now(), perfT = 0, perfN = 0, hudSkip = false;
   function frame(now) {
     const raw = Math.min(0.1, Math.max(0.001, (now - lastT) / 1000));
     const dt = Math.min(0.034, raw);
     lastT = now;
     // a slow tablet draws at a lower resolution so the racing stays smooth
     perfT += raw; perfN++;
-    if (perfN >= 90) {
-      if (perfT / perfN > 0.026 && pixelRatio > 0.6) {
-        pixelRatio = Math.max(0.6, pixelRatio - 0.2);
+    if (perfN >= 60) {
+      if (perfT / perfN > 0.026 && pixelRatio > MIN_RATIO) {
+        pixelRatio = Math.max(MIN_RATIO, pixelRatio - (FAST ? 0.15 : 0.2));
         renderer.setPixelRatio(pixelRatio);
         resize();
       }
@@ -2936,10 +3043,11 @@
     models.forEach((m) => { if (m.rainbow) m.paint.color.setHSL((spin * 0.25) % 1, 0.85, 0.55); });
     tickMusic();
     render();
-    drawHud();
+    // FAST: mid-race the HUD (places, laps, map) only needs redrawing every other frame
+    hudSkip = !hudSkip;
+    if (!(FAST && hudSkip && mode === 'race' && race && !race.results)) drawHud();
     requestAnimationFrame(frame);
   }
 
   toTitle();
-  requestAnimationFrame(frame);
-})();
+  requestAnimationFrame(frame);})();
