@@ -1906,7 +1906,11 @@
       const verb = ac.createConvolver(), wet = ac.createGain();
       verb.buffer = imp; wet.gain.value = 0.45;
       verb.connect(wet); wet.connect(master);
-      sfxBus = ac.createGain(); sfxBus.connect(master); sfxBus.connect(verb);
+      // sound effects go through a gentle compressor, so a pile-up of sounds never gets harsh
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -22; comp.knee.value = 18; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.25;
+      comp.connect(master); comp.connect(verb);
+      sfxBus = ac.createGain(); sfxBus.connect(comp);
       musicBus = ac.createGain(); musicBus.gain.value = musicOn ? 1 : 0;
       musicBus.connect(master); musicBus.connect(verb);
       noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
@@ -1930,12 +1934,46 @@
     o.connect(g); g.connect(bus);
     o.start(t); o.stop(t + attack + hold + release * 1.6);
   }
+  // ---- keeping fast tappers from flooding the speakers ----
+  // * each kind of sound has a shortest gap between plays (sfxReady)
+  // * only so many effect notes play at once (SFX_MAX); extra ones are skipped
+  // * a quick run of sounds gets quieter and quieter, and recovers when things calm down
+  const SFX_MAX = 10, lastSfx = {};
+  let sfxLive = [], busy = 0, busyT = 0;
+  function sfxReady(key, gapMs) {
+    const now = performance.now();
+    if (now - (lastSfx[key] || 0) < gapMs) return false;
+    lastSfx[key] = now;
+    return true;
+  }
+  function sfxRoom(ends) {
+    const now = ac.currentTime;
+    sfxLive = sfxLive.filter((t) => t > now);
+    if (sfxLive.length >= SFX_MAX) return false;
+    sfxLive.push(ends);
+    return true;
+  }
+  function sfxVol(v) {                 // called once per sound: busier = softer
+    const now = performance.now();
+    busy = Math.max(0, busy - (now - busyT) / 400) + 1;
+    busyT = now;
+    return v / (1 + Math.max(0, busy - 2) * 0.35);
+  }
   function tone(f, dur, type, vol, when, slide) {
     if (!ac) return;
-    voice(sfxBus, f, ac.currentTime + (when || 0), 0.012, 0, dur, type, vol, slide);
+    const t = ac.currentTime + (when || 0);
+    if (!sfxRoom(t + dur * 1.6)) return;
+    voice(sfxBus, f, t, 0.012, 0, dur, type, vol * sfxDuck, slide);
+  }
+  let sfxDuck = 1;                     // set for the length of one sound by playSfx
+  function playSfx(key, gapMs, fn) {
+    if (!ac || !sfxReady(key, gapMs)) return;
+    sfxDuck = sfxVol(1);
+    try { fn(); } finally { sfxDuck = 1; }
   }
   // a soft puff of filtered noise (water, earth, leaves)
   function puff(bus, t, dur, freq, vol) {
+    if (bus === sfxBus) { if (!sfxRoom(t + dur)) return; vol *= sfxDuck; }
     const src = ac.createBufferSource(), flt = ac.createBiquadFilter(), g = ac.createGain();
     src.buffer = noiseBuf; src.loop = true;
     flt.type = 'lowpass'; flt.frequency.setValueAtTime(freq, t);
@@ -1954,32 +1992,41 @@
     voice(bus, f * 2, t, 0.004, 0, 0.3, 'sine', vol * 0.22);
     voice(bus, f * 3.01, t, 0.003, 0, 0.12, 'sine', vol * 0.1);
   }
-  function pluck(n, when) { if (ac) kalimba(sfxBus, noteF(n), ac.currentTime + (when || 0), 0.2); }
+  function pluck(n, when) {
+    if (!ac) return;
+    const t = ac.currentTime + (when || 0);
+    if (!sfxRoom(t + 0.9)) return;
+    kalimba(sfxBus, noteF(n), t, 0.2 * sfxDuck);
+  }
   // building plays a little tune that wanders up and back down instead of climbing forever
   const TUNE = [0, 2, 4, 5, 7, 5, 4, 2, 3, 5, 7, 9, 7, 5, 4, 2];
   let combo = 0, lastPlace = 0;
   function placeNote(extra) {
-    if (!ac) return;
-    const now = performance.now();
-    combo = now - lastPlace < 2500 ? combo + 1 : 0;
-    lastPlace = now;
-    tone(120, 0.1, 'sine', 0.2, 0, 62);                     // the soft "thock" of setting it down
-    pluck(TUNE[combo % TUNE.length] + Math.min(extra || 0, 5), 0.015);
+    // dragging across many cells plays the tune at a steady walk, not a machine-gun
+    playSfx('place', 90, function () {
+      const now = performance.now();
+      combo = now - lastPlace < 2500 ? combo + 1 : 0;
+      lastPlace = now;
+      tone(120, 0.1, 'sine', 0.2, 0, 62);                     // the soft "thock" of setting it down
+      pluck(TUNE[combo % TUNE.length] + Math.min(extra || 0, 5), 0.015);
+    });
   }
   function splashSfx() {
-    if (!ac) return;
-    tone(250, 0.3, 'sine', 0.13, 0, 120);
-    tone(520, 0.09, 'sine', 0.04, 0.07, 760);
-    puff(sfxBus, ac.currentTime, 0.55, 1100, 0.09);
+    playSfx('splash', 140, function () {
+      tone(250, 0.3, 'sine', 0.13, 0, 120);
+      tone(520, 0.09, 'sine', 0.04, 0.07, 760);
+      puff(sfxBus, ac.currentTime, 0.55, 1100, 0.09);
+    });
   }
   function digSfx() {
-    if (!ac) return;
-    puff(sfxBus, ac.currentTime, 0.35, 800, 0.11);
-    tone(330, 0.3, 'sine', 0.11, 0, 220);
-    tone(247, 0.42, 'sine', 0.08, 0.1, 165);
+    playSfx('dig', 110, function () {
+      puff(sfxBus, ac.currentTime, 0.35, 800, 0.11);
+      tone(330, 0.3, 'sine', 0.11, 0, 220);
+      tone(247, 0.42, 'sine', 0.08, 0.1, 165);
+    });
   }
-  const softSfx = () => tone(392, 0.14, 'sine', 0.05);
-  const blipSfx = () => { tone(660, 0.22, 'sine', 0.07); tone(880, 0.3, 'sine', 0.06, 0.08); };
+  const softSfx = () => playSfx('soft', 90, function () { tone(392, 0.14, 'sine', 0.05); });
+  const blipSfx = () => playSfx('blip', 110, function () { tone(660, 0.22, 'sine', 0.07); tone(880, 0.3, 'sine', 0.06, 0.08); });
   const fanfare = () => { [5, 7, 9, 10, 12, 14].forEach((n, k) => pluck(n, k * 0.14)); };
 
   // ---- music ----
@@ -2813,8 +2860,8 @@
   walkMesh.visible = false;
   walkMesh.scale.setScalar(1.45);
   scene.add(walkMesh);
-  const walkUI = document.getElementById('walkUI'), stickEl = document.getElementById('wStick'), knobEl = document.getElementById('wKnob');
-  let saved = null, stick = { id: -1, x: 0, y: 0 }, walkKeys = {}, lookDrag = null;
+  const walkUI = document.getElementById('walkUI'), wPad = document.getElementById('wPad');
+  let saved = null, walkKeys = {}, lookDrag = null;
   const WALKKEYS = { arrowleft: 'turnL', arrowright: 'turnR', a: 'left', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down' };
   const solidAt = (x, z) => {        // houses, shops and trees are in the way; flowers and paths aren't
     const gx = Math.floor(x / T + N / 2), gz = Math.floor(z / T + N / 2);
@@ -2838,21 +2885,64 @@
     if (g < -0.12) { g = -0.3; swim = true; }
     return { y: g, swim: swim };
   }
-  function startWalk() {
+  // WALK first asks where to start: tap a spot (or move the cursor and press Space / A)
+  let walkPick = false;
+  const pickBar = document.getElementById('pickBar');
+  function beginWalkPick() {
+    if (walking || !started) return;
+    walkPick = true;
+    endStroke();
+    ui.classList.add('picking');
+    pickBar.hidden = false;
+    blipSfx();
+  }
+  function cancelWalkPick() {
+    if (!walkPick) return;
+    walkPick = false;
+    ui.classList.remove('picking');
+    pickBar.hidden = true;
+    softSfx();
+  }
+  // somewhere you can stand: open ground, a path, a beach, flowers, a plain dock or a bridge
+  const standable = (i) => (land[i] > 0 && (kind[i] === NONE || kind[i] === PATH || kind[i] === BEACH || (kind[i] === NATURE && vr[i] % NATURE_N === 4))) ||
+    plainDock(i) || isBridge(i);
+  function tryWalkAt(i) {
+    if (i < 0) { softSfx(); toast('TAP SOMEWHERE ON THE ISLAND'); return; }
+    let best = standable(i) ? i : -1, bd = 1e9;
+    if (best < 0) {                    // on a house or a tree: the nearest open spot beside it
+      const x0 = cx(i), z0 = cz(i);
+      for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
+        const x = x0 + dx, z = z0 + dz;
+        if (!inb(x, z) || !standable(z * N + x)) continue;
+        const d = Math.hypot(dx, dz);
+        if (d < bd) { bd = d; best = z * N + x; }
+      }
+    }
+    if (best < 0) { softSfx(); toast(land[i] ? "CAN'T STAND THERE" : 'TAP SOME LAND (OR A DOCK)'); return; }
+    walkPick = false;
+    ui.classList.remove('picking');
+    pickBar.hidden = true;
+    startWalk(best);
+  }
+  function startWalk(best) {
     if (walking || !started) return;
     saved = { tx: cam.tx, tz: cam.tz, ty: cam.ty, yaw: cam.yaw, yawT: cam.yawT, el: cam.el, dist: cam.dist, distT: cam.distT };
-    // start on the nearest open bit of land to where the camera is looking
-    let best = -1, bd = 1e9;
-    const ox = Math.floor(cam.tx / T + N / 2), oz = Math.floor(cam.tz / T + N / 2);
-    for (let i = 0; i < N * N; i++) {
-      if (!land[i] || !(kind[i] === NONE || kind[i] === PATH || kind[i] === BEACH)) continue;
-      const d = Math.hypot(cx(i) - ox, cz(i) - oz) + (kind[i] === PATH ? -0.5 : 0);
-      if (d < bd) { bd = d; best = i; }
-    }
-    if (best < 0) { toast('ADD SOME LAND TO WALK ON!'); return; }
     walking = true;
     walker.x = wx(cx(best)); walker.z = wx(cz(best));
     walker.y = standAt(walker.x, walker.z).y; walker.vy = 0; walker.pitch = -0.08;
+    // look the most open way (not straight into a wall), keeping the camera's direction if it's clear
+    let bestYaw = cam.yaw, bestRun = -1;
+    for (let k = 0; k < 16; k++) {
+      const yaw = cam.yaw + k * Math.PI / 8, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      let run = 0;
+      while (run < 8) {
+        const px = walker.x + fx * (run + 0.5), pz = walker.z + fz * (run + 0.5);
+        if (solidAt(px, pz) || standAt(px, pz).y - walker.y > 0.6 + run * 0.3) break;   // a wall, or a hillside rising in front
+        run += 0.5;
+      }
+      if (run > bestRun + 0.75) { bestRun = run; bestYaw = yaw; }
+    }
+    cam.yaw = cam.yawT = bestYaw;
     cam.dist = cam.distT = 6.5;
     camera.near = 0.06; camera.updateProjectionMatrix();     // things right in front of you shouldn't vanish
     ui.classList.add('walking');
@@ -2869,39 +2959,84 @@
     Object.assign(cam, saved);
     ui.classList.remove('walking');
     walkUI.hidden = true;
-    stick.id = -1; knobEl.style.transform = '';
+    sticks.move.release(); sticks.look.release();
     walkKeys = {};
     softSfx();
   }
-  document.getElementById('walkBtn').addEventListener('click', function () { unlockAudio(); startWalk(); });
+  document.getElementById('walkBtn').addEventListener('click', function () { unlockAudio(); if (walkPick) cancelWalkPick(); else beginWalkPick(); });
+  document.getElementById('pickCancel').addEventListener('click', cancelWalkPick);
+  pickBar.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
   document.getElementById('wExit').addEventListener('click', stopWalk);
   function jump() { if (walking && walker.onGround) { walker.vy = walker.swim ? 3.2 : 5.2; tone(520, 0.12, 'sine', 0.06, 0, 780); } }
   const jumpBtn = document.getElementById('wJump');
   jumpBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); e.preventDefault(); jump(); });
-  // the on-screen thumbstick
-  stickEl.addEventListener('pointerdown', function (e) {
-    e.stopPropagation(); e.preventDefault();
-    stick.id = e.pointerId;
-    try { stickEl.setPointerCapture(e.pointerId); } catch (err) { /* fine */ }
-    moveStick(e);
-  });
-  function moveStick(e) {
-    const r = stickEl.getBoundingClientRect(), max = r.width / 2 - 10;
-    let x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2);
-    const len = Math.hypot(x, y);
-    if (len > max) { x *= max / len; y *= max / len; }
-    stick.x = x / max; stick.y = y / max;
-    knobEl.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+  // ---- Twin floating thumbsticks: left half of the screen moves, right half looks ----
+  // Each stick appears where your thumb lands in its half (so it fits any hand), follows that
+  // one finger only (both work at once), has a small dead zone so a resting thumb doesn't
+  // drift, and reads -1..1. The look stick is curved: small pushes aim gently, full pushes
+  // turn fast. A quick tap that doesn't drag is a tap on the world (say hello to someone).
+  const STICK_DEAD = 0.14;
+  function Stick(el, curve) {
+    this.el = el; this.knob = el.firstElementChild; this.curve = curve;
+    this.id = -1; this.x = 0; this.y = 0; this.ox = 0; this.oy = 0; this.t0 = 0; this.travel = 0;
   }
-  stickEl.addEventListener('pointermove', function (e) { if (e.pointerId === stick.id) moveStick(e); });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) {
-    stickEl.addEventListener(ev, function (e) { if (e.pointerId === stick.id) { stick.id = -1; stick.x = stick.y = 0; knobEl.style.transform = ''; } });
+  Stick.prototype.radius = function () { return this.el.getBoundingClientRect().width / 2 || 50; };
+  Stick.prototype.grab = function (e, rect) {
+    this.id = e.pointerId; this.ox = e.clientX; this.oy = e.clientY; this.t0 = performance.now(); this.travel = 0;
+    this.el.classList.add('live');
+    this.el.style.left = (e.clientX - rect.left) + 'px';
+    this.el.style.top = (e.clientY - rect.top) + 'px';
+    this.move(e);
+  };
+  Stick.prototype.move = function (e) {
+    const R = this.radius();
+    let dx = e.clientX - this.ox, dy = e.clientY - this.oy;
+    this.travel = Math.max(this.travel, Math.hypot(dx, dy));
+    const len = Math.hypot(dx, dy);
+    if (len > R) { dx *= R / len; dy *= R / len; }
+    this.knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    // dead zone, then rescale so the response starts smoothly from 0 at its edge
+    const m = Math.min(1, len / R), k = m < STICK_DEAD ? 0 : (m - STICK_DEAD) / (1 - STICK_DEAD);
+    const out = Math.pow(k, this.curve);
+    this.x = len ? dx / Math.min(len, R) * out : 0;
+    this.y = len ? dy / Math.min(len, R) * out : 0;
+  };
+  Stick.prototype.release = function () {
+    this.id = -1; this.x = this.y = 0;
+    this.knob.style.transform = '';
+    this.el.classList.remove('live');
+    this.el.style.left = this.el.style.top = '';        // back to its resting spot
+  };
+  const sticks = { move: new Stick(document.getElementById('wMove'), 1), look: new Stick(document.getElementById('wLook'), 1.7) };
+  wPad.addEventListener('pointerdown', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    unlockAudio();
+    const r = wPad.getBoundingClientRect(), st = e.clientX - r.left < r.width / 2 ? sticks.move : sticks.look;
+    if (st.id !== -1) return;                            // that thumb's stick is already in use
+    try { wPad.setPointerCapture(e.pointerId); } catch (err) { /* fine */ }
+    st.grab(e, r);
   });
-  [walkUI, jumpBtn, stickEl].forEach(function (el) { el.addEventListener('pointerdown', function (e) { e.stopPropagation(); }); });
+  wPad.addEventListener('pointermove', function (e) {
+    if (e.pointerId === sticks.move.id) sticks.move.move(e);
+    else if (e.pointerId === sticks.look.id) sticks.look.move(e);
+  });
+  function stickUp(e) {
+    [sticks.move, sticks.look].forEach(function (st) {
+      if (e.pointerId !== st.id) return;
+      const tap = st.travel < 10 && performance.now() - st.t0 < 300;
+      st.release();
+      if (tap && e.type === 'pointerup') greet(e.clientX, e.clientY);
+    });
+  }
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { wPad.addEventListener(ev, stickUp); });
+  [walkUI, jumpBtn].forEach(function (el) { el.addEventListener('pointerdown', function (e) { e.stopPropagation(); }); });
   function updateWalk(dt) {
-    // the stick and the arrow keys walk forward / back and turn; A / D (and the controller's
-    // left stick) step sideways; dragging the screen (or the right stick) looks around
-    let fwd = -stick.y, turnIn = stick.x, side = 0;
+    // keys: arrows walk forward / back and turn, A / D step sideways; controller: left stick
+    // moves, right stick looks
+    // left stick: forward / back and step sideways; right stick: look round (rate-based)
+    let fwd = -sticks.move.y, turnIn = 0, side = sticks.move.x;
+    cam.yaw -= sticks.look.x * dt * 2.6;
+    walker.pitch = Math.max(-1.1, Math.min(0.9, walker.pitch - sticks.look.y * dt * 1.5));
     if (walkKeys.up) fwd += 1; if (walkKeys.down) fwd -= 1;
     if (walkKeys.turnL) turnIn -= 1; if (walkKeys.turnR) turnIn += 1;
     if (walkKeys.left) side -= 1; if (walkKeys.right) side += 1;
@@ -2975,6 +3110,7 @@
     if (!pending) return;
     const p = pending;
     clearTimeout(p.timer); pending = null;
+    if (p.pick) { cur = pick(p.x, p.y); tryWalkAt(cur); return; }
     if (greet(p.x, p.y)) return;
     strokePointer = p.id;
     cur = pick(p.x, p.y);
@@ -2993,6 +3129,12 @@
       return;
     }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (walkPick && pointers.size === 1 && !(e.pointerType === 'mouse' && e.button !== 0)) {
+      placeCamera(); camera.updateMatrixWorld();
+      if (e.pointerType === 'touch') { pending = { id: e.pointerId, x: e.clientX, y: e.clientY, pick: true, timer: setTimeout(firePending, 130) }; }
+      else { cur = pick(e.clientX, e.clientY); tryWalkAt(cur); }
+      return;
+    }
     if (e.pointerType === 'mouse' && e.button !== 0) {
       mouseDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: e.button === 1 || e.shiftKey };
       e.preventDefault();
@@ -3043,6 +3185,7 @@
       return;
     }
     if (pending && pending.id === e.pointerId) {
+      if (pending.pick) return;
       if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > 10) firePending();
       else return;
     }
@@ -3117,7 +3260,17 @@
       e.preventDefault();
       return;
     }
-    if (k === 'g' && started) { startWalk(); e.preventDefault(); return; }
+    if (walkPick) {
+      if (k === ' ' || k === 'enter') tryWalkAt(cur >= 0 ? cur : (N / 2) * N + N / 2);
+      else if (k === 'escape' || k === 'g') cancelWalkPick();
+      else if (k === 'arrowleft' || k === 'a') moveCursor(-1, 0);
+      else if (k === 'arrowright' || k === 'd') moveCursor(1, 0);
+      else if (k === 'arrowup' || k === 'w') moveCursor(0, -1);
+      else if (k === 'arrowdown' || k === 's') moveCursor(0, 1);
+      e.preventDefault();
+      return;
+    }
+    if (k === 'g' && started) { beginWalkPick(); e.preventDefault(); return; }
     if (!started) { if (k === ' ' || k === 'enter') { start(); e.preventDefault(); } return; }
     unlockAudio();
     let used = true;
@@ -3165,13 +3318,18 @@
       if (P.pressed(Bt.Y)) toggleNight();
       return;
     }
-    if (P.pressed(Bt.START)) { startWalk(); return; }
+    if (P.pressed(Bt.START)) { if (walkPick) cancelWalkPick(); else beginWalkPick(); return; }
     const dx = P.dx(), dy = P.dy(), key = dx + ',' + dy;
     if (dx || dy) {
       if (key !== padLast) { moveCursor(dx, dy); padHold = 0.32; }
       else { padHold -= dt; if (padHold <= 0) { moveCursor(dx, dy); padHold = 0.12; } }
     }
     padLast = key;
+    if (walkPick) {
+      if (P.pressed(Bt.A)) tryWalkAt(cur >= 0 ? cur : (N / 2) * N + N / 2);
+      if (P.pressed(Bt.B)) cancelWalkPick();
+      return;
+    }
     if (P.pressed(Bt.A)) keyDownAct();
     if (P.pressed(Bt.B)) keyDownAct('dig');
     if (P.released(Bt.A) || P.released(Bt.B)) keyUpAct();
@@ -3326,7 +3484,8 @@
       cursorMesh.scale.set(s, s, s);
       cursorMesh.position.set(wx(cx(cur)), (kind[cur] === RIVER ? levelY(land[cur]) - 0.18 : land[cur] ? groundY(cur) : kind[cur] === DOCK ? 0.42 : 0.05) + 0.08, wx(cz(cur)));
       const cop = opFor(cur, tool);
-      cursorMesh.material.color.set(cop === 'none' || cop === 'nodock' || cop === 'noriver' || cop === 'nobeach' ? 0xff8a8a : 0xffffff);
+      if (walkPick) cursorMesh.material.color.set(standable(cur) ? 0x8fff8f : land[cur] ? 0xffe08a : 0xff8a8a);
+      else cursorMesh.material.color.set(cop === 'none' || cop === 'nodock' || cop === 'noriver' || cop === 'nobeach' ? 0xff8a8a : 0xffffff);
     } else cursorMesh.visible = false;
 
     // save a moment after the last change

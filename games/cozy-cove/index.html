@@ -281,20 +281,44 @@
   #ui.tall #cornerL { left: 0.6em; top: 3.6em; }
   #ui.tall #stat { top: 8.6em; }   /* in the pill's own (0.8x) ems: just under MY ISLANDS */
 
+  /* ---- choosing where to start walking ---- */
+  #ui.picking #tools { display: none; }
+  #pickBar {
+    position: absolute; left: 50%; bottom: 1em; transform: translateX(-50%); pointer-events: auto;
+    display: flex; align-items: center; gap: 0.8em; padding: 0.5em 0.6em 0.5em 1.1em; border-radius: 999px;
+    background: rgba(255, 248, 232, 0.95); border: 0.14em solid #8fd88f; box-shadow: 0 0.2em 0 rgba(60, 40, 20, 0.25);
+    font-size: 0.9em; letter-spacing: 0.06em; white-space: nowrap;
+  }
+  #pickBar[hidden] { display: none; }
+  #ui #pickCancel { flex-direction: row; padding: 0.35em 0.9em; font-size: 0.8em; border-radius: 999px; }
+  #ui.tall #pickBar { white-space: normal; width: 90%; justify-content: space-between; }
+
   /* ---- WALK mode: the building buttons tuck away; a thumbstick, JUMP and BUILD appear ---- */
   #ui.walking #tools, #ui.walking #spinL, #ui.walking #spinR, #ui.walking #cornerL, #ui.walking #cornerR { display: none; }
   #walkUI { position: absolute; inset: 0; pointer-events: none; }
   #walkUI[hidden] { display: none; }
   #ui #wExit { position: absolute; right: 0.6em; top: 0.6em; width: 3em; height: 3em; }
-  #wStick {
-    position: absolute; left: 1em; bottom: 1em; width: 7em; height: 7em; border-radius: 50%; pointer-events: auto; touch-action: none;
-    background: rgba(255, 248, 232, 0.35); border: 0.18em solid rgba(255, 255, 255, 0.85);
+  /* the two halves of the screen are the two thumbsticks' touch areas */
+  #wPad { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+  .wstick {
+    position: absolute; width: 7.5em; height: 7.5em; margin: -3.75em 0 0 -3.75em; border-radius: 50%; pointer-events: none;
+    background: rgba(255, 248, 232, 0.22); border: 0.16em solid rgba(255, 255, 255, 0.6);
+    transition: opacity 0.15s; opacity: 0.55;
   }
-  #wKnob {
-    position: absolute; left: 50%; top: 50%; width: 3em; height: 3em; margin: -1.5em 0 0 -1.5em; border-radius: 50%;
-    background: rgba(255, 248, 232, 0.92); box-shadow: 0 0.2em 0 rgba(60, 40, 20, 0.28); pointer-events: none;
+  /* resting spots, low in each corner where thumbs sit */
+  #wMove:not(.live) { left: 5em; top: calc(100% - 5em); }
+  #wLook:not(.live) { left: calc(100% - 5em); top: calc(100% - 5em); }
+  .wstick.live { opacity: 1; background: rgba(255, 248, 232, 0.35); }
+  .wknob {
+    position: absolute; left: 50%; top: 50%; width: 3.2em; height: 3.2em; margin: -1.6em 0 0 -1.6em; border-radius: 50%;
+    background: rgba(255, 248, 232, 0.95); box-shadow: 0 0.2em 0 rgba(60, 40, 20, 0.28);
   }
-  #ui #wJump { position: absolute; right: 1.2em; bottom: 1.4em; width: 5em; height: 5em; border-radius: 50%; touch-action: none; }
+  .wtag { position: absolute; left: 0; right: 0; top: -1.5em; text-align: center; font-size: 0.6em; letter-spacing: 0.12em; color: #fff;
+    text-shadow: 0 0.1em 0.2em rgba(0, 0, 0, 0.5); }
+  .wstick.live .wtag { opacity: 0; }
+  /* JUMP sits above the look stick's resting spot, out of the way of the look thumb */
+  #ui #wJump { position: absolute; right: 1.4em; bottom: 10em; width: 4.2em; height: 4.2em; border-radius: 50%; touch-action: none; z-index: 1; }
+  #ui #wExit { z-index: 1; }
   #ui #wJump .lbl { font-size: 0.75em; }
 
   /* ---- MY ISLANDS screen and the photo popup ---- */
@@ -445,9 +469,17 @@
           </button>
         </div>
 
+        <div id="pickBar" hidden>
+          <span>TAP WHERE YOU WANT TO START WALKING</span>
+          <button id="pickCancel" type="button">CANCEL</button>
+        </div>
+
         <div id="walkUI" hidden>
           <button id="wExit" type="button" aria-label="Stop walking"><span class="big">&#10006;</span><span class="lbl">BUILD</span></button>
-          <div id="wStick"><div id="wKnob"></div></div>
+          <div id="wPad">
+            <div id="wMove" class="wstick"><div class="wknob"></div><span class="wtag">MOVE</span></div>
+            <div id="wLook" class="wstick"><div class="wknob"></div><span class="wtag">LOOK</span></div>
+          </div>
           <button id="wJump" type="button" aria-label="Jump"><span class="lbl">JUMP</span></button>
         </div>
 
@@ -490,7 +522,7 @@
       <span>MY ISLANDS (TOP LEFT) HOLDS EVERY ISLAND -- THEY SAVE BY THEMSELVES. MAKE, RENAME, COPY OR DELETE THEM THERE.</span>
       <span>PHOTO TAKES A PICTURE YOU CAN SAVE TO THE DEVICE. STYLE IS UP HERE IN THE MENU.</span>
       <span>EVERY GROUP OF 3 OR MORE HOMES IS A TOWN. TAP A TOWN'S NAME TO RENAME IT.</span>
-      <span>WALK (TOP RIGHT) PUTS YOU ON YOUR ISLAND, SEEING THROUGH A VILLAGER'S EYES: THUMBSTICK OR ARROWS TO WALK AND TURN, A / D TO STEP SIDEWAYS, JUMP OR SPACE, DRAG TO LOOK ROUND, BUILD TO GO BACK.</span>
+      <span>WALK (TOP RIGHT), THEN TAP A SPOT, PUTS YOU THERE ON YOUR ISLAND, SEEING THROUGH A VILLAGER'S EYES: LEFT THUMB MOVES, RIGHT THUMB LOOKS ROUND (OR ARROWS TO WALK AND TURN, A / D TO STEP SIDEWAYS), JUMP OR SPACE, BUILD TO GO BACK.</span>
       <span>HOLIDAYS COME BY THEMSELVES -- OR PICK ONE WITH HOLIDAY IN THE MENU. KEEP AN EYE ON THE SEA, DAY AND NIGHT...</span>
       <span>TWO FINGERS: PINCH, TWIST AND SLIDE THE VIEW.</span>
       <span>KEYS: ARROWS + SPACE, 1-9 AND 0 TOOLS, Q/E TURN, C COLOR, N NIGHT, M MUSIC, I ISLANDS, G WALK, Z UNDO.</span>
