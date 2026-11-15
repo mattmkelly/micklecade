@@ -2248,7 +2248,7 @@
     else if (mode === 'gpintro') { sfxOk(); startGP(); }
     else if (mode === 'build') edApply();
     else if (mode === 'race') { if (race.results) resultsPrimary(); }
-    else if (mode === 'cup') { sfxOk(); toTitle(); }
+    else if (mode === 'cup') { sfxOk(); hideAll(); startGP(); }   // the lit-up PLAY AGAIN button
   }
   function back() {
     if (mode === 'racer') { sfxUndo(); if (pickIdx > 0) { pickIdx--; rowSel = 0; showRacer(); } else toTitle(); }
@@ -2683,17 +2683,19 @@
     panel(10, 40, 128, 136);
     c.standings.forEach((s, i) => {
       const y = 54 + i * 20;
-      text(ORD[i], 18, y, 9, i < 3 ? CUP[i] : '#ffffff');
-      text(RACERS[s.ri].name.slice(0, 9), 44, y, 8, s.pi >= 0 ? '#ffe14f' : '#ffffff');
-      text(String(s.pts), 130, y, 9, '#5ff3ff', 'right');
+      text(ORD[i], 16, y, 9, i < 3 ? CUP[i] : '#ffffff');
+      text(RACERS[s.ri].name, 40, y, 8, s.pi >= 0 ? '#ffe14f' : '#ffffff');
+      text(String(s.pts), 132, y, 9, '#5ff3ff', 'right');
     });
-    const mine = c.standings.filter((s) => s.pi >= 0);
+    // one trophy panel each -- two players get them stacked so they don't overlap the podium
+    const mine = c.standings.filter((s) => s.pi >= 0).sort((a, b) => a.pi - b.pi);
+    const two = mine.length > 1;
     mine.forEach((s, i) => {
-      const x = 382 + i * 60 - (mine.length - 1) * 30;
-      panel(x - 46, 44, 92, 92);
-      if (s.place <= 3) drawCup(x, 82, 1.3, s.place);
-      else text('GREAT TRY!', x, 82, 10, '#8fe36b', 'center');
-      text(save.players > 1 ? 'P' + (s.pi + 1) + ' ' + ORD[s.place - 1] : ORD[s.place - 1] + ' PLACE', x, 124, 10, '#ffffff', 'center');
+      const x = 386, y = two ? 42 + i * 84 : 44, h = two ? 78 : 92;
+      panel(x - 46, y, 92, h);
+      if (s.place <= 3) drawCup(x, y + (two ? 32 : 38), two ? 1.0 : 1.3, s.place);
+      else text('GREAT TRY!', x, y + (two ? 32 : 38), 10, '#8fe36b', 'center');
+      text(two ? 'P' + (s.pi + 1) + ' ' + ORD[s.place - 1] : ORD[s.place - 1] + ' PLACE', x, y + h - 12, 10, '#ffffff', 'center');
     });
     if (c.unlocked.length) text('NEW: ' + c.unlocked.join(', ') + '!', W / 2, 206, 11, '#ff9ad6', 'center', '#120b28');
     button('MENU', 120, 234, 110, 26, back, { px: 12 });
@@ -2905,7 +2907,7 @@
     } else if (mode === 'cup') {
       cup.t += dt;
       cup.standings.slice(0, 3).forEach((s, i) => pose(models[s.ri], cup.t + i, true, 0));
-      camera.position.set(0, SHOW_Y + 5.5, 17);
+      camera.position.set(0, SHOW_Y + 6, 20.5);
       camera.lookAt(0, SHOW_Y + 2, 0);
       setFov(camera, 50);
       for (const c of cup.confetti) { c.y += c.vy * dt; c.x += c.vx * dt; if (c.y > H + 5) c.y = -8; }
@@ -2914,9 +2916,18 @@
       if (ed.dirty > 0) ed.dirty -= dt;
       if (t.closed && ed.dirty <= 0 && (!world || world.sig !== trackSig(t))) buildWorld(t);
       if (world && t.closed) {
-        const a = spin * 0.3;
-        camera.position.set(Math.sin(a) * 300, 260, Math.cos(a) * 300);
-        camera.lookAt(0, 0, 0);
+        // circle the track itself, close enough that it fills the little view
+        if (!world.frame) {
+          let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+          for (let i = 0; i < world.N; i++) {
+            x0 = Math.min(x0, world.px[i]); x1 = Math.max(x1, world.px[i]);
+            z0 = Math.min(z0, world.pz[i]); z1 = Math.max(z1, world.pz[i]);
+          }
+          world.frame = { x: (x0 + x1) / 2, z: (z0 + z1) / 2, r: Math.max(60, Math.hypot(x1 - x0, z1 - z0) / 2) };
+        }
+        const a = spin * 0.3, fr = world.frame, d = fr.r * 1.45;
+        camera.position.set(fr.x + Math.sin(a) * d, d * 0.8, fr.z + Math.cos(a) * d);
+        camera.lookAt(fr.x, 0, fr.z);
         setFov(camera, 50);
         stepCoins(dt);
       }
