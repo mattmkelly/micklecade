@@ -49,7 +49,15 @@
   // full screen we switched on, so the button can switch it off again
   function ownFull() { return embedded ? host.full : apiFull(); }
   function canSwitch() { return embedded ? host.can : supported() && !appFull(); }
-  function wanted() { try { return localStorage.getItem(KEY) === 'on'; } catch (e) { return false; } }
+  // Tablets (the Fire tablets' Silk says "Silk" even in desktop mode) want full screen from
+  // the start: until someone picks, the first tap goes full screen there.
+  var TABLET = /Android|Silk|KF[A-Z]{2,}|iPad/i.test(navigator.userAgent);
+  function wanted() {
+    try {
+      var v = localStorage.getItem(KEY);
+      return v === 'on' || (v === null && TABLET);
+    } catch (e) { return false; }
+  }
   function setWanted(v) { try { localStorage.setItem(KEY, v ? 'on' : 'off'); } catch (e) {} }
 
   function quiet(p) { if (p && p.catch) p.catch(function () {}); }

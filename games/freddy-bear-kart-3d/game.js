@@ -133,6 +133,7 @@
     snow:   { bpm: 104, root: 65, chords: [0, 9, 5, 7], scale: [0, 2, 4, 7, 9], wave: 'triangle', seed: 23 },
     beach:  { bpm: 116, root: 62, chords: [0, 5, 0, 7], scale: [0, 2, 4, 7, 9], wave: 'square', seed: 37 },
     night:  { bpm: 132, root: 57, chords: [0, 8, 3, 10], scale: [0, 3, 5, 7, 10], wave: 'square', seed: 51 },
+    space:  { bpm: 120, root: 64, chords: [0, 7, 9, 5], scale: [0, 2, 4, 7, 9, 11], wave: 'triangle', seed: 77 },
   };
   let song = null, songKey = '', nextNote = 0, step = 0, musicTempo = 1;
   function setSong(key) {
@@ -207,13 +208,30 @@
     location.reload();
   });
   document.getElementById('topbar').appendChild(gfxBtn);
+  // SHOW SPEED: a small readout (frames a second, where the time goes) for finding out why
+  // a tablet is slow. Not remembered -- it is off again next time.
+  let showSpeed = false, gpuName = '';
+  const speedBtn = document.createElement('button');
+  speedBtn.type = 'button';
+  speedBtn.className = 'mt-toggle';
+  speedBtn.textContent = 'SHOW SPEED: OFF';
+  speedBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  speedBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showSpeed = !showSpeed;
+    speedBtn.textContent = 'SHOW SPEED: ' + (showSpeed ? 'ON' : 'OFF');
+    speedBtn.blur();
+  });
+  document.getElementById('topbar').appendChild(speedBtn);
 
   // ---------- three.js setup ----------
   const renderer = new THREE.WebGLRenderer({ canvas: view, antialias: !FAST, powerPreference: 'high-performance' });
   const BASE_RATIO = FAST ? Math.min(window.devicePixelRatio || 1, 1) : Math.min(window.devicePixelRatio || 1, 1.5);
-  const MIN_RATIO = FAST ? 0.5 : 0.6;
-  let pixelRatio = BASE_RATIO;
-  renderer.setPixelRatio(pixelRatio);
+  const FAST_WIDTH = 640;
+  // The 3D picture's size = BASE_RATIO (on FAST: capped so it is ~640 pixels wide, which the
+  // page then stretches) x `dyn`, which steps down while frames are slow.
+  let dyn = 1, viewW = 0, viewH = 0;
+  if (FAST) stage.style.cssText += 'border-radius:0;box-shadow:none;';   // nothing for the tablet to clip or glow
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x8fd8ff);
@@ -307,6 +325,14 @@
     g.fillStyle = '#a8704a';
     for (let y = 0; y < 8; y++) for (let x = -1; x < 4; x++) g.fillRect(x * 16 + (y % 2) * 8 + 1, y * 8 + 1, 14, 6);
   }, true);
+  // the space road: stripes of rainbow running along it, with a few sparkles
+  const rainbowTex = canvasTex(128, 64, (g, w, h) => {
+    const cols = ['#ff4f6a', '#ff9a2e', '#ffe14f', '#5fe36b', '#4fc8ff', '#6a6cff', '#c86bff'];
+    cols.forEach((c, i) => { g.fillStyle = c; g.fillRect(Math.floor(i * w / 7), 0, Math.ceil(w / 7), h); });
+    g.fillStyle = 'rgba(255,255,255,0.55)';
+    for (let i = 0; i < 26; i++) g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, 0, w, 3);
+  }, true);
   const lollyTex = canvasTex(64, 64, (g, w, h) => {
     g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
     g.strokeStyle = '#ff5c8f'; g.lineWidth = 6;
@@ -361,6 +387,9 @@
               dust: [0xf2d98f, 0xe0c070], tree: 'palm', crown: [0x3fae5a, 0x2f9a4c, 0x5cc46e], trunk: 0x9a7040, hill: 0x3fa8c8, light: 1 },
     night:  { name: 'CANDY NIGHT', sky: 0x1b1440, ground: '#5b3d8a', groundA: '#50357c', groundB: '#6a4a9c', fence: ['#ff7ac0', '#ffffff'],
               dust: [0xff9ad6, 0xb48cff], tree: 'lolly', crown: [0xff7ac0, 0x4ff0ff, 0xffe14f], trunk: 0xffffff, hill: 0x3a2a6a, light: 0.8 },
+    // out in space: a rainbow road with nothing under it, rails only round the banked bends
+    space:  { name: 'SPACE', sky: 0x070418, ground: '#120b2e', groundA: '#1b1244', groundB: '#0c0822', fence: ['#4ff0ff', '#ffffff'],
+              dust: [0xffffff, 0x9fd8ff], tree: 'none', crown: [0xffffff], trunk: 0xffffff, hill: 0x3a2a6a, light: 1, space: true },
   };
   const THEME_KEYS = Object.keys(THEMES);
   const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -406,8 +435,8 @@
   if (save.players !== 2) save.players = 1;
 
   const GEO = {
-    sphere: FAST ? new THREE.SphereGeometry(1, 10, 7) : new THREE.SphereGeometry(1, 14, 10),
-    dome: new THREE.SphereGeometry(1, FAST ? 10 : 14, FAST ? 5 : 7, 0, TAU, 0, PI / 2),
+    sphere: FAST ? new THREE.SphereGeometry(1, 8, 6) : new THREE.SphereGeometry(1, 14, 10),
+    dome: new THREE.SphereGeometry(1, FAST ? 8 : 14, FAST ? 4 : 7, 0, TAU, 0, PI / 2),
     box: new THREE.BoxGeometry(1, 1, 1),
     wheel: new THREE.CylinderGeometry(0.42, 0.42, 0.36, 12).rotateZ(PI / 2),
     cyl: new THREE.CylinderGeometry(1, 1, 1, 14),
@@ -738,6 +767,10 @@
       cells: loopFrom(3, 4, 'RRRRRR UUU LLL DDDDD LLLL UU R'),
       extras: { 5: 'boost', 8: 'items', 11: 'coins', 19: 'ice', 20: 'items', 22: 'jump' },
       props: { '4,2': 'lolly', '8,6': 'lolly', '10,2': 'lolly', '4,5': 'house' } },
+    { name: 'RAINBOW GALAXY', theme: 'space', hills: 1, closed: true,
+      cells: loopFrom(1, 6, 'RRRRRRRRRR UUUUU LLL DD LLL UU LLLL DDDDD'),
+      extras: { 3: 'coins', 5: 'jump', 8: 'items', 13: 'boost', 17: 'items', 22: 'coins', 27: 'boost', 31: 'items' },
+      props: {} },
   ];
 
   const cellX = (c) => (c[0] - (GW - 1) / 2) * CELL;
@@ -787,6 +820,12 @@
   const stoneMat = lam(0x9a9aa6);
   const fenceMat = new THREE.MeshLambertMaterial({ map: fenceTex, side: THREE.DoubleSide });
   const lollyMat = new THREE.MeshLambertMaterial({ map: lollyTex });
+  // space: the road and its rails glow by themselves (no lighting to work out, so they're cheap too)
+  const rainbowMat = new THREE.MeshBasicMaterial({ map: rainbowTex, side: THREE.DoubleSide });
+  const glowCurbMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const guardMat = new THREE.MeshBasicMaterial({ color: 0x7ff0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, fog: false });
+  const planetMat = new THREE.MeshLambertMaterial({ color: 0xffffff, fog: false });
   const coinGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.22, 16).rotateX(PI / 2);
   const coinMat = new THREE.MeshLambertMaterial({ color: 0xffd23f, emissive: 0x6a4a00 });
   const lamCache = {};
@@ -858,6 +897,7 @@
     hemi.intensity = 1.9 * th.light;
     sun.intensity = 1.9 * th.light;
     paintLand(th);
+    ground.visible = !th.space;
 
     // The road's middle line: a smooth closed curve through the squares, rounded off some more
     // so every corner is one long easy arc, then cut into evenly spaced points.
@@ -921,6 +961,14 @@
       for (let o = -8; o <= 8; o++) { sum += clamp(-curv[mod(i + o, N)] * 5.5, -0.17, 0.17); sc2 += curv[mod(i + o, N)]; }
       bank[i] = sum / 17;                  // + = banked for a right-hand bend
       curvS[i] = sc2 / 17;
+    }
+    // space has no fence: instead a rail runs round each banked bend (and a little before and after)
+    const guard = new Uint8Array(N);
+    if (th.space) {
+      for (let i = 0; i < N; i++) {
+        if (Math.abs(bank[i]) < 0.04) continue;
+        for (let o = -6; o <= 6; o++) guard[mod(i + o, N)] = 1;
+      }
     }
     const fenceL = new Float32Array(N), fenceR = new Float32Array(N);
     for (let i = 0; i < N; i++) {
@@ -1018,12 +1066,12 @@
       const k = smooth((Math.sqrt(nearest) - 60) / 90);
       return sh / sw * (1 - k) + low * k - DROP;
     };
-    const T = { def, sig, N, len, SP, px, pz, tx, tz, nx, nz, curv, bank, hy, rail, fenceL, fenceR, surf, groundY,
+    const T = { def, sig, N, len, SP, px, pz, tx, tz, nx, nz, curv, bank, hy, rail, guard, open: !!th.space, fenceL, fenceR, surf, groundY,
                 pads: [], boxes: [], zones: [], coins: [], coinMesh: null, startAt };
 
     ground.position.y = low - DROP - (amp ? 1.2 : 0);
-    if (amp) {
-      const X0 = GW * CELL / 2 + 170, Z0 = GH * CELL / 2 + 170, STEP = 8;
+    if (amp && !th.space) {
+      const X0 = GW * CELL / 2 + 170, Z0 = GH * CELL / 2 + 170, STEP = FAST ? 14 : 8;
       const cols = Math.round(X0 * 2 / STEP), rows = Math.round(Z0 * 2 / STEP);
       const pos = [], uv = [], idx = [];
       for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) {
@@ -1063,19 +1111,31 @@
       return m;
     }
     const at = (lat, lift) => (j) => surf(j, lat) + lift;
-    ribbon(-ROAD, ROAD, at(-ROAD, 0.05), at(ROAD, 0.05), 16, roadMat);
-    ribbon(-EDGE, -ROAD, at(-EDGE, 0.05), at(-ROAD, 0.05), 5, curbMat);
-    ribbon(ROAD, EDGE, at(ROAD, 0.05), at(EDGE, 0.05), 5, curbMat);
-    // earth under the lifted outside edge of banked bends
-    const skirtMat = new THREE.MeshLambertMaterial({ color: th.groundA, side: THREE.DoubleSide });
-    ribbon(-EDGE, -EDGE - 1.6, at(-EDGE, 0.05), (j) => hy[j] - 1, 0, skirtMat);
-    ribbon(EDGE, EDGE + 1.6, at(EDGE, 0.05), (j) => hy[j] - 1, 0, skirtMat);
+    ribbon(-ROAD, ROAD, at(-ROAD, 0.05), at(ROAD, 0.05), th.space ? 40 : 16, th.space ? rainbowMat : roadMat);
+    ribbon(-EDGE, -ROAD, at(-EDGE, 0.05), at(-ROAD, 0.05), 5, th.space ? glowCurbMat : curbMat);
+    ribbon(ROAD, EDGE, at(ROAD, 0.05), at(EDGE, 0.05), 5, th.space ? glowCurbMat : curbMat);
+    if (!th.space) {
+      // earth under the lifted outside edge of banked bends
+      const skirtMat = new THREE.MeshLambertMaterial({ color: th.groundA, side: THREE.DoubleSide });
+      ribbon(-EDGE, -EDGE - 1.6, at(-EDGE, 0.05), (j) => hy[j] - 1, 0, skirtMat);
+      ribbon(EDGE, EDGE + 1.6, at(EDGE, 0.05), (j) => hy[j] - 1, 0, skirtMat);
+    } else {
+      // the rails round the banked bends: one strip for each run of guarded road, both sides
+      const all = guard.every((g) => g);
+      for (let i = 0; i < N; i++) {
+        if (!guard[i] || (!all && guard[mod(i - 1, N)]) || (all && i > 0)) continue;
+        let count = 0;
+        while (count < N && guard[mod(i + count, N)]) count++;
+        [-1, 1].forEach((s) => ribbon(s * EDGE, s * EDGE, at(s * EDGE, 0), at(s * EDGE, 1.4), 0, guardMat, i, Math.min(count, N) - (all ? 0 : 1)));
+      }
+    }
 
     // bridges: rails on top, and earth walls down to the grass except where the lower road runs under
     bridges.forEach((b) => {
       const gap = Math.round((EDGE + 2.5) / SP);
       [-1, 1].forEach((s) => {
         ribbon(s * EDGE, s * EDGE, at(s * EDGE, 0), at(s * EDGE, 1.1), 3, curbMat, b.over - Math.round(b.nb * 0.85), Math.round(b.nb * 1.7));
+        if (th.space) return;      // nothing for a bridge to stand on out here
         ribbon(s * EDGE, s * EDGE, at(s * EDGE, 0), (j) => hyBase[j] - 1, 0, stoneMat, b.over - b.nb, b.nb - gap);
         ribbon(s * EDGE, s * EDGE, at(s * EDGE, 0), (j) => hyBase[j] - 1, 0, stoneMat, b.over + gap, b.nb - gap);
       });
@@ -1117,8 +1177,7 @@
       g.computeVertexNormals();
       trackGroup.add(new THREE.Mesh(g, fenceMat));
     }
-    fence(-1, fenceL);
-    fence(1, fenceR);
+    if (!th.space) { fence(-1, fenceL); fence(1, fenceR); }
 
     function place(obj, i, lat, lift) {
       obj.position.set(px[i] + nx[i] * lat, surf(i, lat) + lift, pz[i] + nz[i] * lat);
@@ -1215,7 +1274,7 @@
     });
 
     // trees, kept clear of the road
-    const TREES = FAST ? 100 : 170;
+    const TREES = FAST ? 60 : 170;
     const kind = th.tree;
     const trunkGeo = new THREE.CylinderGeometry(0.35, 0.5, 1, 6).translate(0, 0.5, 0);
     const crownGeo = kind === 'pine' ? new THREE.ConeGeometry(1, 2.4, 7).translate(0, 1.2, 0)
@@ -1225,7 +1284,7 @@
     const crowns = new THREE.InstancedMesh(crownGeo, lam(0xffffff), TREES);
     const propSpots = Object.keys(def.props || {}).map((k) => k.split(',').map(Number)).map((c) => [cellX(c), cellZ(c)]);
     let made = 0;
-    for (let tries = 0; tries < TREES * 6 && made < TREES; tries++) {
+    for (let tries = 0; !th.space && tries < TREES * 6 && made < TREES; tries++) {
       const x = rand(-GW / 2 * CELL - 110, GW / 2 * CELL + 110), z = rand(-GH / 2 * CELL - 110, GH / 2 * CELL + 110);
       let ok = !propSpots.some(([a, b]) => (a - x) ** 2 + (b - z) ** 2 < 100);
       for (let i = 0; ok && i < N; i += 2) {
@@ -1260,7 +1319,31 @@
       dummy.updateMatrix(); clouds.setMatrixAt(i, dummy.matrix);
     }
     hills.frustumCulled = clouds.frustumCulled = false;   // spread over the whole sky
-    trackGroup.add(hills, clouds);
+    if (!th.space) trackGroup.add(hills, clouds);
+    else {
+      // stars all round, and a few big planets far off
+      const sp = [];
+      for (let i = 0; i < (FAST ? 260 : 700); i++) {
+        const a = rand(0, TAU), e = Math.asin(rand(-1, 1)), r = rand(900, 1300);
+        sp.push(Math.cos(e) * Math.sin(a) * r, Math.sin(e) * r, Math.cos(e) * Math.cos(a) * r);
+      }
+      const sg = new THREE.BufferGeometry();
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+      const stars = new THREE.Points(sg, starMat);
+      stars.frustumCulled = false;
+      trackGroup.add(stars);
+      const cols = [0xff9a5c, 0x7fd8ff, 0xc890ff, 0xffe08a, 0x8fe3a0, 0xff7ab8];
+      const planets = shared(new THREE.InstancedMesh(GEO.sphere, planetMat, cols.length));
+      cols.forEach((c, i) => {
+        const a = i / cols.length * TAU + rand(-0.3, 0.3), r = rand(520, 760), size = rand(35, 95);
+        dummy.scale.setScalar(size);
+        dummy.position.set(Math.sin(a) * r, rand(-220, 260), Math.cos(a) * r);
+        dummy.updateMatrix(); planets.setMatrixAt(i, dummy.matrix);
+        planets.setColorAt(i, tint.setHex(c));
+      });
+      planets.frustumCulled = false;
+      trackGroup.add(planets);
+    }
 
     world = T;
     stepCoins(0);
@@ -1350,6 +1433,7 @@
   }
 
   function startRace(def, opts = {}) {
+    paused = false;
     buildWorld(def);
     clearRaceObjects();
     showroom.visible = podium.visible = false;
@@ -1367,7 +1451,8 @@
     humans.forEach((ri, i) => grid.splice(slot + i, 0, ri));
     let aiN = 0;
     const karts = grid.map((ri, i) => {
-      const row = i >> 1, lat = i & 1 ? 4.5 : -4.5;
+      // rows are staggered sideways, so the kart behind you isn't between you and the camera
+      const row = i >> 1, lat = (i & 1 ? 4.5 : -4.5) + (row & 1 ? 2.3 : -2.3);
       const idx = mod(T.N - Math.round((6 + row * 5.5) / T.SP), T.N);
       const pi = humans.indexOf(ri);
       const h = Math.atan2(T.tx[idx], T.tz[idx]);
@@ -1375,7 +1460,7 @@
         ri, def: RACERS[ri], model: models[ri], pi: pi >= 0 ? pi : null,
         idx, lap: 0, lat, x: T.px[idx] + T.nx[idx] * lat, z: T.pz[idx] + T.nz[idx] * lat,
         h, md: h, v: 0, ay: 0, vy: 0, gy: 0, air: false, airT: 0, steer: 0,
-        boost: 0, spin: 0, safe: 0, shield: 0, tiny: 0, tinyS: 1, item: null, uses: 0, itemWait: 0, wrongT: 0,
+        fell: false, fallT: 0, roadY: 0, boost: 0, spin: 0, safe: 0, shield: 0, tiny: 0, tinyS: 1, item: null, uses: 0, itemWait: 0, wrongT: 0,
         drift: 0, charge: 0, hopping: false, dv: 0, rocketAt: null, rocketed: false, aiRocket: Math.random() < 0.4,
         finished: false, finishT: 0, place: i + 1, prog: 0, pt: 0, coins: 0, zone: null, msg: '', msgT: 0,
         skill: pi >= 0 ? 0.95 : speed.ai[0] + (speed.ai[1] - speed.ai[0]) * (aiN++ / 4),
@@ -1416,7 +1501,8 @@
     k.idx = best;
     k.lat = (k.x - T.px[best]) * T.nx[best] + (k.z - T.pz[best]) * T.nz[best];
     // rails on bridges; elsewhere the fence a little way into the grass
-    const lim = T.rail[best] ? EDGE - 1.4 : (k.lat > 0 ? T.fenceR[best] : T.fenceL[best]) - 1.3;
+    const guarded = T.rail[best] || T.guard[best];
+    const lim = guarded ? EDGE - 1.4 : T.open ? 1e9 : (k.lat > 0 ? T.fenceR[best] : T.fenceL[best]) - 1.3;
     if (Math.abs(k.lat) > lim) {
       const over = k.lat - Math.sign(k.lat) * lim;
       k.x -= T.nx[best] * over; k.z -= T.nz[best] * over; k.lat -= over;
@@ -1427,6 +1513,24 @@
     const f = ((k.x - T.px[best]) * T.tx[best] + (k.z - T.pz[best]) * T.tz[best]) / T.SP;
     const a = T.surf(best, k.lat, true), b = T.surf(mod(best + (f >= 0 ? 1 : -1), T.N), k.lat, true);
     k.gy = a + (b - a) * Math.min(1, Math.abs(f));
+    // space: past the edge of the road (where there's no rail) there is nothing to drive on
+    if (T.open) {
+      k.roadY = k.gy;
+      if (k.fell || (!guarded && Math.abs(k.lat) > EDGE + 0.5)) k.gy = -1000;
+    }
+  }
+  // back onto the middle of the road after falling off it
+  function respawn(k) {
+    const T = world, i = k.idx;
+    k.fell = false; k.fallT = 0;
+    k.x = T.px[i]; k.z = T.pz[i];
+    k.h = k.md = Math.atan2(T.tx[i], T.tz[i]);
+    k.v = 0; k.vy = 0; k.boost = 0; k.drift = 0; k.spin = 0; k.hopping = false;
+    locate(k);
+    k.ay = k.gy + 1.2; k.air = true; k.airT = 0;
+    k.safe = Math.max(k.safe, 1.5);
+    k.cam.h = k.h;
+    if (k.pi != null) { sfxUndo(); say(k, 'WHOOPS!', 1); }
   }
 
   function zoneAt(k) {
@@ -1583,6 +1687,14 @@
     const lapBefore = k.lap;
     locate(k);
 
+    if (T.open) {
+      if (!k.air && k.gy < k.ay - 4) { k.air = true; k.airT = 0; k.vy = Math.min(k.vy, 0); }   // drove off the edge
+      if (k.gy < -500) {
+        if (k.ay < k.roadY - 1.5) k.fell = true;      // too far down to get back on
+        k.fallT += dt;
+        if (k.ay < k.roadY - 26 || k.fallT > 1.7) respawn(k);
+      } else k.fallT = 0;
+    }
     // up and down: follow the road, fly off the end of a ramp, land again
     if (!k.air) {
       const pred = k.ay + k.vy * dt;
@@ -1817,6 +1929,7 @@
     m.bubble.visible = k.shield > 0 && (k.shield > 2 || Math.floor(k.shield * 8) % 2 === 0);
     m.g.visible = !(k.safe > 0 && k.spin <= 0 && Math.floor(k.safe * 10) % 2 === 0);
     m.shadow.position.set(k.x, k.gy + 0.14, k.z);
+    m.shadow.visible = k.gy > -500;
     m.shadow.rotation.set(-pitch, k.h, roll);
     m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy) * 0.25));
   }
@@ -1828,7 +1941,8 @@
     c.h += wrapAngle(goal - c.h) * (1 - Math.exp(-dt * 5));
     const fx = Math.sin(c.h), fz = Math.cos(c.h);
     const back = r.demo ? 11 : 8.5;
-    const cx = k.x - fx * back, cz = k.z - fz * back, ky = k.gy + (k.ay - k.gy) * 0.5;
+    const gy = k.gy < -500 ? Math.min(k.roadY, k.ay + 6) : k.gy;      // falling: follow the kart down a little
+    const cx = k.x - fx * back, cz = k.z - fz * back, ky = gy + (k.ay - gy) * 0.5;
     c.y += (Math.max(ky + 4.4 + (r.demo ? 1.5 : 0), world.groundY(cx, cz) + 2.5) - c.y) * Math.min(1, dt * 8);
     cam.position.set(cx, c.y, cz);
     cam.lookAt(k.x + fx * 5, ky + 1.5, k.z + fz * 5);
@@ -1954,6 +2068,7 @@
     return list;
   }
   function hideAll() {
+    paused = false;
     if (engine) engine.gain.gain.value = 0;
     clearRaceObjects();
     race = null;
@@ -2300,6 +2415,7 @@
 
   // ---------- Input ----------
   const touch = MickleTouch.create({
+    defaultOn: looksLikeTablet,   // a tablet starts with the stick and buttons showing
     toggleParent: document.getElementById('topbar'),
     buttons: [{ id: 'hop', label: 'HOP' }, { id: 'item', label: 'ITEM' }],
     onPress(id) {
@@ -2347,6 +2463,28 @@
     else if (mode === 'cup') { sfxUndo(); toTitle(); }
   }
 
+  // ---------- Pause (mid-race): P / Esc / START, or the II button on the screen ----------
+  let paused = false, pauseSel = 0;
+  const PAUSE_ITEMS = ['RESUME', 'START AGAIN', 'QUIT TO MENU'];
+  function setPaused(v) {
+    paused = !!v && mode === 'race' && !!race && !race.results && !race.demo;
+    pauseSel = 0;
+    hudT = 1;                                  // redraw the HUD straight away
+    for (const id in steerTouches) delete steerTouches[id];
+    queued.forEach((q) => { q.hop = q.item = false; });
+    touch.show(mode === 'race' && !paused && !!race && !race.results);
+    if (engine) engine.gain.gain.value = 0;
+    sfxSelect();
+  }
+  function pauseChoose(i) {
+    const r = race;
+    paused = false;
+    if (i === 0) { setPaused(false); return; }
+    if (i === 1) { sfxOk(); startRace(r.def, { from: r.from, key: r.key, order: r.order, board: r.board }); return; }
+    sfxUndo();
+    toTitle();
+  }
+
   window.addEventListener('keydown', (e) => {
     if (e.target && e.target.closest && e.target.closest('input, textarea')) return;
     unlockAudio();
@@ -2357,12 +2495,20 @@
     if (was) return;
     if (c === 'KeyM') { setMusic(!save.music); return; }
     if (mode === 'race' && race && !race.results) {
+      if (paused) {
+        if (c === 'ArrowUp' || c === 'KeyW') { pauseSel = mod(pauseSel - 1, PAUSE_ITEMS.length); sfxSelect(); }
+        else if (c === 'ArrowDown' || c === 'KeyS') { pauseSel = mod(pauseSel + 1, PAUSE_ITEMS.length); sfxSelect(); }
+        else if (c === 'Space' || c === 'Enter') pauseChoose(pauseSel);
+        else if (c === 'Escape' || c === 'Backspace' || c === 'KeyP') setPaused(false);
+        hudT = 1;
+        return;
+      }
+      if (c === 'Escape' || c === 'Backspace' || c === 'KeyP') { setPaused(true); return; }
       for (let s = 0; s < 2; s++) {
         const pi = twoUp() ? s : 0;
         if (KEYS.hop[s].includes(c)) queued[pi].hop = true;
         if (KEYS.item[s].includes(c)) queued[pi].item = true;
       }
-      if (c === 'Escape' || c === 'Backspace') back();
       return;
     }
     if (c === 'ArrowLeft' || c === 'KeyA') nav(-1, 0);
@@ -2403,7 +2549,7 @@
       ed.drag = e.pointerId; ed.moved = false; ed.downCell = c; ed.last = c.join(',');
       try { stage.setPointerCapture(e.pointerId); } catch (err) {}
       if (ed.brush !== 'road') paintCell(c[0], c[1], true);
-    } else if (mode === 'race' && race && !race.results) {
+    } else if (mode === 'race' && race && !race.results && !paused) {
       // no on-screen controls: hold the left or right side of your half of the screen to steer
       steerTouches[e.pointerId] = { pi: twoUp() && p.y > H / 2 ? 1 : 0, dir: p.x < W / 2 ? -1 : 1 };
       try { stage.setPointerCapture(e.pointerId); } catch (err) {}
@@ -2434,7 +2580,15 @@
   function pollPad() {
     const B = Pad360.BTN, P2 = Pad360.pad(1);
     const P = (b) => Pad360.pressed(b) || P2.pressed(b);
-    if (mode === 'race' && race && !race.results) { if (P(B.BACK) || P(B.START)) back(); return; }   // driving is read in humanInput
+    if (mode === 'race' && race && !race.results) {       // driving is read in humanInput
+      if (paused) {
+        const d = Pad360.dyPressed() || P2.dyPressed();
+        if (d) { pauseSel = mod(pauseSel + d, PAUSE_ITEMS.length); sfxSelect(); hudT = 1; }
+        if (P(B.A)) pauseChoose(pauseSel);
+        else if (P(B.B) || P(B.START) || P(B.BACK)) setPaused(false);
+      } else if (P(B.BACK) || P(B.START)) setPaused(true);
+      return;
+    }
     const dx = Pad360.dxPressed() || P2.dxPressed(), dy = Pad360.dyPressed() || P2.dyPressed();
     if (dx || dy) nav(dx, dx ? 0 : dy);
     if (P(B.A) || P(B.START)) primary();
@@ -2675,14 +2829,14 @@
   function drawGpIntro() {
     hctx.fillStyle = 'rgba(12,10,40,0.35)'; hctx.fillRect(0, 0, W, H);
     text('GRAND PRIX', W / 2, 26, 24, '#ff9a2e', 'center', '#120b28');
-    panel(120, 46, 240, 152);
-    text(BUILTIN.length + ' RACES IN A ROW', W / 2, 62, 11, '#ffe14f', 'center');
-    BUILTIN.forEach((d, i) => text((i + 1) + '. ' + d.name, 150, 84 + i * 17, 11, '#ffffff'));
-    text('POINTS: ' + POINTS.join(' '), W / 2, 158, 9, '#5ff3ff', 'center');
-    text('MOST POINTS WINS THE GOLD CUP', W / 2, 172, 8, '#ffffff', 'center');
+    panel(120, 42, 240, 180);
+    text(BUILTIN.length + ' RACES IN A ROW', W / 2, 56, 11, '#ffe14f', 'center');
+    BUILTIN.forEach((d, i) => text((i + 1) + '. ' + d.name, 150, 76 + i * 16, 11, '#ffffff'));
+    text('POINTS: ' + POINTS.join(' '), W / 2, 76 + BUILTIN.length * 16 + 6, 9, '#5ff3ff', 'center');
+    text('MOST POINTS WINS THE GOLD CUP', W / 2, 76 + BUILTIN.length * 16 + 20, 8, '#ffffff', 'center');
     const best = save.gp['s' + save.speed];
-    if (best) { drawCup(338, 70, 0.6, best); text('BEST', 338, 90, 7, '#ffffff', 'center'); }
-    if (!save.gold) text('WIN IT TO UNLOCK THE GOLDEN KART!', W / 2, 188, 8, '#ffd23f', 'center');
+    if (best) { drawCup(338, 66, 0.6, best); text('BEST', 338, 86, 7, '#ffffff', 'center'); }
+    if (!save.gold) text('WIN IT TO UNLOCK THE GOLDEN KART!', W / 2, 76 + BUILTIN.length * 16 + 34, 8, '#ffd23f', 'center');
     button('BACK', 34, 236, 70, 24, back, { px: 10 });
     button('START!', 175, 234, 130, 28, primary, { go: true, px: 14 });
     button('SPEED: ' + SPEEDS[save.speed].name, 336, 236, 112, 24, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
@@ -2738,6 +2892,15 @@
       miniMap(392, 26, 80, r.karts);
     }
     drawConfetti(r.confetti);
+    if (r.demo) return;
+    if (!paused) { button('II', 362, 4, 24, 19, () => setPaused(true), { px: 11, color: '#ffffff' }); return; }
+    // paused: only the pause panel's buttons take taps
+    hudButtons = [];
+    hctx.fillStyle = 'rgba(8,6,28,0.62)'; hctx.fillRect(0, 0, W, H);
+    panel(150, 52, 180, 166, 'rgba(12,10,40,0.92)', '#ffe14f');
+    text('PAUSED', W / 2, 74, 20, '#ffe14f', 'center', '#120b28');
+    PAUSE_ITEMS.forEach((l, i) => button(l, 172, 96 + i * 38, 136, 28, () => pauseChoose(i),
+      { go: pauseSel === i, px: 12, color: i === 2 ? '#ff9a8a' : '#5ff3ff' }));
   }
   function drawConfetti(list) {
     for (const c of list) {
@@ -2929,12 +3092,29 @@
     else if (mode === 'race') drawRace();
     else if (mode === 'cup') drawCupScreen();
     else if (mode === 'build') drawBuild();
+    if (showSpeed) {
+      if (!gpuName) {
+        try {
+          const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+          gpuName = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)).toUpperCase().slice(0, 70);
+        } catch (e) { gpuName = '?'; }
+      }
+      const inf = renderer.info.render;
+      hctx.fillStyle = 'rgba(0,0,0,0.75)'; hctx.fillRect(0, H - 25, W, 25);
+      text(Math.round(speed.fps) + ' FPS   GAME ' + speed.sim.toFixed(1) + '   3D ' + speed.draw.toFixed(1) + '   HUD ' + speed.hud.toFixed(1) +
+        ' MS   ' + view.width + 'x' + view.height + '   HUD ' + hud.width + '   ' + inf.calls + ' DRAWS   ' + (FAST ? 'FAST' : 'NICE'),
+        4, H - 18, 7, '#ffffff');
+      text(gpuName, 4, H - 7, 7, '#8fe36b');
+    }
   }
 
   // ---------- Resize and drawing ----------
   function resize() {
     const r = view.getBoundingClientRect();
     if (!r.width) return;
+    viewW = r.width; viewH = r.height;
+    const base = FAST ? Math.min(BASE_RATIO, FAST_WIDTH / r.width) : BASE_RATIO;
+    renderer.setPixelRatio(base * dyn);
     renderer.setSize(r.width, r.height, false);
   }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(view);
@@ -2943,7 +3123,7 @@
 
   function setFov(cam, fov) { if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); } }
   function render() {
-    const rect = view.getBoundingClientRect(), cw = rect.width, ch = rect.height;
+    const cw = viewW, ch = viewH;       // measured in resize(), not every frame
     if (!cw) return;
     if (mode === 'build') {
       const t = edTrack();
@@ -2976,27 +3156,28 @@
   }
 
   // ---------- Main loop ----------
-  let lastT = performance.now(), perfT = 0, perfN = 0, hudSkip = false;
+  let lastT = performance.now(), perfT = 0, perfN = 0, hudT = 1;
+  // what the SHOW SPEED readout shows: frames a second and where each frame's time goes
+  const speed = { fps: 0, sim: 0, draw: 0, hud: 0, n: 0, t: 0, aSim: 0, aDraw: 0, aHud: 0 };
   function frame(now) {
-    const raw = Math.min(0.1, Math.max(0.001, (now - lastT) / 1000));
-    const dt = Math.min(0.034, raw);
+    const raw = Math.min(0.12, Math.max(0.001, (now - lastT) / 1000));
     lastT = now;
-    // a slow tablet draws at a lower resolution so the racing stays smooth
+    // A slow tablet still plays at full speed: a long frame is simulated as two or three
+    // short steps (never one long one, which would let karts skip through things).
+    const steps = Math.min(4, Math.ceil(raw / 0.034)), dt = raw / steps;
+    // ...and it draws a smaller picture while frames stay slow
     perfT += raw; perfN++;
-    if (perfN >= 60) {
-      if (perfT / perfN > 0.026 && pixelRatio > MIN_RATIO) {
-        pixelRatio = Math.max(MIN_RATIO, pixelRatio - (FAST ? 0.15 : 0.2));
-        renderer.setPixelRatio(pixelRatio);
-        resize();
-      }
+    if (perfN >= 45) {
+      if (perfT / perfN > 0.026 && dyn > 0.6) { dyn = Math.max(0.6, dyn - 0.2); resize(); }
       perfT = perfN = 0;
     }
+    const t0 = performance.now();
     Pad360.poll();
     pollPad();
-    spin += dt;
-    clearArmed = Math.max(0, clearArmed - dt);
+    spin += raw;
+    clearArmed = Math.max(0, clearArmed - raw);
 
-    if (race) stepRace(dt);
+    if (race) { for (let s = 0; s < steps && !paused; s++) { if (race) stepRace(dt); } }
     else if (mode === 'racer') {
       const m = models[save.look[pickIdx].racer];
       m.g.rotation.y = spin * 0.9;
@@ -3010,17 +3191,17 @@
       camera.position.set(Math.sin(a) * 290, 230, Math.cos(a) * 290 + 30);
       camera.lookAt(0, 0, 22);
       setFov(camera, 62);
-      stepCoins(dt);
+      stepCoins(raw);
     } else if (mode === 'cup') {
-      cup.t += dt;
+      cup.t += raw;
       cup.standings.slice(0, 3).forEach((s, i) => pose(models[s.ri], cup.t + i, true, 0));
       camera.position.set(0, SHOW_Y + 6, 20.5);
       camera.lookAt(0, SHOW_Y + 2, 0);
       setFov(camera, 50);
-      for (const c of cup.confetti) { c.y += c.vy * dt; c.x += c.vx * dt; if (c.y > H + 5) c.y = -8; }
+      for (const c of cup.confetti) { c.y += c.vy * raw; c.x += c.vx * raw; if (c.y > H + 5) c.y = -8; }
     } else if (mode === 'build') {
       const t = edTrack();
-      if (ed.dirty > 0) ed.dirty -= dt;
+      if (ed.dirty > 0) ed.dirty -= raw;
       if (t.closed && ed.dirty <= 0 && (!world || world.sig !== trackSig(t))) buildWorld(t);
       if (world && t.closed) {
         // circle the track itself, close enough that it fills the little view
@@ -3036,16 +3217,26 @@
         camera.position.set(fr.x + Math.sin(a) * d, d * 0.8, fr.z + Math.cos(a) * d);
         camera.lookAt(fr.x, 0, fr.z);
         setFov(camera, 50);
-        stepCoins(dt);
+        stepCoins(raw);
       }
     }
-    stepParticles(dt);
+    stepParticles(raw);
     models.forEach((m) => { if (m.rainbow) m.paint.color.setHSL((spin * 0.25) % 1, 0.85, 0.55); });
     tickMusic();
+    const t1 = performance.now();
     render();
-    // FAST: mid-race the HUD (places, laps, map) only needs redrawing every other frame
-    hudSkip = !hudSkip;
-    if (!(FAST && hudSkip && mode === 'race' && race && !race.results)) drawHud();
+    const t2 = performance.now();
+    // FAST: the HUD is a big 2D picture laid over the 3D one, and redrawing it is slow on a
+    // tablet -- so it is redrawn 12 times a second in a race and 20 in the menus
+    hudT += raw;
+    let drewHud = false;
+    if (!FAST || hudT >= (mode === 'race' && race && !race.results ? 1 / 12 : 1 / 20)) { hudT = 0; drawHud(); drewHud = true; }
+    const t3 = performance.now();
+    speed.n++; speed.t += raw; speed.aSim += t1 - t0; speed.aDraw += t2 - t1; if (drewHud) speed.aHud = t3 - t2;
+    if (speed.t >= 0.5) {
+      speed.fps = speed.n / speed.t; speed.sim = speed.aSim / speed.n; speed.draw = speed.aDraw / speed.n; speed.hud = speed.aHud;
+      speed.n = speed.t = speed.aSim = speed.aDraw = 0;
+    }
     requestAnimationFrame(frame);
   }
 

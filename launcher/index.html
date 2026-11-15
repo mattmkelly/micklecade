@@ -425,6 +425,23 @@
   }
   .picker .close { margin-top: 16px; color: #b9b0e0; border-color: #3a2e6e; }
 
+  /* While a game is open the shelf underneath is not drawn at all, so a slow tablet spends
+     nothing on it (visibility, not display: the carousel still needs its sizes). */
+  body.playing > :not(.game-frame) { visibility: hidden; }
+  body.playing .marquee h1 { animation: none; }
+
+  /* Tablets (html.lite, set by the script at the bottom): the glows, the mirror under each
+     cabinet and the flicker are what make the shelf slow to slide, so they go. */
+  .lite .marquee h1 { animation: none; text-shadow: 0 0 6px var(--neon-pink); }
+  .lite .marquee p, .lite .cabinet .title, .lite .info .now, .lite .nav { text-shadow: none; }
+  .lite .cabinet { -webkit-box-reflect: unset; box-shadow: none; }
+  .lite .cabinet.selected { box-shadow: 0 0 0 3px rgba(255, 79, 216, 0.45); }
+  .lite .shelf::after, .lite .nav, .lite .player-badge, .lite .dots span.on { box-shadow: none; }
+  .lite .dots span { transition: none; }
+  /* flat cards (no 3D tilt): they still shrink and fade away from the middle */
+  .lite .mc-strip { perspective: none; }
+  .lite .mc-strip > .mc-card { transform: translateX(calc(var(--d) * -6%)) scale(calc(1.08 - min(var(--ad), 2) * 0.17)); }
+
   @media (max-width: 600px) {
     :root { --card-w: 62vw; }
     .nav { display: none; }
@@ -633,6 +650,8 @@
   // CREDITS opens the credits, each as a full-screen sheet. The badge top-right (or Y / P)
   // picks the player.
   (function () {
+    // tablets get the plain, quick shelf (see ".lite" in the styles)
+    if (/Android|Silk|KF[A-Z]{2,}|iPad/i.test(navigator.userAgent)) document.documentElement.classList.add('lite');
     const strip = document.querySelector('.cabinet-strip');
     const items = Array.from(strip.querySelectorAll('.cabinet'));
     const nowEl = document.querySelector('.info .now');
@@ -705,6 +724,7 @@
       gameFrame.src = url;
       gameFrame.addEventListener('load', () => { if (gameFrame) { gameFrame.focus(); tellGame(); } });
       document.body.appendChild(gameFrame);
+      document.body.classList.add('playing');   // stop drawing the shelf under the game
       // the tablet's back button closes the game instead of leaving the arcade
       try { history.pushState({ mcGame: url }, ''); } catch (e) {}
     }
@@ -712,6 +732,7 @@
       if (!gameFrame) return;
       gameFrame.remove();
       gameFrame = null;
+      document.body.classList.remove('playing');
       updateBadge();   // a name may have been typed in the game
       if (!fromHistory) { try { history.back(); } catch (e) {} }
       window.focus();  // keys and taps come back to the shelf

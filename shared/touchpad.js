@@ -9,6 +9,7 @@
 //     buttons: [{ id: 'hop', label: 'HOP' }],            // bottom-right, first one lowest
 //     onPress(id) {}, onRelease(id) {},                  // a button went down / up
 //     onStep(dx) {},                                     // the stick was nudged left/right (-1 / 1), for menus
+//     defaultOn: true,                                   // start ON when nobody has picked yet (a tablet)
 //   });
 //   pad.dx()          // -1 / 0 / 1 while the stick is held left / centre / right
 //   pad.dy()          // -1 / 0 / 1 while the stick is held up / centre / down
@@ -50,13 +51,19 @@
     document.head.appendChild(style);
   }
 
-  function loadOn() { try { return localStorage.getItem(KEY) === 'on'; } catch (e) { return false; } }
+  // `def` is what a game wants when nobody has picked yet (opts.defaultOn -- a tablet, say)
+  function loadOn(def) {
+    try {
+      var v = localStorage.getItem(KEY);
+      return v === null ? !!def : v === 'on';
+    } catch (e) { return !!def; }
+  }
   function saveOn(on) { try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch (e) {} }
 
   function create(opts) {
     opts = opts || {};
     injectCss();
-    var on = loadOn(), shown = true;
+    var on = loadOn(opts.defaultOn), shown = true;
     var stickX = 0, stickY = 0, stickAX = 0, stickAY = 0;
     var held = {};
 
@@ -151,16 +158,18 @@
     });
     (opts.toggleParent || document.body).appendChild(toggle);
 
-    function setOn(v) {
+    // `quiet` = just showing the starting state, so nothing is remembered: a game's own
+    // default mustn't become the choice for every other game
+    function setOn(v, quiet) {
       on = v;
-      saveOn(on);
+      if (!quiet) saveOn(on);
       layer.hidden = !on || !shown;
       toggle.classList.toggle('on', on);
       toggle.classList.remove('nudge');
       toggle.textContent = 'TOUCH CONTROLS: ' + (on ? 'ON' : 'OFF');
       if (!on) { releaseStick(); held = {}; }
     }
-    setOn(on);
+    setOn(on, true);
 
     // Someone touched the game with the controls off: point at the toggle (once a visit).
     var nudged = false;
