@@ -2657,6 +2657,11 @@
     text(label, cx, cy + 0.5, (o.px || 12) * p, '#ffffff', 'center', '#0d4a1e');
     hudButtons.push({ x, y, w, h, fn });
   }
+  // Thumb spots, for holding a tablet in two hands: the button that moves you on is always in
+  // the bottom-right corner and the one that goes back is always in the bottom-left.
+  const GO = { x: 346, y: 228, w: 126, h: 34 }, BACK = { x: 8, y: 232, w: 84, h: 30 };
+  const goBtn = (label, fn, o = {}) => button(label, GO.x, GO.y, GO.w, GO.h, fn, Object.assign({ go: true, px: 13 }, o));
+  const backBtn = (label, fn, o = {}) => button(label, BACK.x, BACK.y, BACK.w, BACK.h, fn, Object.assign({ px: 10 }, o));
   function coinIcon(x, y, r = 5) {
     hctx.beginPath(); hctx.arc(x, y, r, 0, TAU); hctx.fillStyle = '#ffd23f'; hctx.fill();
     hctx.lineWidth = 1.2; hctx.strokeStyle = '#a86800'; hctx.stroke();
@@ -2760,12 +2765,15 @@
     text('FREDDY BEAR', W / 2, 34, 32, '#ffe14f', 'center', '#120b28');
     text('KART 3D', W / 2, 70, 38, '#ff7a1e', 'center', '#120b28');
     const labels = ['RACE!', 'GRAND PRIX', 'BUILD A TRACK'], cols = ['#ffe14f', '#ff9a2e', '#5ff3ff'];
-    labels.forEach((l, i) => button(l, 160, 118 + i * 30, 160, 25, () => titleChoose(i), { go: titleSel === i, color: cols[i], px: 14 }));
-    button(save.players === 2 ? 'PLAYERS: 2 (SPLIT SCREEN)' : 'PLAYERS: 1', 140, 212, 200, 20, () => titleChoose(3),
+    // RACE! under the right thumb, the other two under the left
+    goBtn(labels[0], () => titleChoose(0), { go: titleSel === 0, color: cols[0], px: 16 });
+    button(labels[1], 8, 198, 130, 28, () => titleChoose(1), { go: titleSel === 1, color: cols[1], px: 12 });
+    button(labels[2], 8, 232, 130, 30, () => titleChoose(2), { go: titleSel === 2, color: cols[2], px: 12 });
+    button(save.players === 2 ? 'PLAYERS: 2 (SPLIT SCREEN)' : 'PLAYERS: 1', 148, 238, 188, 22, () => titleChoose(3),
       { sel: titleSel === 3, color: '#8fe36b', px: 9 });
     coinIcon(440, 16, 6);
     text(String(save.coins), 452, 16.5, 12, '#ffe14f', 'left', '#120b28');
-    text('A MICKLEKIDS GAME', W / 2, 256, 8, '#ffffff', 'center', '#120b28');
+    text('A MICKLEKIDS GAME', W / 2, 94, 8, '#ffffff', 'center', '#120b28');
   }
 
   function statPips(label, v, x, y) {
@@ -2790,8 +2798,8 @@
     statPips('SPEED', d.top * 1.05 - 0.05, 26, 58);
     statPips('ZOOM', d.acc, 26, 72);
     statPips('TURN', d.turn, 26, 86);
-    button('◀', 120, 104, 34, 40, () => { rowSel = 0; cycleRow(-1); }, { px: 18 });
-    button('▶', 326, 104, 34, 40, () => { rowSel = 0; cycleRow(1); }, { px: 18 });
+    button('◀', 8, 108, 40, 48, () => { rowSel = 0; cycleRow(-1); }, { px: 20 });
+    button('▶', 432, 108, 40, 48, () => { rowSel = 0; cycleRow(1); }, { px: 20 });
     const hat = HATS.find((h) => h.id === l.hat) || HATS[0], paint = PAINTS.find((p) => p.id === l.paint) || PAINTS[0];
     const rows = [d.name, 'HAT: ' + hat.name, 'KART: ' + paint.name];
     rows.forEach((s, i) => {
@@ -2806,24 +2814,24 @@
     });
     const nu = nextUnlock(rowSel === 2 ? PAINTS : HATS);
     if (nu) text('NEXT: ' + nu, W / 2, 222, 7, '#ffffff', 'center', '#120b28');
-    button('BACK', 34, 238, 70, 22, back, { px: 10 });
-    button(pickIdx < save.players - 1 ? 'NEXT PLAYER' : 'THIS ONE!', 175, 236, 130, 26, pickNext, { go: true, px: 13 });
+    backBtn('BACK', back);
+    goBtn(pickIdx < save.players - 1 ? 'NEXT PLAYER' : 'THIS ONE!', pickNext);
   }
 
   function drawTrackPick() {
     const list = trackList(), t = list[trackSel];
     text('PICK A TRACK', W / 2, 22, 18, '#ffe14f', 'center', '#120b28');
-    button('◀', 34, 110, 40, 44, () => nav(-1, 0), { px: 20 });
-    button('▶', 406, 110, 40, 44, () => nav(1, 0), { px: 20 });
+    button('◀', 8, 108, 40, 48, () => nav(-1, 0), { px: 20 });
+    button('▶', 432, 108, 40, 48, () => nav(1, 0), { px: 20 });
     panel(110, 176, 260, 50);
     text(t.name, W / 2, 190, 16, '#ffffff', 'center');
     const best = save.best[t.key], place = save.cups[t.key];
     text(best ? 'BEST ' + fmtTime(best) : (THEMES[t.def.theme] || THEMES.meadow).name + ' · ' + LAPS + ' LAPS', W / 2, 212, 10, '#5ff3ff', 'center');
     if (place && place <= 3) drawCup(352, 194, 0.6, place);
     text((trackSel + 1) + ' / ' + list.length, W / 2, 166, 8, '#ffffff', 'center', '#120b28');
-    button('BACK', 34, 236, 70, 24, back, { px: 10 });
-    button('START!', 175, 234, 130, 28, primary, { go: true, px: 14 });
-    button('SPEED: ' + SPEEDS[save.speed].name, 336, 236, 112, 24, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
+    backBtn('BACK', back);
+    goBtn('START!', primary, { px: 15 });
+    button('SPEED: ' + SPEEDS[save.speed].name, 100, 235, 116, 26, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
   }
 
   function drawGpIntro() {
@@ -2837,9 +2845,9 @@
     const best = save.gp['s' + save.speed];
     if (best) { drawCup(338, 66, 0.6, best); text('BEST', 338, 86, 7, '#ffffff', 'center'); }
     if (!save.gold) text('WIN IT TO UNLOCK THE GOLDEN KART!', W / 2, 76 + BUILTIN.length * 16 + 34, 8, '#ffd23f', 'center');
-    button('BACK', 34, 236, 70, 24, back, { px: 10 });
-    button('START!', 175, 234, 130, 28, primary, { go: true, px: 14 });
-    button('SPEED: ' + SPEEDS[save.speed].name, 336, 236, 112, 24, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
+    backBtn('BACK', back);
+    goBtn('START!', primary, { px: 15 });
+    button('SPEED: ' + SPEEDS[save.speed].name, 100, 235, 116, 26, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
   }
 
   // one player's part of the race screen; two players get half the height each
@@ -2897,10 +2905,11 @@
     // paused: only the pause panel's buttons take taps
     hudButtons = [];
     hctx.fillStyle = 'rgba(8,6,28,0.62)'; hctx.fillRect(0, 0, W, H);
-    panel(150, 52, 180, 166, 'rgba(12,10,40,0.92)', '#ffe14f');
-    text('PAUSED', W / 2, 74, 20, '#ffe14f', 'center', '#120b28');
-    PAUSE_ITEMS.forEach((l, i) => button(l, 172, 96 + i * 38, 136, 28, () => pauseChoose(i),
-      { go: pauseSel === i, px: 12, color: i === 2 ? '#ff9a8a' : '#5ff3ff' }));
+    text('PAUSED', W / 2, 104, 30, '#ffe14f', 'center', '#120b28');
+    // RESUME under the right thumb, QUIT under the left, START AGAIN in the middle
+    goBtn(PAUSE_ITEMS[0], () => pauseChoose(0), { go: pauseSel === 0, color: '#5ff3ff' });
+    button(PAUSE_ITEMS[1], 172, 138, 136, 30, () => pauseChoose(1), { go: pauseSel === 1, px: 12, color: '#5ff3ff' });
+    backBtn(PAUSE_ITEMS[2], () => pauseChoose(2), { go: pauseSel === 2, color: '#ff9a8a', px: 9 });
   }
   function drawConfetti(list) {
     for (const c of list) {
@@ -2938,11 +2947,11 @@
     }
     if (r.unlocked.length) text('NEW: ' + r.unlocked.join(', ') + '!', W / 2, y, 10, '#ff9ad6', 'center');
     if (isGp) {
-      button('QUIT CUP', 96, 234, 120, 26, back, { px: 11 });
-      button(gp.idx < BUILTIN.length - 1 ? 'NEXT RACE' : 'SEE THE CUP!', 224, 234, 160, 26, primary, { go: true, px: 13 });
+      backBtn('QUIT CUP', back);
+      goBtn(gp.idx < BUILTIN.length - 1 ? 'NEXT RACE' : 'SEE THE CUP!', primary);
     } else {
-      button(r.from === 'build' ? 'BUILDER' : 'TRACKS', 96, 234, 120, 26, back, { px: 12 });
-      button('RACE AGAIN', 224, 234, 160, 26, primary, { go: true, px: 13 });
+      backBtn(r.from === 'build' ? 'BUILDER' : 'TRACKS', back);
+      goBtn('RACE AGAIN', primary);
     }
     drawConfetti(r.confetti);
   }
@@ -2968,8 +2977,8 @@
       text(two ? 'P' + (s.pi + 1) + ' ' + ORD[s.place - 1] : ORD[s.place - 1] + ' PLACE', x, y + h - 12, 10, '#ffffff', 'center');
     });
     if (c.unlocked.length) text('NEW: ' + c.unlocked.join(', ') + '!', W / 2, 206, 11, '#ff9ad6', 'center', '#120b28');
-    button('MENU', 120, 234, 110, 26, back, { px: 12 });
-    button('PLAY AGAIN', 240, 234, 130, 26, () => { sfxOk(); hideAll(); startGP(); }, { go: true, px: 13 });
+    backBtn('MENU', back);
+    goBtn('PLAY AGAIN', () => { sfxOk(); hideAll(); startGP(); });
     drawConfetti(c.confetti);
   }
 
