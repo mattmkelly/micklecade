@@ -907,20 +907,90 @@
   // bumping a shrunk kart and ramming someone while boosting pop them. The most pops in two
   // minutes wins. Nobody is knocked out: lose all three and Puff brings you new ones.
   const BATTLE_T = 120;
+  // Pieces that give an arena more than one level: oriented boxes whose top can slope (a ramp).
+  // ang turns the piece; its length (hl) runs along local u, its width (hw) along v; the top
+  // goes from y1 at u = -hl to y2 at u = +hl, and it is solid from y0 up. A deck is thin
+  // (you can drive under it), a wall and a ramp go down to the ground, a rail sits on a deck.
+  const ARENA_STEP = 1;                    // how high a kart can just drive up onto
+  const deck = (x, z, ang, hl, hw, y) => ({ x, z, ang, hl, hw, y0: y - 1, y1: y, y2: y, kind: 'deck' });
+  const solid = (x, z, ang, hl, hw, y) => ({ x, z, ang, hl, hw, y0: -1, y1: y, y2: y, kind: 'wall' });
+  const ramp = (x, z, ang, hl, hw, ya, yb) => ({ x, z, ang, hl, hw, y0: -1, y1: ya, y2: yb, kind: 'ramp' });
+  const rail = (x, z, ang, hl, y) => ({ x, z, ang, hl, hw: 0.25, y0: y, y1: y + 1.6, y2: y + 1.6, kind: 'rail' });
   const ring = (n, r, off = 0) => Array.from({ length: n }, (_, i) => [Math.sin(off + i / n * TAU) * r, Math.cos(off + i / n * TAU) * r]);
   const ARENAS = [
+    // a grassy hill in the middle with a tunnel through it, and ramps up onto the top
     { name: 'HONEY BOWL', theme: 'meadow', arena: true, shape: 'circle', R: 105, bowl: 7, spawn: [0, 0.62],
-      blocks: [[42, 42, 'house'], [-42, 42, 'house'], [42, -42, 'house'], [-42, -42, 'house'], [0, 0, 'pillar']],
-      boxes: ring(6, 20).concat(ring(8, 68, 0.4)) },
+      colors: [0x7fcc5c, 0xc89a5a, 0xffd23f],
+      blocks: [[42, 42, 'house'], [-42, 42, 'house'], [42, -42, 'house'], [-42, -42, 'house']],
+      pieces: [solid(0, 11.75, 0, 20, 4.25, 9), solid(0, -11.75, 0, 20, 4.25, 9),
+               { x: 0, z: 0, ang: 0, hl: 20, hw: 7.5, y0: 7.5, y1: 9, y2: 9, kind: 'roof' },
+               ramp(0, 28, PI / 2, 12, 8, 0, 9), ramp(0, -28, PI / 2, 12, 8, 9, 0)],
+      boxes: [[0, 0], [12, 0, 10.6], [-12, 0, 10.6], [32, 0], [-32, 0]].concat(ring(8, 68, 0.4)) },
+    // a raised plaza with a ramp up each side -- and room to drive underneath it
     { name: 'SNOWBALL SQUARE', theme: 'snow', arena: true, shape: 'square', R: 95, bowl: 4, spawn: [0.3, 0.8],
+      colors: [0xe6f0f8, 0x8fb8d8, 0x3a7fd0],
       blocks: [[35, 35, 'snowman'], [-35, 35, 'snowman'], [35, -35, 'snowman'], [-35, -35, 'snowman'],
-               [0, 58, 'pillar'], [0, -58, 'pillar'], [58, 0, 'pillar'], [-58, 0, 'pillar']],
-      boxes: [[18, 0], [-18, 0], [0, 18], [0, -18], [68, 68], [-68, 68], [68, -68], [-68, -68], [40, 0], [-40, 0]] },
-    { name: 'CANDY CASTLE', theme: 'night', arena: true, shape: 'circle', R: 112, bowl: 3, spawn: [0.3, 0.62],
+               [0, 58, 'pillar'], [0, -58, 'pillar'], [58, 0, 'pillar'], [-58, 0, 'pillar'],
+               [13, 13, 'post'], [-13, 13, 'post'], [13, -13, 'post'], [-13, -13, 'post']],
+      pieces: [deck(0, 0, 0, 15, 15, 8),
+               ramp(28, 0, 0, 13, 6, 8, 0), ramp(-28, 0, 0, 13, 6, 0, 8),
+               ramp(0, 28, PI / 2, 13, 6, 0, 8), ramp(0, -28, PI / 2, 13, 6, 8, 0)],
+      boxes: [[7, 7, 9.6], [-7, -7, 9.6], [0, 0], [68, 68], [-68, 68], [68, -68], [-68, -68], [40, 25], [-40, -25], [25, -40], [-25, 40]] },
+    // two railed bridges to drive over (or under)
+    { name: 'CANDY CASTLE', theme: 'night', arena: true, shape: 'circle', R: 112, bowl: 3, spawn: [0.8, 0.62],
+      colors: [0xff9ad6, 0x8a5ac8, 0xffffff],
       blocks: [[0, 0, 'castle']].concat(ring(6, 44).map(([x, z]) => [x, z, 'lolly'])),
-      boxes: ring(8, 30, 0.39).concat(ring(8, 84)) },
+      pieces: [60, -60].flatMap((z) => [deck(0, z, 0, 25, 7, 8), ramp(40, z, 0, 15, 7, 8, 0), ramp(-40, z, 0, 15, 7, 0, 8),
+                                        rail(0, z + 7, 0, 25, 8), rail(0, z - 7, 0, 25, 8)]),
+      boxes: ring(8, 30, 0.39).concat(ring(8, 84), [[0, 60, 9.6], [0, -60, 9.6]]) },
   ];
-  const BLOCK_R = { house: 5.2, snowman: 3.4, lolly: 0.8, carrot: 1.4, pillar: 5, castle: 18.5 };
+  const BLOCK_R = { house: 5.2, snowman: 3.4, lolly: 0.8, carrot: 1.4, pillar: 5, castle: 18.5, post: 1.3 };
+
+  // where a point is in a piece's own frame
+  function pieceLocal(p, x, z) {
+    const dx = x - p.x, dz = z - p.z, c = Math.cos(p.ang), sn = Math.sin(p.ang);
+    return [dx * c - dz * sn, dx * sn + dz * c];
+  }
+  const pieceTopAt = (p, u) => p.y1 + (p.y2 - p.y1) * (clamp(u, -p.hl, p.hl) + p.hl) / (2 * p.hl);
+  // the floor under a point: the highest ground or piece top that isn't far above y
+  function arenaFloor(A, x, z, y) {
+    let best = A.height(x, z);
+    for (const p of A.pieces) {
+      const [u, v] = pieceLocal(p, x, z);
+      if (Math.abs(u) > p.hl || Math.abs(v) > p.hw) continue;
+      const t = pieceTopAt(p, u);
+      if (t <= y + ARENA_STEP && t > best) best = t;
+    }
+    return best;
+  }
+  // is a thing (radius r, from y to y + tall) running into the side of a piece? calls hit(p, u, v, pu, pv)
+  function arenaHits(A, x, z, y, r, tall, hit) {
+    for (const p of A.pieces) {
+      const [u, v] = pieceLocal(p, x, z), pu = p.hl + r - Math.abs(u), pv = p.hw + r - Math.abs(v);
+      if (pu <= 0 || pv <= 0) continue;
+      if (pieceTopAt(p, u) <= y + ARENA_STEP || p.y0 >= y + tall) continue;
+      if (hit(p, u, v, pu, pv) === false) return true;
+    }
+    return false;
+  }
+  const arenaBlocked = (A, x, z, y, r) => arenaHits(A, x, z, y, r, 2.4, () => false);
+  // would driving `dist` along (fx, fz) run into something? walks the floor up ramps on the way
+  function pathBlocked(A, x, z, y, fx, fz, dist) {
+    const n = Math.ceil(dist / 2);           // small steps, so a steep ramp still counts as a way up
+    for (let i = 1; i <= n; i++) {
+      const px = x + fx * dist * i / n, pz = z + fz * dist * i / n;
+      if (arenaBlocked(A, px, pz, y, 1.2)) return true;
+      y = Math.max(y, arenaFloor(A, px, pz, y));
+    }
+    return false;
+  }
+  // inside something solid (for keeping the camera out of ramps and walls)
+  function arenaInside(A, x, y, z) {
+    return A.pieces.some((p) => {
+      const [u, v] = pieceLocal(p, x, z);
+      return Math.abs(u) < p.hl + 0.6 && Math.abs(v) < p.hw + 0.6 && y < pieceTopAt(p, u) + 0.6 && y > p.y0 - 0.6;
+    });
+  }
 
   function buildArena(def) {
     trackGroup.traverse((o) => { if (o.geometry && !o.userData.shared) o.geometry.dispose(); });
@@ -950,12 +1020,13 @@
       nx[i] = -tz[i]; nz[i] = tx[i];
     }
     const blocks = def.blocks.map(([x, z, kind]) => ({ x, z, kind, r: BLOCK_R[kind] || 4 }));
+    const pieces = def.pieces || [];
     const T = { def, sig: trackSig(def), N, len: TAU * RL, SP: TAU * RL / N, px, pz, tx, tz, nx, nz,
                 curv: f32(), bank: f32(), hy: f32(), rail: new Uint8Array(N), guard: new Uint8Array(N), open: false,
                 fenceL: f32().fill(1e9), fenceR: f32().fill(1e9), wall: f32().fill(1e9),
                 surf: (i, lat) => height(px[i] + nx[i] * lat, pz[i] + nz[i] * lat), groundY,
                 pads: [], boxes: [], zones: [], coins: [], coinMesh: null, startAt: 0,
-                arena: { R, shape: def.shape, blocks, height, rimD } };
+                arena: { R, shape: def.shape, blocks, height, rimD, pieces, ramps: pieces.filter((q) => q.kind === 'ramp') } };
 
     // floor
     const STEP = FAST ? 7 : 4, E = R + 2, cols = Math.ceil(E * 2 / STEP);
@@ -998,7 +1069,10 @@
     blocks.forEach((b) => {
       const y = height(b.x, b.z);
       let o;
-      if (b.kind === 'pillar') {
+      if (b.kind === 'post') {
+        o = new THREE.Group();
+        part(o, new THREE.CylinderGeometry(b.r, b.r, 8, 10), lamC(def.colors ? def.colors[1] : 0x9a9aa6), 0, 4, 0);
+      } else if (b.kind === 'pillar') {
         o = new THREE.Group();
         part(o, new THREE.CylinderGeometry(b.r, b.r, 9, 16), pillarMat, 0, 4.5, 0);
         part(o, new THREE.CylinderGeometry(b.r + 0.8, b.r + 0.8, 1, 16), stoneMat, 0, 9.3, 0);
@@ -1017,11 +1091,44 @@
       trackGroup.add(o);
     });
 
-    // item boxes
-    def.boxes.forEach(([x, z]) => {
+    // ramps, decks, walls and rails: boxes whose top vertices are lifted to the piece's top
+    if (pieces.length) {
+      const [topC, sideC, railC] = def.colors;
+      const topM = lam(topC), sideM = lam(sideC), railM = lam(railC);
+      const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+      pieces.forEach((q) => {
+        const g = new THREE.BoxGeometry(2 * q.hl, 1, 2 * q.hw, 1, 1, 1).translate(0, 0.5, 0);
+        const pa = g.attributes.position;
+        for (let i = 0; i < pa.count; i++) {
+          const top = pa.getY(i) > 0.5;
+          pa.setY(i, top ? pieceTopAt(q, pa.getX(i)) : Math.max(q.y0, -1));
+        }
+        g.computeVertexNormals();
+        const isRail = q.kind === 'rail';
+        const m = new THREE.Mesh(g, isRail ? railM : [sideM, sideM, topM, sideM, sideM, sideM]);
+        m.position.set(q.x, 0, q.z);
+        m.rotation.y = q.ang;
+        trackGroup.add(m);
+        if (q.kind === 'ramp') {
+          // flat white arrows painted up the ramp
+          const up = q.y2 > q.y1 ? 1 : -1, c = Math.cos(q.ang), sn = Math.sin(q.ang), pts = [];
+          const at = (u, v) => [q.x + u * c + v * sn, pieceTopAt(q, u) + 0.1, q.z - u * sn + v * c];
+          for (const a of [-0.45, 0.15]) {
+            const u0 = a * q.hl * up, u1 = u0 + 3.2 * up;
+            pts.push(...at(u0, -2.2), ...at(u1, 0), ...at(u0, 2.2));
+          }
+          const ag = new THREE.BufferGeometry();
+          ag.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+          trackGroup.add(new THREE.Mesh(ag, arrowMat));
+        }
+      });
+    }
+
+    // item boxes (a third number puts one up on a deck)
+    def.boxes.forEach(([x, z, y]) => {
       const m = new THREE.Mesh(GEO.box, boxMat);
       m.userData.shared = true;
-      m.position.set(x, height(x, z) + 1.6, z);
+      m.position.set(x, y != null ? y : height(x, z) + 1.6, z);
       m.scale.setScalar(1.8);
       trackGroup.add(m);
       T.boxes.push({ x, y: m.position.y, z, mesh: m, t: 0 });
@@ -1584,6 +1691,8 @@
   const honeyGeo = new THREE.CylinderGeometry(1.7, 1.9, 0.14, 14);
   const honeyMat = lam(0xffb81e);
   const cams = [camera, new THREE.PerspectiveCamera(62, 16 / 9, 0.5, 1800)];
+  cams[0].layers.enable(2);      // player 1's camera sees player 2's balloons (layer 2), not their own (1)
+  cams[1].layers.enable(1);      // and the other way round
 
   function resetModel(m) {
     m.g.visible = false; m.shadow.visible = false; m.flame.visible = false; m.bubble.visible = false;
@@ -1623,6 +1732,45 @@
     scene.add(g);
     return g;
   }
+  // the battle leader's crown and golden glow (made when first needed, one per kart)
+  const crownMat = new THREE.MeshLambertMaterial({ color: 0xffd23f, emissive: 0x9a6a00, side: THREE.DoubleSide });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.35, depthWrite: false });
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xffe14f, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+  const beamGeo = new THREE.CylinderGeometry(1.1, 2.2, 22, 12, 1, true).translate(0, 11, 0);
+  const crownBand = new THREE.CylinderGeometry(0.8, 0.7, 0.5, 14, 1, true), crownSpike = new THREE.ConeGeometry(0.2, 0.55, 6);
+  const crownGroups = [];
+  function makeCrown() {
+    const g = new THREE.Group(), c = new THREE.Group();
+    part(c, crownBand, crownMat, 0, 0, 0);
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * TAU;
+      part(c, crownSpike, crownMat, Math.sin(a) * 0.72, 0.5, Math.cos(a) * 0.72);
+      part(c, GEO.sphere, i % 2 ? MAT.blue : MAT.red, Math.sin(a) * 0.78, 0, Math.cos(a) * 0.78, 0.13);
+    }
+    c.scale.setScalar(1.5);
+    g.add(c);
+    const glow = part(g, GEO.sphere, glowMat, 0, 1.1, 0, 2.6, 1.7, 3.1);
+    glow.renderOrder = 2;
+    // a tall soft beam of light, so you can spot the leader from across the arena
+    part(g, beamGeo, beamMat, 0, 0, 0).renderOrder = 2;
+    g.userData.crown = c;
+    scene.add(g);
+    crownGroups.push(g);
+    return g;
+  }
+  function showCrown(k) {
+    if (!k.crowned) { if (k.crown) k.crown.visible = false; return; }
+    const g = k.crown || (k.crown = makeCrown()), t = race.t;
+    g.visible = true;
+    g.position.set(k.x, k.ay, k.z);
+    g.rotation.y = k.h;
+    g.scale.setScalar(k.tinyS);
+    g.userData.crown.rotation.y = t * 1.5;
+    g.userData.crown.position.y = 6.9 + Math.sin(t * 4) * 0.15;      // up above the balloons
+    glowMat.opacity = 0.3 + Math.sin(t * 6) * 0.1;
+    beamMat.opacity = 0.16 + Math.sin(t * 3) * 0.06;
+  }
+
   // three balloons on strings behind a kart in a battle
   const balloonGroups = [];
   function makeBalloons(color) {
@@ -1677,6 +1825,8 @@
     puffs.forEach((p) => { p.visible = false; });
     balloonGroups.forEach((g) => { scene.remove(g); g.children.forEach((b) => b.children[1].material.dispose()); });
     balloonGroups.length = 0;
+    crownGroups.forEach((g) => scene.remove(g));
+    crownGroups.length = 0;
     balls.forEach((b) => scene.remove(b.mesh));
     puddles.forEach((p) => scene.remove(p.mesh));
     balls.length = puddles.length = 0;
@@ -1737,7 +1887,12 @@
         lane: lat, laneGoal: lat, laneT: rand(1, 3), cam: { h, y: 5, fov: 62 },
       };
       applyLook(k.model, pi >= 0 ? save.look[pi] : null);
-      if (T.arena) k.bal = makeBalloons(kartColor(k.model));
+      if (T.arena) {
+        k.bal = makeBalloons(kartColor(k.model));
+        // your own balloons would sit right in front of your camera (the HUD shows them), so
+        // they go on a layer only the other player's camera draws
+        if (pi >= 0) k.bal.traverse((o) => o.layers.set(1 + pi));
+      }
       k.model.g.visible = true;
       k.model.shadow.visible = true;
       return k;
@@ -1772,13 +1927,21 @@
         if (d > lim) { k.x *= lim / d; k.z *= lim / d; k.v *= 0.96; }
       }
       for (const b of A.blocks) {
+        if (k.ay > A.height(b.x, b.z) + 7.5) continue;        // up on a deck, over the posts
         const dx = k.x - b.x, dz = k.z - b.z, d = Math.hypot(dx, dz), m = b.r + 1.4;
         if (d < m && d > 1e-4) { k.x = b.x + dx / d * m; k.z = b.z + dz / d * m; k.v *= 0.96; }
       }
+      // the sides of ramps, walls and rails push the kart back out the shorter way
+      arenaHits(A, k.x, k.z, k.ay, 1.2, 2.4, (p, u, v, pu, pv) => {
+        if (pu < pv) u += Math.sign(u) * pu; else v += Math.sign(v) * pv;
+        const c = Math.cos(p.ang), sn = Math.sin(p.ang);
+        k.x = p.x + u * c + v * sn; k.z = p.z - u * sn + v * c;
+        k.v *= 0.96;
+      });
       k.idx = mod(Math.round(Math.atan2(k.x, k.z) / TAU * T.N), T.N);
       k.lat = 0;
       k.prog = 0;
-      k.gy = A.height(k.x, k.z);
+      k.gy = arenaFloor(A, k.x, k.z, k.ay);
       return;
     }
     let best = k.idx, bd = Infinity;
@@ -1900,7 +2063,8 @@
       let best = null, bd = Infinity;
       if (!k.item) for (const b of T.boxes) {
         if (b.t > 0) continue;
-        const d = (b.x - k.x) ** 2 + (b.z - k.z) ** 2;
+        // (boxes up on a deck count as nearer, so computer racers go up there too)
+        const d = ((b.x - k.x) ** 2 + (b.z - k.z) ** 2) * (b.y > k.ay + 5 ? 0.3 : 1);
         if (d < bd) { bd = d; best = { box: b }; }
       }
       if (!best || (k.item && Math.random() < 0.85) || Math.random() < 0.2) {
@@ -1914,16 +2078,43 @@
       if (!best) { const a = rand(0, TAU), r = rand(20, A.R * 0.7); best = { x: Math.sin(a) * r, z: Math.cos(a) * r }; }
       k.goal = best;
     }
-    const g = k.goal, gk = g.kart, gx = gk ? gk.x : g.box ? g.box.x : g.x, gz = gk ? gk.z : g.box ? g.box.z : g.z;
+    const g = k.goal, gk = g.kart;
+    let gx = gk ? gk.x : g.box ? g.box.x : g.x, gz = gk ? gk.z : g.box ? g.box.z : g.z;
+    const gy = gk ? gk.ay : g.box ? g.box.y - 1.6 : k.ay;
     const dist = Math.hypot(gx - k.x, gz - k.z);
+    // the target is up on a deck: head for the bottom of a ramp that goes up there, then up it
+    if (gy > k.ay + 3 && A.ramps.length) {
+      let rp = null, rd = Infinity;
+      for (const q of A.ramps) {
+        if (Math.abs(Math.max(q.y1, q.y2) - gy) > 2.5) continue;
+        const d = (q.x - k.x) ** 2 + (q.z - k.z) ** 2;
+        if (d < rd) { rd = d; rp = q; }
+      }
+      if (rp) {
+        const c = Math.cos(rp.ang), sn = Math.sin(rp.ang), lowU = rp.y1 < rp.y2 ? -1 : 1;
+        const [u, v] = pieceLocal(rp, k.x, k.z);
+        // lined up with the ramp (below it or on it): straight up; otherwise round to its foot
+        const lined = Math.abs(v) < rp.hw - 1.5 && u * lowU > -rp.hl;
+        const tu = lined ? -lowU * (rp.hl + 8) : lowU * (rp.hl + 9);
+        gx = rp.x + tu * c; gz = rp.z - tu * sn;
+      }
+    }
     let diff = wrapAngle(Math.atan2(gx - k.x, gz - k.z) - k.h);
     // steer round a big thing right ahead
     for (const b of A.blocks) {
       const ax = k.x + fx * 12 - b.x, az = k.z + fz * 12 - b.z;
       if (ax * ax + az * az < (b.r + 4) ** 2) diff += ((b.x - k.x) * -fz + (b.z - k.z) * fx) > 0 ? 0.9 : -0.9;
     }
+    // a ramp side, wall or rail right ahead: turn whichever way is clear
+    if (pathBlocked(A, k.x, k.z, k.ay, fx, fz, 9)) {
+      const l = !pathBlocked(A, k.x, k.z, k.ay, Math.sin(k.h + 0.7), Math.cos(k.h + 0.7), 9);
+      diff += l ? 0.9 : -0.9;
+    }
     // heading into the wall: turn for the middle
     if (A.rimD(k.x, k.z) > A.R - 16 && k.x * fx + k.z * fz > 0) diff = wrapAngle(Math.atan2(-k.x, -k.z) - k.h);
+    // stuck against something for a while: go somewhere else
+    k.stuckT = race.state === 'go' && k.v < 10 && k.spin <= 0 ? (k.stuckT || 0) + dt : 0;
+    if (k.stuckT > 1.2) { k.stuckT = 0; const a = rand(0, TAU), r = rand(20, A.R * 0.7); k.goal = { x: Math.sin(a) * r, z: Math.cos(a) * r }; k.laneT = 2.5; }
     if (k.item) {
       k.itemWait -= dt;
       const aimed = gk && Math.abs(diff) < 0.3;
@@ -2087,6 +2278,7 @@
     const lapBefore = k.lap;
     locate(k);
 
+    if (T.arena && !k.air && k.gy < k.ay - 0.8) { k.air = true; k.airT = 0; k.vy = Math.min(k.vy, 0); }   // off the edge of a deck
     if (T.open) {
       if (!k.air && k.gy < k.ay - 4) { k.air = true; k.airT = 0; k.vy = Math.min(k.vy, 0); }   // drove off the edge
       if (k.gy < -500) {
@@ -2098,7 +2290,7 @@
     // up and down: follow the road, fly off the end of a ramp, land again
     if (!k.air) {
       const pred = k.ay + k.vy * dt;
-      if (k.vy > 2.5 && pred > k.gy + 0.12) { k.air = true; k.ay = pred; k.airT = 0; }
+      if (k.vy > 2.5 && pred > k.gy + 0.12 && !T.arena) { k.air = true; k.ay = pred; k.airT = 0; }   // (arena ramps lead onto decks, not into the sky)
       else { k.vy = clamp((k.gy - k.ay) / dt, -30, 30); k.ay = k.gy; }
     }
     if (k.air) {
@@ -2296,8 +2488,10 @@
             b.x = ux * lim; b.z = uz * lim;
           }
         }
-        if (A.blocks.some((o) => (o.x - b.x) ** 2 + (o.z - b.z) ** 2 < (o.r + 0.8) ** 2)) gone = true;
-        x = b.x; z = b.z; y = A.height(x, z);
+        if (A.blocks.some((o) => b.y < A.height(o.x, o.z) + 7.5 && (o.x - b.x) ** 2 + (o.z - b.z) ** 2 < (o.r + 0.8) ** 2)) gone = true;
+        if (arenaBlocked(A, b.x, b.z, b.y, 0.5)) gone = true;
+        b.y = arenaFloor(A, b.x, b.z, b.y);
+        x = b.x; z = b.z; y = b.y;
       } else {
         b.idx += 72 / T.SP * dt;
         // roll along the road, drifting toward the nearest racer ahead
@@ -2348,7 +2542,7 @@
     let pitch = Math.atan((T.hy[(i + 2) % T.N] - T.hy[mod(i - 2, T.N)]) / (4 * T.SP)) * along;
     let roll = T.bank[i] * along * on;
     if (T.arena && !k.air) {
-      const Hf = T.arena.height, fx = Math.sin(k.h), fz = Math.cos(k.h);
+      const A = T.arena, Hf = (x, z) => arenaFloor(A, x, z, k.ay + 0.5), fx = Math.sin(k.h), fz = Math.cos(k.h);
       pitch = Math.atan((Hf(k.x + fx * 1.5, k.z + fz * 1.5) - Hf(k.x - fx * 1.5, k.z - fz * 1.5)) / 3);
       roll = Math.atan((Hf(k.x + fz * 1.5, k.z - fx * 1.5) - Hf(k.x - fz * 1.5, k.z + fx * 1.5)) / 3);
     }
@@ -2370,7 +2564,7 @@
     m.shadow.rotation.set(-pitch, k.h, roll);
     m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy) * 0.25));
     showPuff(k);
-    if (k.bal) showBalloons(k);
+    if (k.bal) { showBalloons(k); showCrown(k); }
   }
 
   function chase(k, cam, dt) {
@@ -2387,6 +2581,13 @@
       const A = T.arena, lim = A.R - 3;
       if (A.shape === 'square') { cx = clamp(cx, -lim, lim); cz = clamp(cz, -lim, lim); }
       else { const d = Math.hypot(cx, cz); if (d > lim) { cx *= lim / d; cz *= lim / d; } }
+      if (A.pieces.length) {
+        const cyGuess = ky + 4.4;
+        for (let f = 1; f > 0.15; f -= 0.17) {
+          const qx = k.x + (cx - k.x) * f, qz = k.z + (cz - k.z) * f;
+          if (!arenaInside(A, qx, cyGuess, qz) || f < 0.3) { cx = qx; cz = qz; break; }
+        }
+      }
     }
     // in a tunnel, keep the camera inside it too
     const ci = mod(k.idx - Math.round(back / T.SP), T.N);
@@ -2449,7 +2650,19 @@
       if (!r.done) {
         const order = r.karts.slice().sort((a, b) => b.score - a.score || b.balloons - a.balloons);
         order.forEach((k, i) => { const p = order[i - 1]; k.place = p && p.score === k.score && p.balloons === k.balloons ? p.place : i + 1; });
+        // the crown: whoever has the most pops (nobody while it's still 0)
+        const top = order[0].score;
+        r.karts.forEach((k) => {
+          const was = k.crowned;
+          k.crowned = top > 0 && k.score === top;
+          if (k.crowned && !was && k.pi != null && r.state === 'go') { say(k, 'YOU HAVE THE CROWN!', 1.6); sfxLap(); }
+        });
       }
+      // gold sparkles round the leader
+      r.sparkT = (r.sparkT || 0) + 1;
+      if (r.sparkT % (FAST ? 8 : 4) === 0) r.karts.forEach((k) => {
+        if (k.crowned && nearView(k)) emit(k.x + rand(-1.5, 1.5), k.ay + rand(0.5, 3.5), k.z + rand(-1.5, 1.5), Math.random() < 0.5 ? 0xffe14f : 0xffffff, { spread: 1.5, up: 2.5, life: 0.6, size: 0.25, grav: -1 });
+      });
       const left = r.limit - r.t;
       if (r.state === 'go' && !r.done && !r.demo) {
         const tick = Math.ceil(left);
@@ -3179,8 +3392,19 @@
       hctx.fillStyle = 'rgba(12,10,40,0.55)'; hctx.fill();
       hctx.lineWidth = 2; hctx.strokeStyle = '#ffffff'; hctx.stroke();
       hctx.fillStyle = 'rgba(255,255,255,0.45)';
+      A.pieces.forEach((q) => {
+        if (q.kind === 'rail') return;
+        hctx.save();
+        hctx.translate(cx + q.x * sc, cy + q.z * sc);
+        hctx.rotate(-q.ang);
+        hctx.fillStyle = 'rgba(255,255,255,' + (0.2 + Math.max(q.y1, q.y2) * 0.035).toFixed(2) + ')';
+        hctx.fillRect(-q.hl * sc, -q.hw * sc, q.hl * 2 * sc, q.hw * 2 * sc);
+        hctx.restore();
+      });
+      hctx.fillStyle = 'rgba(255,255,255,0.45)';
       A.blocks.forEach((b) => { hctx.beginPath(); hctx.arc(cx + b.x * sc, cy + b.z * sc, Math.max(1.5, b.r * sc), 0, TAU); hctx.fill(); });
       karts.slice().sort((a, b) => (a.pi != null) - (b.pi != null)).forEach((k) => {
+        if (k.crowned) { hctx.beginPath(); hctx.arc(cx + k.x * sc, cy + k.z * sc, 5.5, 0, TAU); hctx.lineWidth = 2; hctx.strokeStyle = '#ffd23f'; hctx.stroke(); }
         hctx.beginPath();
         hctx.arc(cx + k.x * sc, cy + k.z * sc, k.pi != null ? 3.4 : 2.4, 0, TAU);
         hctx.fillStyle = hex(kartColor(k.model)); hctx.fill();
@@ -3360,6 +3584,7 @@
     if (small) text('P' + (k.pi + 1), lx, y0 + 12, 9, k.pi ? '#8fe36b' : '#ffe14f', 'left', '#120b28');
     const px = small ? lx + 20 : lx;
     text(ORD[k.place - 1], px, y0 + 18 * s + (small ? 0 : 2), 26 * s, k.place === 1 ? '#ffe14f' : '#ffffff', 'left', '#120b28');
+    if (k.crowned) crownIcon(px + 66 * s, y0 + 16 * s + (small ? 0 : 2), 1.3 * s);
     if (r.battle) {
       // the balloons you have left, and how many you've popped
       const by = y0 + (small ? 30 : 44), col = hex(kartColor(k.model));
@@ -3425,6 +3650,17 @@
     hctx.restore();
   }
 
+  function crownIcon(x, y, sc) {
+    hctx.save();
+    hctx.translate(x, y); hctx.scale(sc, sc);
+    hctx.beginPath();
+    hctx.moveTo(-9, 6); hctx.lineTo(-10, -5); hctx.lineTo(-5, 0); hctx.lineTo(0, -8); hctx.lineTo(5, 0); hctx.lineTo(10, -5); hctx.lineTo(9, 6);
+    hctx.closePath();
+    hctx.fillStyle = '#ffd23f'; hctx.fill();
+    hctx.lineWidth = 1.5; hctx.strokeStyle = '#120b28'; hctx.stroke();
+    hctx.fillStyle = '#ff5c5c'; hctx.beginPath(); hctx.arc(0, 2, 1.8, 0, TAU); hctx.fill();
+    hctx.restore();
+  }
   // a race shows the time so far; a battle shows the time left
   function clockText(r) {
     if (!r.battle) return fmtTime(r.t);
@@ -3478,6 +3714,7 @@
       const y = 50 + i * 20;
       if (x.pi != null) { rr(104, y - 9, 272, 18, 5); hctx.fillStyle = 'rgba(255,225,79,0.22)'; hctx.fill(); }
       text(ORD[i], 112, y, 10, i < 3 ? CUP[i] : '#ffffff');
+      if (r.battle && x.place === 1 && x.score > 0) crownIcon(140, y - 1, 0.55);
       hctx.beginPath(); hctx.arc(150, y, 5, 0, TAU); hctx.fillStyle = hex(x.color); hctx.fill();
       const tag = x.pi == null ? '' : r.view.length > 1 ? ' P' + (x.pi + 1) : ' (YOU)';
       text(x.name + tag, 160, y, 10, x.pi != null ? '#ffe14f' : '#ffffff');
