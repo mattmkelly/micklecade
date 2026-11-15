@@ -441,6 +441,16 @@
     .marquee p { display: none; }
     .cabinet-strip { padding-top: 20px; padding-bottom: 30px; }
   }
+
+  /* phones on their side: size the cabinets from the height so the whole shelf fits */
+  @media (max-height: 440px) {
+    :root { --card-w: clamp(140px, 42vh, 220px); }
+    body { padding: 8px 0; }
+    .marquee h1 { font-size: clamp(1.5rem, 10vh, 2.4rem); letter-spacing: 4px; }
+    .shelf { margin-top: 0; }
+    .cabinet-strip { padding-top: 10px; padding-bottom: 22px; }
+    .cabinet { padding: 10px; gap: 6px; }
+  }
 </style>
 </head>
 <body>

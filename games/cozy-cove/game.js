@@ -1583,7 +1583,7 @@
   const lim = N * T / 2;
   function panBy(dx, dy) {
     const r = view.getBoundingClientRect();
-    const wpp = 2 * cam.dist * Math.tan(15 * Math.PI / 180) / r.height;
+    const wpp = 2 * cam.dist * fitK * Math.tan(camera.fov / 2 * Math.PI / 180) / r.height;
     const s = Math.sin(cam.yaw), c = Math.cos(cam.yaw);
     cam.tx += (-c * dx - s * dy / Math.sin(cam.el)) * wpp;
     cam.tz += (s * dx - c * dy / Math.sin(cam.el)) * wpp;
@@ -1595,8 +1595,8 @@
   document.getElementById('rotL').addEventListener('click', function () { unlockAudio(); turn(-1); });
   document.getElementById('rotR').addEventListener('click', function () { unlockAudio(); turn(1); });
   function placeCamera() {
-    const ce = Math.cos(cam.el);
-    camera.position.set(cam.tx + Math.sin(cam.yaw) * ce * cam.dist, Math.sin(cam.el) * cam.dist, cam.tz + Math.cos(cam.yaw) * ce * cam.dist);
+    const ce = Math.cos(cam.el), d = cam.dist * fitK;
+    camera.position.set(cam.tx + Math.sin(cam.yaw) * ce * d, Math.sin(cam.el) * d, cam.tz + Math.cos(cam.yaw) * ce * d);
     camera.lookAt(cam.tx, 0.5, cam.tz);
   }
 
@@ -1769,13 +1769,21 @@
   }
 
   // ---------- Frame ----------
+  // Held upright the stage fills the tall screen (index.html), so the buttons get their own
+  // layout ('tall') and the camera widens and steps back to keep the island in view.
+  let fitK = 1;
   function resize() {
     const r = stage.getBoundingClientRect();
     if (!r.width) return;
     renderer.setSize(view.clientWidth, view.clientHeight, false);
     camera.aspect = view.clientWidth / view.clientHeight;
+    const tall = camera.aspect < 1.2;
+    camera.fov = tall ? 42 : 30;
+    fitK = tall ? 1.4 : 1;
+    scene.fog.near = 90 * fitK; scene.fog.far = 230 * fitK;
     camera.updateProjectionMatrix();
-    ui.style.fontSize = Math.max(7, r.width / 50) + 'px';
+    ui.classList.toggle('tall', tall);
+    ui.style.fontSize = Math.max(7, tall ? Math.min(r.width / 22, r.height / 40) : Math.min(r.width / 32, r.height / 28)) + 'px';
   }
   window.addEventListener('resize', resize);
   if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);

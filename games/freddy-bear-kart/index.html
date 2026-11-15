@@ -34,11 +34,11 @@
   /* the menus have no size of their own, so the body has to be told to fill the width */
   body { width: 100%; }
 
-  /* As big as the window allows, leaving room for the race's touch buttons (the back link
-     and the hint live in the ☰ menu -- shared/menu.js). */
+  /* As big as the window allows (the back link and the hint live in the ☰ menu --
+     shared/menu.js; the optional touch controls float over the game -- shared/touchpad.js). */
   #app {
-    width: min(100%, calc((100vh - 140px) * 16 / 9));
-    width: min(100%, calc((100dvh - 140px) * 16 / 9));
+    width: min(100%, calc((100vh - 28px) * 16 / 9));
+    width: min(100%, calc((100dvh - 28px) * 16 / 9));
     min-width: min(100%, 300px);
     display: flex;
     flex-direction: column;
@@ -170,18 +170,6 @@
     touch-action: none;
   }
 
-  #touchpad { display: flex; gap: 12px; width: 100%; max-width: 100%; }
-  #touchpad button {
-    flex: 1;
-    padding: 18px 0;
-    font-size: 1.6rem;
-    border-color: #4ff0ff;
-    color: #4ff0ff;
-    text-shadow: 0 0 8px #4ff0ff;
-    touch-action: none;
-  }
-  #touchpad button.brake { flex: 0 0 28%; font-size: .8rem; border-color: #ff4f4f; color: #ff4f4f; text-shadow: 0 0 8px #ff4f4f; }
-
   #hint { color: #ffe14f; font-size: .72rem; letter-spacing: 1px; text-align: center; }
 
   .result-line { font-size: 1rem; letter-spacing: 2px; }
@@ -221,12 +209,11 @@
   <!-- RACE -->
   <div id="screen-race" class="screen">
     <canvas id="game" width="480" height="270"></canvas>
-    <div id="touchpad">
-      <button id="btn-left" aria-label="steer left">&#9664;</button>
-      <button id="btn-brake" class="brake">BRAKE</button>
-      <button id="btn-right" aria-label="steer right">&#9654;</button>
+    <div id="hint">
+      <span>FREDDY DRIVES BY HIMSELF &mdash; YOU STEER!</span>
+      <span>TAP THE LEFT OR RIGHT SIDE OF THE TRACK, USE THE ARROW KEYS (DOWN TO BRAKE) OR A CONTROLLER.</span>
+      <span>TURN ON TOUCH CONTROLS FOR A THUMBSTICK AND A BRAKE BUTTON.</span>
     </div>
-    <div id="hint">STEER WITH &#9664; &#9654;, ARROW KEYS OR A CONTROLLER &mdash; FREDDY DRIVES BY HIMSELF!</div>
   </div>
 
   <!-- RESULTS -->
@@ -246,7 +233,8 @@
 <script src="../../shared/hires.js"></script>
 <script src="../../shared/scores.js"></script>
 <script src="../../shared/carousel.js"></script>
-<script src="../../shared/menu.js" data-frame="#game, #app" data-at="0,1|0,0"></script>
+<script src="../../shared/touchpad.js"></script>
+<script src="../../shared/menu.js" data-frame="#game, #app" data-at="0.48,0|0,0"></script>
 <script src="game.js"></script>
 </body>
 </html>

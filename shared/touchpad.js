@@ -14,6 +14,7 @@
 //   pad.dy()          // -1 / 0 / 1 while the stick is held up / centre / down
 //   pad.ax(), pad.ay() // analog -1..1 stick position, for rolling in any direction
 //   pad.down('hop')   // is that button held?
+//   pad.show(false)   // hide the controls on screens that don't use them (Kart's menus); show(true) again
 // Touches on the controls never reach the page, so "tap anywhere" game handlers are safe.
 (function (global) {
   var KEY = 'micklecade.touchControls';
@@ -55,7 +56,7 @@
   function create(opts) {
     opts = opts || {};
     injectCss();
-    var on = loadOn();
+    var on = loadOn(), shown = true;
     var stickX = 0, stickY = 0, stickAX = 0, stickAY = 0;
     var held = {};
 
@@ -153,7 +154,7 @@
     function setOn(v) {
       on = v;
       saveOn(on);
-      layer.hidden = !on;
+      layer.hidden = !on || !shown;
       toggle.classList.toggle('on', on);
       toggle.classList.remove('nudge');
       toggle.textContent = 'TOUCH CONTROLS: ' + (on ? 'ON' : 'OFF');
@@ -176,6 +177,11 @@
       ay: function () { return on ? stickAY : 0; },
       down: function (id) { return on && !!held[id]; },
       enabled: function () { return on; },
+      show: function (v) {
+        shown = !!v;
+        layer.hidden = !on || !shown;
+        if (!shown) { releaseStick(); held = {}; }
+      },
     };
   }
 

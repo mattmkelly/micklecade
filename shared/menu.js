@@ -14,7 +14,11 @@
 //                          inside the edge -- "0,0" top-left (default), "1,0" top-right,
 //                          "0,1" bottom-left, "0.16,0" along the top just past a HUD button.
 //                          With several frames, one per frame split by "|": "0,1|0,0"
+//   data-portrait="fill"   this game lays itself out for a tall screen, so it needs no
+//                          turn-sideways note (Cozy Cove)
 // The button grows and shrinks with the frame.
+// Held upright, a wide game shows a small "turn me sideways" note in the empty space above
+// its frame. It never takes taps, so play carries on underneath.
 // Taps on the button and panel never reach the game, so "tap anywhere" games are safe.
 // Esc closes the panel. window.MickleMenu.open() / close() / isOpen() for games that want them.
 (function (global) {
@@ -24,7 +28,8 @@
   var ats = ((script && script.getAttribute('data-at')) || '0,0').split('|').map(function (p) {
     return p.split(',').map(parseFloat);
   });
-  var btn, panel, frames = [];
+  var fillsPortrait = !!script && script.getAttribute('data-portrait') === 'fill';
+  var btn, panel, turn, frames = [];
 
   var CSS = [
     '.mc-menu-btn { position: fixed; z-index: 70; width: 34px; height: 34px; padding: 0; border-radius: 9px;',
@@ -50,6 +55,13 @@
     '.mc-menu-items > button { padding: 9px 10px; font-size: .8rem; }',
     '.mc-menu-help { font-size: .78rem; line-height: 1.5; letter-spacing: 1px; color: #ffe14f; }',
     '.mc-menu-help > * { display: block !important; margin: 0 !important; text-align: center; }',
+    '.mc-turn { position: fixed; z-index: 65; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px;',
+    '  max-width: calc(100vw - 32px); padding: 8px 16px; border-radius: 999px; border: 2px solid rgba(255,255,255,.3);',
+    '  background: rgba(10,6,24,.5); color: #fff; font: bold .78rem/1.3 "Courier New", Courier, monospace; letter-spacing: 1px;',
+    '  text-align: left; pointer-events: none; }',
+    '.mc-turn[hidden] { display: none; }',
+    '.mc-turn svg { width: 26px; height: 26px; flex: none; animation: mc-turn 2.6s ease-in-out 4; }',
+    '@keyframes mc-turn { 0%, 25% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }',
     '.mc-menu-close { margin-top: 14px; padding: 8px 22px; border-radius: 999px; border: 2px solid #b9b0e0;',
     '  background: transparent; color: #fff; font: bold .8rem "Courier New", Courier, monospace; letter-spacing: 2px; cursor: pointer; }',
   ].join('\n');
@@ -90,6 +102,14 @@
     btn.style.fontSize = Math.round(size * 0.6) + 'px';
     btn.style.left = clamp(r.left + (at[0] || 0) * r.width, r.left + 8, r.right - 8 - size) + 'px';
     btn.style.top = clamp(r.top + (at[1] || 0) * r.height, r.top + 8, r.bottom - 8 - size) + 'px';
+    // upright window, wide game, and room above it: suggest turning the tablet
+    var showTurn = !fillsPortrait && global.innerHeight > global.innerWidth && r.width > r.height * 1.25 && r.top >= 56;
+    if (turn) {
+      // only write `hidden` when it changes: the MutationObserver in setup() calls place() on
+      // every `hidden` write, so writing it each time loops forever and freezes the page
+      if (turn.hidden !== !showTurn) turn.hidden = !showTurn;
+      if (showTurn) { turn.style.left = (r.left + r.width / 2) + 'px'; turn.style.top = (r.top / 2) + 'px'; }
+    }
   }
 
   function setup() {
@@ -161,6 +181,14 @@
 
     document.body.appendChild(panel);
     document.body.appendChild(btn);
+
+    turn = document.createElement('div');
+    turn.className = 'mc-turn';
+    turn.hidden = true;
+    turn.setAttribute('aria-hidden', 'true');
+    turn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke="#4ff0ff" stroke-width="2"/>' +
+      '<circle cx="12" cy="18.2" r="1.1" fill="#4ff0ff"/></svg><span>TURN ME SIDEWAYS FOR A BIGGER PICTURE</span>';
+    document.body.appendChild(turn);
 
     // touchpad.js points at its toggle when someone taps the game with controls off;
     // the toggle is in the menu now, so the ☰ button does the pointing

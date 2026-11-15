@@ -240,6 +240,23 @@
   #title .go { margin-top: 0.8em; animation: bob 1.2s ease-in-out infinite; color: #ffe27a; }
   @keyframes bob { 50% { transform: translateY(-0.3em); } }
 
+  /* Held upright, the stage fills the whole tall screen instead of a 16:9 strip, and the
+     buttons rearrange (game.js puts .tall on #ui when the stage is taller than it is wide). */
+  @media (orientation: portrait) {
+    #wrap { width: 100%; height: 100vh; height: 100dvh; }
+    #stage { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
+  }
+  #ui.tall #tools { flex-wrap: wrap; justify-content: center; width: 15em; row-gap: 0.45em; }
+  #ui.tall #tools button.on { transform: scale(1.08); }
+  #ui.tall #swatch { margin-left: 0; }
+  #ui.tall #stat { top: 3.9em; }
+  #ui.tall #spinL, #ui.tall #spinR { bottom: 8.4em; }
+  #ui.tall #title h1 { font-size: 2.6em; }
+  #ui.tall #title p { font-size: 0.8em; padding: 0 1em; }
+  #ui.tall #title .go { font-size: 1em; }
+  #ui.tall #toast { white-space: normal; text-align: center; width: max-content; max-width: 90%; }
+  #ui.tall #toast.big { font-size: 1.3em; }
+
   #hint {
     color: #ffe14f;
     font-size: 0.72rem;
@@ -346,7 +363,7 @@
   <script src="../../shared/three.min.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/scores.js"></script>
-  <script src="../../shared/menu.js" data-at="0,0"></script>
+  <script src="../../shared/menu.js" data-at="0,0" data-portrait="fill"></script>
   <script src="game.js"></script>
 </body>
 </html>

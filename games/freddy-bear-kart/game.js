@@ -259,17 +259,13 @@
   });
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-  function bindHold(el, prop) {
-    const on = (e) => { e.preventDefault(); ensureAudio(); touch[prop] = true; };
-    const off = (e) => { e.preventDefault(); touch[prop] = false; };
-    el.addEventListener('pointerdown', on);
-    el.addEventListener('pointerup', off);
-    el.addEventListener('pointercancel', off);
-    el.addEventListener('pointerleave', off);
-  }
-  bindHold(document.getElementById('btn-left'), 'left');
-  bindHold(document.getElementById('btn-right'), 'right');
-  bindHold(document.getElementById('btn-brake'), 'brake');
+  // optional thumbstick (left thumb) + BRAKE (right thumb), like the other games' touch controls;
+  // they only show during a race, so they never sit on top of the menus' cards
+  const pad = MickleTouch.create({
+    buttons: [{ id: 'brake', label: 'BRAKE' }],
+    onPress() { ensureAudio(); },
+  });
+  pad.show(screen === 'race');
 
   // steering by tapping the left/right half of the canvas itself
   const canvasTouch = { id: null, side: null };
@@ -290,11 +286,11 @@
 
   const padReady = () => typeof Pad360 !== 'undefined';
   const steerInput = () => {
-    const left = keys['ArrowLeft'] || keys['KeyA'] || touch.left || (padReady() && Pad360.dx() < 0);
-    const right = keys['ArrowRight'] || keys['KeyD'] || touch.right || (padReady() && Pad360.dx() > 0);
+    const left = keys['ArrowLeft'] || keys['KeyA'] || touch.left || pad.dx() < 0 || (padReady() && Pad360.dx() < 0);
+    const right = keys['ArrowRight'] || keys['KeyD'] || touch.right || pad.dx() > 0 || (padReady() && Pad360.dx() > 0);
     return (left ? -1 : 0) + (right ? 1 : 0);
   };
-  const brakeInput = () => keys['ArrowDown'] || keys['KeyS'] || touch.brake ||
+  const brakeInput = () => keys['ArrowDown'] || keys['KeyS'] || touch.brake || pad.down('brake') ||
     (padReady() && (Pad360.down(Pad360.BTN.B) || Pad360.down(Pad360.BTN.LT) || Pad360.down(Pad360.BTN.RT)));
 
   // Menus (Xbox 360 controller or arrow keys): each card carousel is one row and every
@@ -852,6 +848,7 @@
   const el = (id) => document.getElementById(id);
   function show(name) {
     screen = name;
+    pad.show(name === 'race');
     ['tracks', 'garage', 'race', 'results'].forEach(s => el('screen-' + s).classList.toggle('active', s === name));
     if (name === 'tracks') renderTrackCards();
     if (name === 'garage') renderGarage(true);
