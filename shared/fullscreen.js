@@ -92,7 +92,8 @@
     sync();
     // Left full screen with Esc or the back gesture? Then stop bringing it back -- unless the
     // page is just going away (moving to another page drops full screen too).
-    if (!apiFull()) setTimeout(function () { if (!leaving && !apiFull()) setWanted(false); }, 400);
+    // (the on-screen keyboard can also drop it while someone types -- that isn't a choice)
+    if (!apiFull()) setTimeout(function () { if (!leaving && !apiFull() && !typing()) setWanted(false); }, 400);
   }
 
   function addButton() {
@@ -116,8 +117,17 @@
   }
 
   // first tap or key press on a page goes back to full screen if you had it on
+  // Typing is the exception: asking for full screen when a text box is tapped steals its focus
+  // and drops the on-screen keyboard, and the keyboard itself can knock a tablet out of full screen.
+  function typing() {
+    var a = document.activeElement;
+    return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+  }
   function onGesture(e) {
     if (btn && e.target === btn) return;
+    var t = e.target;
+    if (e.type === 'pointerdown' && t && t.tagName === 'INPUT') return;
+    if (typing()) return;
     if (wanted() && !isFull() && canSwitch()) set(true);
   }
   document.addEventListener('pointerdown', onGesture, true);

@@ -31,8 +31,25 @@
 
   // ---- Players ----
 
+  // Some tablet browsers (kids' profiles, private modes) lose localStorage between visits, so
+  // the player list is mirrored into a long-lived cookie and restored from it when storage is empty.
+  function saveCookie(p) {
+    try {
+      document.cookie = PLAYERS_KEY + '=' + encodeURIComponent(JSON.stringify(p)) +
+        '; max-age=31536000; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
+  function loadCookie() {
+    try {
+      var m = document.cookie.match(new RegExp('(?:^|; )' + PLAYERS_KEY.replace('.', '\\.') + '=([^;]*)'));
+      var v = m && JSON.parse(decodeURIComponent(m[1]));
+      return v && Array.isArray(v.names) ? v : null;
+    } catch (e) { return null; }
+  }
+
   function loadPlayers() {
     var p = read(PLAYERS_KEY, null);
+    if (!p || !Array.isArray(p.names)) p = loadCookie();
     if (!p || !Array.isArray(p.names)) p = { current: '', names: [] };
     return p;
   }
@@ -52,6 +69,7 @@
     if (p.names.indexOf(name) === -1) p.names.push(name);
     p.current = name;
     write(PLAYERS_KEY, p);
+    saveCookie(p);
     return name;
   }
 
@@ -61,6 +79,7 @@
     p.names = p.names.filter(function (n) { return n !== name; });
     if (p.current === name) p.current = '';
     write(PLAYERS_KEY, p);
+    saveCookie(p);
   }
 
   // ---- Scores ----
