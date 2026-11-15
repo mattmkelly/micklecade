@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b0b5e"/><stop offset="0.55" stop-color="#0d0428"/><stop offset="1" stop-color="#2a0a4a"/>
+    </linearGradient>
+    <radialGradient id="haze" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#ff4fd8" stop-opacity="0.28"/><stop offset="1" stop-color="#ff4fd8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beamP" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff4fd8" stop-opacity="0.5"/><stop offset="1" stop-color="#ff4fd8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="beamC" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4ff0ff" stop-opacity="0.45"/><stop offset="1" stop-color="#4ff0ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0420" stop-opacity="0.55"/><stop offset="1" stop-color="#07021a" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="laneY" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd23d" stop-opacity="0"/><stop offset="1" stop-color="#ffd23d" stop-opacity="0.16"/></linearGradient>
+    <linearGradient id="laneB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d8bff" stop-opacity="0"/><stop offset="1" stop-color="#3d8bff" stop-opacity="0.16"/></linearGradient>
+    <linearGradient id="laneG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3ddc5a" stop-opacity="0"/><stop offset="1" stop-color="#3ddc5a" stop-opacity="0.4"/></linearGradient>
+    <linearGradient id="laneR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff4a4a" stop-opacity="0"/><stop offset="1" stop-color="#ff4a4a" stop-opacity="0.16"/></linearGradient>
+    <linearGradient id="rainbow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff4a4a"/><stop offset="0.2" stop-color="#ffd23d"/><stop offset="0.4" stop-color="#3ddc5a"/>
+      <stop offset="0.6" stop-color="#4ff0ff"/><stop offset="0.8" stop-color="#b45cff"/><stop offset="1" stop-color="#ff4fd8"/>
+    </linearGradient>
+    <radialGradient id="head" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#9890c4"/>
+    </radialGradient>
+    <radialGradient id="headLit" cx="0.45" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7dffa0"/>
+    </radialGradient>
+    <radialGradient id="glowG" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3ddc5a" stop-opacity="0.8"/><stop offset="1" stop-color="#3ddc5a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#08031a" stop-opacity="0.85"/><stop offset="1" stop-color="#08031a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="faceP" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#ffd0f4"/><stop offset="1" stop-color="#ff4fd8"/>
+    </linearGradient>
+    <linearGradient id="faceY" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6b0"/><stop offset="0.5" stop-color="#ffd23d"/><stop offset="1" stop-color="#ff7a1f"/>
+    </linearGradient>
+    <filter id="blur3" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="blur6" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <rect width="400" height="300" fill="url(#haze)"/>
+
+  <!-- light beams from the truss -->
+  <polygon points="40,16 -30,300 110,300" fill="url(#beamP)"/>
+  <polygon points="130,16 90,300 190,300" fill="url(#beamC)"/>
+  <polygon points="270,16 210,300 310,300" fill="url(#beamC)"/>
+  <polygon points="360,16 290,300 430,300" fill="url(#beamP)"/>
+
+  <!-- truss and lamps -->
+  <g stroke="#4b3a72" stroke-width="1.6" fill="none">
+    <line x1="0" y1="10" x2="400" y2="10"/><line x1="0" y1="18" x2="400" y2="18"/>
+    <polyline points="0,10 8,18 16,10 24,18 32,10 40,18 48,10 56,18 64,10 72,18 80,10 88,18 96,10 104,18 112,10 120,18 128,10 136,18 144,10 152,18 160,10 168,18 176,10 184,18 192,10 200,18 208,10 216,18 224,10 232,18 240,10 248,18 256,10 264,18 272,10 280,18 288,10 296,18 304,10 312,18 320,10 328,18 336,10 344,18 352,10 360,18 368,10 376,18 384,10 392,18 400,10"/>
+  </g>
+  <g><circle cx="40" cy="17" r="7" fill="#ff4fd8" opacity="0.5" filter="url(#blur3)"/><circle cx="40" cy="17" r="3.5" fill="#fff"/>
+     <circle cx="130" cy="17" r="7" fill="#4ff0ff" opacity="0.5" filter="url(#blur3)"/><circle cx="130" cy="17" r="3.5" fill="#fff"/>
+     <circle cx="270" cy="17" r="7" fill="#4ff0ff" opacity="0.5" filter="url(#blur3)"/><circle cx="270" cy="17" r="3.5" fill="#fff"/>
+     <circle cx="360" cy="17" r="7" fill="#ff4fd8" opacity="0.5" filter="url(#blur3)"/><circle cx="360" cy="17" r="3.5" fill="#fff"/></g>
+
+  <!-- the 3D highway: vanishing above the picture, pads at y 232 -->
+  <polygon points="133,70 267,70 368,262 32,262" fill="url(#road)"/>
+  <polygon points="133,70 167,70 115,262 32,262" fill="url(#laneY)"/>
+  <polygon points="167,70 200,70 200,262 115,262" fill="url(#laneB)"/>
+  <polygon points="200,70 233,70 285,262 200,262" fill="url(#laneG)"/>
+  <polygon points="233,70 267,70 368,262 285,262" fill="url(#laneR)"/>
+  <!-- beat lines, closer together far away -->
+  <g stroke="#b9b0e0" stroke-opacity="0.22" stroke-width="1">
+    <line x1="122" y1="90" x2="278" y2="90"/><line x1="108" y1="118" x2="292" y2="118"/>
+    <line x1="88" y1="156" x2="312" y2="156"/><line x1="62" y1="206" x2="338" y2="206"/>
+  </g>
+  <g stroke="#b9b0e0" stroke-opacity="0.4" stroke-width="1.2">
+    <line x1="167" y1="70" x2="115" y2="262"/><line x1="200" y1="70" x2="200" y2="262"/><line x1="233" y1="70" x2="285" y2="262"/>
+  </g>
+  <g stroke-width="3" fill="none">
+    <line x1="133" y1="70" x2="32" y2="262" stroke="#ff4fd8"/><line x1="267" y1="70" x2="368" y2="262" stroke="#4ff0ff"/>
+  </g>
+
+  <!-- the energy wave rolling across the stage floor -->
+  <ellipse cx="200" cy="228" rx="196" ry="84" fill="none" stroke="url(#rainbow)" stroke-width="12" opacity="0.35" filter="url(#blur6)"/>
+  <ellipse cx="200" cy="228" rx="196" ry="84" fill="none" stroke="url(#rainbow)" stroke-width="3.5"/>
+  <ellipse cx="200" cy="230" rx="120" ry="48" fill="none" stroke="#4ff0ff" stroke-width="2" opacity="0.7"/>
+
+  <!-- notes: glowing pucks riding the road -->
+  <g>
+    <ellipse cx="260" cy="97" rx="14" ry="3.6" fill="#7a1a1a"/><rect x="246" y="93" width="28" height="4" fill="#c92e2e"/><ellipse cx="260" cy="93" rx="14" ry="3.6" fill="#ff4a4a" stroke="#fff" stroke-width="1"/>
+    <ellipse cx="129" cy="128" rx="17" ry="5" fill="#7a5a00"/><rect x="112" y="123.5" width="34" height="4.5" fill="#d1a514"/><ellipse cx="129" cy="123.5" rx="17" ry="5" fill="#ffd23d" stroke="#fff" stroke-width="1.2"/>
+    <ellipse cx="292" cy="180" rx="22" ry="8" fill="#ff4a4a" opacity="0.35" filter="url(#blur6)"/>
+    <ellipse cx="292" cy="184" rx="21" ry="7.8" fill="#7a1a1a"/><rect x="271" y="178" width="42" height="6" fill="#c92e2e"/><ellipse cx="292" cy="178" rx="21" ry="7.8" fill="#ff4a4a" stroke="#fff" stroke-width="1.5"/>
+    <ellipse cx="286" cy="176" rx="7" ry="2.4" fill="#fff" opacity="0.55"/>
+    <ellipse cx="166" cy="208" rx="24" ry="10" fill="#3d8bff" opacity="0.35" filter="url(#blur6)"/>
+    <ellipse cx="166" cy="212" rx="23.5" ry="9.6" fill="#163a80"/><rect x="142.5" y="205.5" width="47" height="6.5" fill="#2d6ad0"/><ellipse cx="166" cy="205.5" rx="23.5" ry="9.6" fill="#3d8bff" stroke="#fff" stroke-width="1.6"/>
+    <ellipse cx="159" cy="203" rx="8" ry="3" fill="#fff" opacity="0.55"/>
+  </g>
+
+  <!-- drums standing on the stage -->
+  <g>
+    <!-- yellow -->
+    <ellipse cx="88" cy="244" rx="31" ry="14" fill="#1a1030"/><rect x="57" y="232" width="62" height="12" fill="#1a1030"/>
+    <rect x="57" y="237" width="62" height="2" fill="#ffd23d" opacity="0.6"/>
+    <ellipse cx="88" cy="232" rx="29.5" ry="13" fill="url(#head)" stroke="#ffd23d" stroke-width="4"/>
+    <!-- blue -->
+    <ellipse cx="163" cy="244" rx="31" ry="14" fill="#1a1030"/><rect x="132" y="232" width="62" height="12" fill="#1a1030"/>
+    <rect x="132" y="237" width="62" height="2" fill="#3d8bff" opacity="0.6"/>
+    <ellipse cx="163" cy="232" rx="29.5" ry="13" fill="url(#head)" stroke="#3d8bff" stroke-width="4"/>
+    <!-- green: just hit -->
+    <ellipse cx="238" cy="230" rx="62" ry="30" fill="url(#glowG)"/>
+    <ellipse cx="238" cy="244" rx="31" ry="14" fill="#1a1030"/><rect x="207" y="233" width="62" height="11" fill="#1a1030"/>
+    <rect x="207" y="237" width="62" height="2" fill="#3ddc5a" opacity="0.8"/>
+    <ellipse cx="238" cy="233" rx="29.5" ry="13" fill="url(#headLit)" stroke="#3ddc5a" stroke-width="4"/>
+    <!-- red -->
+    <ellipse cx="313" cy="244" rx="31" ry="14" fill="#1a1030"/><rect x="282" y="232" width="62" height="12" fill="#1a1030"/>
+    <rect x="282" y="237" width="62" height="2" fill="#ff4a4a" opacity="0.6"/>
+    <ellipse cx="313" cy="232" rx="29.5" ry="13" fill="url(#head)" stroke="#ff4a4a" stroke-width="4"/>
+  </g>
+  <!-- sparks flying up the green lane -->
+  <g fill="#b8ffc8"><rect x="230" y="200" width="3" height="3"/><rect x="246" y="190" width="2.5" height="2.5"/><rect x="236" y="176" width="2" height="2"/>
+    <rect x="252" y="208" width="3" height="3"/><rect x="224" y="186" width="2" height="2"/></g>
+  <text x="238" y="215" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="11" fill="#ffe14f" text-anchor="middle" stroke="#2a0b4a" stroke-width="2.5" paint-order="stroke">PERFECT</text>
+
+  <!-- the logo -->
+  <ellipse cx="200" cy="62" rx="170" ry="58" fill="url(#halo)"/>
+  <g font-family="Arial Black, Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <text x="201.5" y="50" font-size="40" fill="#1c0738">BOOM BOOM</text>
+    <text x="200.8" y="48.5" font-size="40" fill="#1c0738">BOOM BOOM</text>
+    <text x="200" y="47" font-size="40" fill="none" stroke="#ff4fd8" stroke-width="10" opacity="0.4" filter="url(#blur3)">BOOM BOOM</text>
+    <text x="200" y="47" font-size="40" fill="url(#faceP)" stroke="#ff4fd8" stroke-width="3" paint-order="stroke">BOOM BOOM</text>
+    <text x="202" y="101" font-size="54" fill="#1c0738" letter-spacing="5">BAND</text>
+    <text x="201" y="99" font-size="54" fill="#1c0738" letter-spacing="5">BAND</text>
+    <text x="200" y="97" font-size="54" fill="none" stroke="#4ff0ff" stroke-width="12" opacity="0.4" filter="url(#blur3)" letter-spacing="5">BAND</text>
+    <text x="200" y="97" font-size="54" fill="url(#faceY)" stroke="#4ff0ff" stroke-width="3.5" paint-order="stroke" letter-spacing="5">BAND</text>
+  </g>
+  <!-- twinkles -->
+  <g fill="#ffffff">
+    <path d="M60 64 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z"/>
+    <path d="M338 40 l1.6 4.8 4.8 1.6 -4.8 1.6 -1.6 4.8 -1.6 -4.8 -4.8 -1.6 4.8 -1.6z"/>
+    <path d="M318 96 l1.2 3.6 3.6 1.2 -3.6 1.2 -1.2 3.6 -1.2 -3.6 -3.6 -1.2 3.6 -1.2z"/>
+  </g>
+
+  <!-- confetti -->
+  <g>
+    <rect x="30" y="40" width="5" height="2.5" fill="#4ff0ff" transform="rotate(30 30 40)"/>
+    <rect x="96" y="28" width="5" height="2.5" fill="#ffe14f" transform="rotate(-20 96 28)"/>
+    <rect x="300" y="26" width="5" height="2.5" fill="#3ddc5a" transform="rotate(50 300 26)"/>
+    <rect x="372" y="70" width="5" height="2.5" fill="#ff4fd8" transform="rotate(-40 372 70)"/>
+    <rect x="22" y="120" width="5" height="2.5" fill="#ffe14f" transform="rotate(10 22 120)"/>
+    <rect x="380" y="140" width="5" height="2.5" fill="#4ff0ff" transform="rotate(70 380 140)"/>
+    <rect x="70" y="150" width="4" height="2" fill="#b45cff" transform="rotate(-60 70 150)"/>
+    <rect x="335" y="170" width="4" height="2" fill="#ff9a3d" transform="rotate(25 335 170)"/>
+  </g>
+
+  <!-- the crowd, hands up, glow sticks lit -->
+  <g fill="#05020d">
+    <circle cx="14" cy="270" r="9"/><rect x="3" y="277" width="22" height="30" rx="8"/>
+    <circle cx="40" cy="262" r="9"/><rect x="29" y="269" width="22" height="34" rx="8"/>
+    <circle cx="66" cy="274" r="9"/><rect x="55" y="281" width="22" height="30" rx="8"/>
+    <circle cx="334" cy="274" r="9"/><rect x="323" y="281" width="22" height="30" rx="8"/>
+    <circle cx="360" cy="262" r="9"/><rect x="349" y="269" width="22" height="34" rx="8"/>
+    <circle cx="386" cy="270" r="9"/><rect x="375" y="277" width="22" height="30" rx="8"/>
+  </g>
+  <g stroke="#05020d" stroke-width="5" stroke-linecap="round">
+    <line x1="32" y1="274" x2="22" y2="244"/><line x1="48" y1="274" x2="58" y2="244"/>
+    <line x1="352" y1="274" x2="342" y2="244"/><line x1="368" y1="274" x2="378" y2="244"/>
+  </g>
+  <g stroke-width="3" stroke-linecap="round">
+    <line x1="21" y1="243" x2="18" y2="234" stroke="#3ddc5a"/><line x1="59" y1="243" x2="62" y2="234" stroke="#ff4fd8"/>
+    <line x1="341" y1="243" x2="338" y2="234" stroke="#4ff0ff"/><line x1="379" y1="243" x2="382" y2="234" stroke="#ffe14f"/>
+  </g>
+</svg>

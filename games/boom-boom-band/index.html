@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boom Boom Band</title>
+<link rel="icon" type="image/png" sizes="48x48" href="../../assets/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../../assets/icon-192.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../manifest.webmanifest">
+<meta name="theme-color" content="#120b28">
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #08041a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  /* As big as the window allows -- the back link and the how-to-play text live in the ☰ menu
+     (shared/menu.js), so nothing outside the frame needs room. */
+  #wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
+    touch-action: manipulation;
+  }
+
+  #back {
+    align-self: flex-start;
+    color: #4ff0ff;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px #4ff0ff;
+  }
+
+  canvas {
+    border: 4px solid #ff4fd8;
+    border-radius: 6px;
+    box-shadow: 0 0 24px rgba(255, 79, 216, 0.5), 0 0 8px rgba(79, 240, 255, 0.4) inset;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    background: #000;
+    touch-action: none;
+  }
+
+  /* SOUND: QUIET / MEDIUM / LOUD -- menu.js moves it into the ☰ menu */
+  #vol {
+    font: bold 0.8rem 'Courier New', Courier, monospace;
+    letter-spacing: 1px;
+    padding: 9px 10px;
+    border-radius: 999px;
+    border: 2px solid #ffe14f;
+    background: rgba(10, 6, 24, 0.8);
+    color: #ffe14f;
+    cursor: pointer;
+    touch-action: manipulation;
+    white-space: nowrap;
+  }
+
+  #hint {
+    color: #4ff0ff;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-align: center;
+    text-shadow: 0 0 6px #4ff0ff;
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+    <div id="topbar"><button id="vol" type="button">&#9834; SOUND: MEDIUM</button></div>
+    <canvas id="game" width="480" height="270"></canvas>
+    <div id="hint">
+      <p>HIT EACH DRUM PAD JUST AS ITS NOTE LANDS ON IT!</p>
+      <p>EASY: F J K (OR &larr; &darr; &rarr;)<br>MEDIUM: D F J K (OR &larr; &darr; &uarr; &rarr;)<br>HARD: D F SPACE J K</p>
+      <p>CONTROLLER: X A B (+ D-PAD LEFT / RIGHT)</p>
+      <p>TABLET: TAP THE PADS &mdash; ANYWHERE IN A PAD'S COLUMN COUNTS</p>
+      <p>10 IN A ROW SENDS AN ENERGY WAVE!</p>
+    </div>
+  </div>
+  <script src="../../shared/fullscreen.js"></script>
+  <script src="../../shared/gamepad.js"></script>
+  <script src="../../shared/hires.js"></script>
+  <script src="../../shared/scores.js"></script>
+  <script src="../../shared/menu.js" data-at="0,0"></script>
+  <script src="game.js"></script>
+</body>
+</html>
