@@ -61,7 +61,7 @@
     text-shadow: 0 0 6px #5ff3ff;
   }
 
-  #newIsland, #musicBtn, #styleBtn, #slotBtn {
+  #musicBtn, #styleBtn, #holidayBtn {
     padding: 6px 12px;
     border-radius: 999px;
     border: 2px solid #ffb38a;
@@ -139,6 +139,7 @@
     align-items: flex-end;
   }
   #tools button { width: 3.3em; height: 3.3em; }
+  #tools button .lbl { font-size: 0.42em; }
   #tools button.on {
     background: #ffe27a;
     border-color: #ff9d3c;
@@ -250,12 +251,95 @@
   #ui.tall #tools button.on { transform: scale(1.08); }
   #ui.tall #swatch { margin-left: 0; }
   #ui.tall #stat { top: 3.9em; }
-  #ui.tall #spinL, #ui.tall #spinR { bottom: 8.4em; }
+  #ui.tall #spinL, #ui.tall #spinR { bottom: 12.1em; }
   #ui.tall #title h1 { font-size: 2.6em; }
   #ui.tall #title p { font-size: 0.8em; padding: 0 1em; }
   #ui.tall #title .go { font-size: 1em; }
   #ui.tall #toast { white-space: normal; text-align: center; width: max-content; max-width: 90%; }
   #ui.tall #toast.big { font-size: 1.3em; }
+
+  /* ---- town names floating over each town ---- */
+  #townLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #ui .townLabel, .townEdit {
+    position: absolute; transform: translate(-50%, -100%); pointer-events: auto;
+    display: flex; flex-direction: column; align-items: center; padding: 0.2em 0.7em 0.25em;
+    border-radius: 0.7em; border: 0.12em solid #fff; background: rgba(255, 248, 232, 0.9);
+    box-shadow: 0 0.15em 0 rgba(60, 40, 20, 0.25); white-space: nowrap; transition: opacity 0.3s;
+  }
+  .townLabel .tn { font-size: 0.75em; letter-spacing: 0.1em; color: #b8562e; }
+  .townLabel .th { font-size: 0.5em; letter-spacing: 0.05em; opacity: 0.7; }
+  .townEdit { font: inherit; font-size: 0.75em; letter-spacing: 0.1em; text-transform: uppercase; color: #b8562e; width: 11em; text-align: center;
+    border-color: #ff9d3c; outline: none; -webkit-user-select: text; user-select: text; }
+
+  /* ---- MY ISLANDS button (top left, beside the menu) ---- */
+  #cornerL { left: 2.9em; top: 0.6em; }
+  #ui #islandsBtn { flex-direction: row; width: auto; height: 2.6em; padding: 0 0.8em 0 0.5em; gap: 0.4em; max-width: 13em; }
+  #ui #islandsBtn svg { width: 1.7em; height: 1.7em; flex: none; }
+  #islandsBtn .nm { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.1; }
+  #islandsBtn .nm .lbl { margin: 0; }
+  #islandsName { font-size: 0.7em; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9em; }
+  #ui.tall #cornerL { left: 0.6em; top: 3.6em; }
+  #ui.tall #stat { top: 8.6em; }   /* in the pill's own (0.8x) ems: just under MY ISLANDS */
+
+  /* ---- WALK mode: the building buttons tuck away; a thumbstick, JUMP and BUILD appear ---- */
+  #ui.walking #tools, #ui.walking #spinL, #ui.walking #spinR, #ui.walking #cornerL, #ui.walking #cornerR { display: none; }
+  #walkUI { position: absolute; inset: 0; pointer-events: none; }
+  #walkUI[hidden] { display: none; }
+  #ui #wExit { position: absolute; right: 0.6em; top: 0.6em; width: 3em; height: 3em; }
+  #wStick {
+    position: absolute; left: 1em; bottom: 1em; width: 7em; height: 7em; border-radius: 50%; pointer-events: auto; touch-action: none;
+    background: rgba(255, 248, 232, 0.35); border: 0.18em solid rgba(255, 255, 255, 0.85);
+  }
+  #wKnob {
+    position: absolute; left: 50%; top: 50%; width: 3em; height: 3em; margin: -1.5em 0 0 -1.5em; border-radius: 50%;
+    background: rgba(255, 248, 232, 0.92); box-shadow: 0 0.2em 0 rgba(60, 40, 20, 0.28); pointer-events: none;
+  }
+  #ui #wJump { position: absolute; right: 1.2em; bottom: 1.4em; width: 5em; height: 5em; border-radius: 50%; touch-action: none; }
+  #ui #wJump .lbl { font-size: 0.75em; }
+
+  /* ---- MY ISLANDS screen and the photo popup ---- */
+  #islands, #photoView {
+    position: absolute; inset: 0; z-index: 5; pointer-events: auto;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(18, 40, 64, 0.55);
+  }
+  #islands[hidden], #photoView[hidden] { display: none; }
+  .ipanel, .ppanel {
+    width: min(94%, 46em); max-height: 92%; overflow: auto;
+    background: #fff8e8; border: 0.18em solid #fff; border-radius: 1em;
+    box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.35);
+    padding: 0.8em 1em 1em; text-align: center;
+  }
+  .ipanel h2 { margin: 0.1em 0 0; font-size: 1.4em; letter-spacing: 0.12em; color: #e0763a; }
+  .isub { margin: 0.2em 0 0.7em; font-size: 0.65em; letter-spacing: 0.08em; opacity: 0.75; }
+  #islandList { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5em, 1fr)); gap: 0.7em; text-align: left; }
+  .icard {
+    background: #fff; border-radius: 0.8em; padding: 0.45em; border: 0.14em solid #eadfc8;
+    display: flex; flex-direction: column; gap: 0.25em; min-width: 0;
+  }
+  .icard.here { border-color: #ff9d3c; box-shadow: 0 0 0 0.12em #ffd9a8; }
+  #ui .ipic {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 0.55em; border: 0;
+    background: linear-gradient(160deg, #a6e3ff, #39bfd6) center / cover no-repeat; box-shadow: none;
+  }
+  .ihere {
+    position: absolute; left: 0.4em; top: 0.4em; padding: 0.15em 0.5em; border-radius: 999px;
+    background: #ff9d3c; color: #fff; font-size: 0.55em; letter-spacing: 0.08em;
+  }
+  .iname { font-size: 0.85em; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .iinfo { font-size: 0.6em; letter-spacing: 0.05em; opacity: 0.7; }
+  .iacts { display: flex; gap: 0.3em; }
+  #ui .iacts button { flex: 1; padding: 0.35em 0; border-radius: 0.5em; font-size: 0.55em; letter-spacing: 0.05em; box-shadow: none; border-width: 0.1em; border-color: #eadfc8; }
+  #ui .iacts button.armed { background: #ff8a7a; color: #fff; border-color: #ff8a7a; }
+  .irename { font: inherit; font-size: 0.85em; letter-spacing: 0.06em; text-transform: uppercase; width: 100%; padding: 0.2em 0.3em;
+    border: 0.12em solid #ff9d3c; border-radius: 0.4em; color: #4a3b2a; background: #fff; -webkit-user-select: text; user-select: text; }
+  #ui .icard.inew { align-items: center; justify-content: center; min-height: 9em; border-style: dashed; border-color: #ff9d3c; background: #fff3e0; box-shadow: none; }
+  .inew .plus { font-size: 2.6em; line-height: 1; color: #ff9d3c; }
+  #ui button.wide { flex-direction: row; padding: 0.55em 1.4em; margin-top: 0.8em; font-size: 0.85em; letter-spacing: 0.08em; display: inline-flex; }
+  .ppanel { width: min(94%, 34em); }
+  .ppanel img { width: 100%; border-radius: 0.5em; border: 0.5em solid #fff; box-shadow: 0 0.2em 0.6em rgba(0, 0, 0, 0.25); transform: rotate(-1.5deg); }
+  .ppanel p { margin: 0.6em 0 0; letter-spacing: 0.08em; }
+  .prow { display: flex; gap: 0.6em; justify-content: center; flex-wrap: wrap; }
 
   #hint {
     color: #ffe14f;
@@ -270,19 +354,29 @@
     <div id="topbar">
       <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
       <button id="styleBtn" type="button">STYLE: COZY</button>
-      <button id="slotBtn" type="button">ISLAND: 1 OF 3</button>
       <button id="musicBtn" type="button">MUSIC: ON</button>
-      <button id="newIsland" type="button">NEW ISLAND</button>
+      <button id="holidayBtn" type="button">HOLIDAY: AUTO</button>
     </div>
     <div id="stage">
       <canvas id="view"></canvas>
       <div id="paper"></div>
       <div id="edge"></div>
       <div id="ui">
+        <div id="townLabels"></div>
         <div id="stat">HOMES 1 &middot; PEOPLE 1</div>
         <div id="toast"></div>
 
+        <div id="cornerL" class="corner">
+          <button id="islandsBtn" type="button" aria-label="My islands">
+            <svg viewBox="0 0 24 24"><path d="M1 18q3-3 6 0t6 0 6 0 4 0v5H1z" fill="#39bfd6"/><path d="M3 17q9-7 18 0z" fill="#86cc62"/><path d="M12 15V7" stroke="#8a5a36" stroke-width="1.400"/><path d="M12 7q-5-1-6 2q3-2 6-2zM12 7q5-1 6 2q-3-2-6-2zM12 7q-1-4-4-4q3 1 4 4zM12 7q1-4 4-4q-3 1-4 4z" fill="#4fb04a"/></svg>
+            <span class="nm"><span class="lbl">MY ISLANDS</span><span id="islandsName">MY ISLANDS</span></span>
+          </button>
+        </div>
         <div id="cornerR" class="corner">
+          <button id="walkBtn" type="button" aria-label="Walk around">
+            <svg viewBox="0 0 24 24"><path d="M8 3c1.700 0 2.500 2 2.200 4.500-.2 1.800-1.300 2.700-2.400 2.500S6 8.700 6 7c0-2.300.6-4 2-4zM7 12.200l3 .5-.3 2.300c-.2 1.300-1.300 1.800-2.100 1.500S6.400 15.500 6.600 14z" fill="#8a5a36"/><path d="M16 7c1.700 0 2.500 2 2.200 4.500-.2 1.800-1.300 2.700-2.400 2.500S14 12.700 14 11c0-2.300.6-4 2-4zM15 16.200l3 .5-.3 2.300c-.2 1.300-1.300 1.800-2.100 1.500s-1.200-1-1-2.500z" fill="#b98652"/></svg>
+            <span class="lbl">WALK</span>
+          </button>
           <button id="photo" type="button" aria-label="Take a picture">
             <svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v11H3z" fill="#8a7a66"/><circle cx="12" cy="13" r="4" fill="#fff8e8"/><circle cx="12" cy="13" r="2.200" fill="#5a6fd0"/></svg>
             <span class="lbl">PHOTO</span>
@@ -308,6 +402,18 @@
           <button type="button" data-tool="land">
             <svg viewBox="0 0 24 24"><path d="M1 17q3-3 6 0t6 0 6 0 4 0v6H1z" fill="#39bfd6"/><path d="M4 16q2-9 8-9t8 9z" fill="#f2dc9b"/><path d="M6.5 14.5q1.500-6 5.500-6t5.500 6z" fill="#7ccf5a"/></svg>
             <span class="lbl">LAND</span>
+          </button>
+          <button type="button" data-tool="mountain">
+            <svg viewBox="0 0 24 24"><path d="M1 21 9 6l4 6 3-4 7 13z" fill="#8f8a84"/><path d="M9 6l-2.600 4.900 2.600-1.300 2 1.700zM16 8l-1.700 2.300 1.700-.7 1.500 1z" fill="#fff"/></svg>
+            <span class="lbl">MOUNTAIN</span>
+          </button>
+          <button type="button" data-tool="river">
+            <svg viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="4" fill="#9fdc7a"/><path d="M6 1q6 5 1 11t5 11h6q-8-5-3-11t-3-11z" fill="#39bfd6"/><path d="M9 4q2 2 0 4M11 14q2 2 1 4" stroke="#fff" stroke-width="1" fill="none" stroke-linecap="round"/></svg>
+            <span class="lbl">RIVER</span>
+          </button>
+          <button type="button" data-tool="beach">
+            <svg viewBox="0 0 24 24"><path d="M1 18q3-3 6 0t6 0 6 0 4 0v5H1z" fill="#39bfd6"/><path d="M1 16q9-5 22 0v3H1z" fill="#f5e3aa"/><path d="M12 5v11" stroke="#8a5a36" stroke-width="1.200"/><path d="M4 9q8-7 16 0z" fill="#e0503c"/><path d="M9.500 9q2.500-6 5 0z" fill="#fff"/></svg>
+            <span class="lbl">BEACH</span>
           </button>
           <button type="button" data-tool="house">
             <svg viewBox="0 0 24 24"><path d="M5 11h14v10H5z" fill="#fff1d0" stroke="#b9a27a" stroke-width=".6"/><path d="M2.500 12 12 3l9.500 9z" fill="#d9623b"/><path d="M10.500 15h3v6h-3z" fill="#8a5a36"/><path d="M15 13.500h2.500V16H15z" fill="#6aa6d8"/></svg>
@@ -339,6 +445,32 @@
           </button>
         </div>
 
+        <div id="walkUI" hidden>
+          <button id="wExit" type="button" aria-label="Stop walking"><span class="big">&#10006;</span><span class="lbl">BUILD</span></button>
+          <div id="wStick"><div id="wKnob"></div></div>
+          <button id="wJump" type="button" aria-label="Jump"><span class="lbl">JUMP</span></button>
+        </div>
+
+        <div id="islands" hidden>
+          <div class="ipanel">
+            <h2>MY ISLANDS</h2>
+            <p class="isub">EVERY ISLAND SAVES BY ITSELF. TAP ONE TO GO THERE.</p>
+            <div id="islandList"></div>
+            <button id="islandsClose" type="button" class="wide">CLOSE</button>
+          </div>
+        </div>
+
+        <div id="photoView" hidden>
+          <div class="ppanel">
+            <img id="photoImg" alt="Your picture">
+            <p>SNAP! HERE'S YOUR ISLAND.</p>
+            <div class="prow">
+              <button id="photoSave" type="button" class="wide">SAVE TO DEVICE</button>
+              <button id="photoClose" type="button" class="wide">CLOSE</button>
+            </div>
+          </div>
+        </div>
+
         <div id="title">
           <h1>COZY COVE</h1>
           <p>BUILD YOUR OWN LITTLE ISLAND TOWN</p>
@@ -349,13 +481,19 @@
     <div id="hint">
       <span>PICK A TOOL, THEN TAP OR DRAG ON THE ISLAND.</span>
       <span>LAND GROWS THE ISLAND. USE LAND ON LAND TO RAISE A HILL.</span>
+      <span>MOUNTAIN GROWS A PEAK -- HOLD IT TO KEEP GROWING. RIVERS POUR OVER EDGES AS WATERFALLS.</span>
+      <span>A PATH ACROSS A RIVER MAKES A BRIDGE. BEACH MAKES SAND -- TAP IT AGAIN TO DECORATE.</span>
       <span>HOUSES NEXT TO EACH OTHER JOIN UP. PATHS MAKE STEPS UP HILLS.</span>
-      <span>TAP A HOUSE AGAIN TO BUILD IT TALLER. EVERY FLOOR BRINGS A NEW NEIGHBOR.</span>
+      <span>TAP A HOUSE AGAIN TO BUILD IT TALLER -- HOLD IT TO KEEP STACKING. EVERY FLOOR BRINGS A NEW NEIGHBOR.</span>
       <span>TAP A TREE, PATH, DOCK OR SHOP AGAIN TO CHANGE IT.</span>
       <span>A DOCK BETWEEN TWO SHORES BECOMES A BRIDGE. TAP A VILLAGER TO SAY HI.</span>
-      <span>STYLE AND ISLAND 1-3 ARE UP HERE IN THE MENU.</span>
+      <span>MY ISLANDS (TOP LEFT) HOLDS EVERY ISLAND -- THEY SAVE BY THEMSELVES. MAKE, RENAME, COPY OR DELETE THEM THERE.</span>
+      <span>PHOTO TAKES A PICTURE YOU CAN SAVE TO THE DEVICE. STYLE IS UP HERE IN THE MENU.</span>
+      <span>EVERY GROUP OF 3 OR MORE HOMES IS A TOWN. TAP A TOWN'S NAME TO RENAME IT.</span>
+      <span>WALK (TOP RIGHT) PUTS YOU ON YOUR ISLAND, SEEING THROUGH A VILLAGER'S EYES: THUMBSTICK OR ARROWS TO WALK AND TURN, A / D TO STEP SIDEWAYS, JUMP OR SPACE, DRAG TO LOOK ROUND, BUILD TO GO BACK.</span>
+      <span>HOLIDAYS COME BY THEMSELVES -- OR PICK ONE WITH HOLIDAY IN THE MENU. KEEP AN EYE ON THE SEA, DAY AND NIGHT...</span>
       <span>TWO FINGERS: PINCH, TWIST AND SLIDE THE VIEW.</span>
-      <span>KEYS: ARROWS + SPACE, 1-7 TOOLS, Q/E TURN, C COLOR, N NIGHT, M MUSIC, Z UNDO.</span>
+      <span>KEYS: ARROWS + SPACE, 1-9 AND 0 TOOLS, Q/E TURN, C COLOR, N NIGHT, M MUSIC, I ISLANDS, G WALK, Z UNDO.</span>
       <span>CONTROLLER: A BUILD, B DIG, LB/RB TOOL, X COLOR, Y NIGHT.</span>
     </div>
   </div>
