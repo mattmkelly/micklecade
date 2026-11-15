@@ -61,7 +61,7 @@
     text-shadow: 0 0 6px #5ff3ff;
   }
 
-  #newIsland {
+  #newIsland, #musicBtn, #styleBtn, #slotBtn {
     padding: 6px 12px;
     border-radius: 999px;
     border: 2px solid #ffb38a;
@@ -93,6 +93,11 @@
     touch-action: none;
     cursor: pointer;
   }
+
+  /* watercolour paper: grain multiplied over the 3D view, and paint thinning toward the edges */
+  #paper, #edge { position: absolute; inset: 0; pointer-events: none; }
+  #paper { mix-blend-mode: multiply; background-size: 256px 256px; }
+  #edge { box-shadow: inset 0 0 70px 6px rgba(255, 247, 228, 0.5); }
 
   /* Everything in the UI is sized in em; game.js sets #ui's font-size from the stage width. */
   #ui {
@@ -166,6 +171,19 @@
     white-space: nowrap;
   }
 
+  .bubble {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    padding: 0.2em 0.6em;
+    border-radius: 0.8em;
+    background: #fff;
+    border: 0.12em solid #4a3b2a;
+    font-size: 0.8em;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
   #toast {
     position: absolute;
     left: 50%;
@@ -234,15 +252,28 @@
   <div id="wrap">
     <div id="topbar">
       <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+      <button id="styleBtn" type="button">STYLE: COZY</button>
+      <button id="slotBtn" type="button">ISLAND: 1 OF 3</button>
+      <button id="musicBtn" type="button">MUSIC: ON</button>
       <button id="newIsland" type="button">NEW ISLAND</button>
     </div>
     <div id="stage">
       <canvas id="view"></canvas>
+      <div id="paper"></div>
+      <div id="edge"></div>
       <div id="ui">
-        <div id="stat">HOMES 1</div>
+        <div id="stat">HOMES 1 &middot; PEOPLE 1</div>
         <div id="toast"></div>
 
         <div id="cornerR" class="corner">
+          <button id="photo" type="button" aria-label="Take a picture">
+            <svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v11H3z" fill="#8a7a66"/><circle cx="12" cy="13" r="4" fill="#fff8e8"/><circle cx="12" cy="13" r="2.200" fill="#5a6fd0"/></svg>
+            <span class="lbl">PHOTO</span>
+          </button>
+          <button id="weather" type="button" aria-label="Weather">
+            <svg viewBox="0 0 24 24"><circle id="weatherIco" cx="12" cy="12" r="6" fill="#ffb52e"/><path d="M5 19h14" stroke="#b9a27a" stroke-width="1.500" stroke-linecap="round"/></svg>
+            <span class="lbl" id="weatherLbl">SUNNY</span>
+          </button>
           <button id="undo" type="button" aria-label="Undo"><span class="big">&#8630;</span><span class="lbl">UNDO</span></button>
           <button id="night" type="button" aria-label="Day or night">
             <svg viewBox="0 0 24 24"><circle id="sunIco" cx="12" cy="12" r="6" fill="#ffb52e"/><path id="moonIco" d="M15 4a8 8 0 1 0 5 13A7 7 0 0 1 15 4z" fill="#5a6fd0" opacity="0"/></svg>
@@ -264,6 +295,10 @@
           <button type="button" data-tool="house">
             <svg viewBox="0 0 24 24"><path d="M5 11h14v10H5z" fill="#fff1d0" stroke="#b9a27a" stroke-width=".6"/><path d="M2.500 12 12 3l9.500 9z" fill="#d9623b"/><path d="M10.500 15h3v6h-3z" fill="#8a5a36"/><path d="M15 13.500h2.500V16H15z" fill="#6aa6d8"/></svg>
             <span class="lbl">HOUSE</span>
+          </button>
+          <button type="button" data-tool="special">
+            <svg viewBox="0 0 24 24"><path d="M4 11h16v10H4z" fill="#fff1d0" stroke="#b9a27a" stroke-width=".6"/><path d="M3 7h18l1.500 5h-21z" fill="#e0503c"/><path d="M6.600 7h3.600l-.4 5H5.400zM13.800 7h3.600l1.200 5h-4.400z" fill="#fff"/><path d="M10.500 15h3v6h-3z" fill="#8a5a36"/><path d="M9 3h6v3H9z" fill="#ffd84f"/></svg>
+            <span class="lbl">SHOPS</span>
           </button>
           <button type="button" data-tool="nature">
             <svg viewBox="0 0 24 24"><path d="M10.800 14h2.400v8h-2.400z" fill="#8a5a36"/><circle cx="12" cy="9" r="6.500" fill="#4fb04a"/><circle cx="15" cy="6.500" r="3" fill="#7ccf5a"/></svg>
@@ -296,11 +331,14 @@
     </div>
     <div id="hint">
       <span>PICK A TOOL, THEN TAP OR DRAG ON THE ISLAND.</span>
-      <span>LAND GROWS THE ISLAND. HOUSES NEXT TO EACH OTHER JOIN UP.</span>
-      <span>TAP A HOUSE AGAIN TO BUILD IT TALLER.</span>
-      <span>TAP A TREE, PATH OR DOCK AGAIN TO CHANGE IT.</span>
+      <span>LAND GROWS THE ISLAND. USE LAND ON LAND TO RAISE A HILL.</span>
+      <span>HOUSES NEXT TO EACH OTHER JOIN UP. PATHS MAKE STEPS UP HILLS.</span>
+      <span>TAP A HOUSE AGAIN TO BUILD IT TALLER. EVERY FLOOR BRINGS A NEW NEIGHBOR.</span>
+      <span>TAP A TREE, PATH, DOCK OR SHOP AGAIN TO CHANGE IT.</span>
+      <span>A DOCK BETWEEN TWO SHORES BECOMES A BRIDGE. TAP A VILLAGER TO SAY HI.</span>
+      <span>STYLE AND ISLAND 1-3 ARE UP HERE IN THE MENU.</span>
       <span>TWO FINGERS: PINCH, TWIST AND SLIDE THE VIEW.</span>
-      <span>KEYS: ARROWS + SPACE, 1-6 TOOLS, Q/E TURN, C COLOR, N NIGHT, Z UNDO.</span>
+      <span>KEYS: ARROWS + SPACE, 1-7 TOOLS, Q/E TURN, C COLOR, N NIGHT, M MUSIC, Z UNDO.</span>
       <span>CONTROLLER: A BUILD, B DIG, LB/RB TOOL, X COLOR, Y NIGHT.</span>
     </div>
   </div>
