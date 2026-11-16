@@ -307,7 +307,7 @@
         dest = dest || A.kit;
         // one tuning per lane, low drum on the left
         const f = 82 * Math.pow(2, (n > 1 ? lane / (n - 1) : 0.5) * 1.5);
-        tone(dest, 'sine', f * 1.7, t, 0.5, 0.9 * vel, { to: f, sweep: 0.07 });
+        tone(dest, 'sine', f * 1.7, t, 0.5, 0.72 * vel, { to: f, sweep: 0.07 });
         tone(dest, 'triangle', f * 2.02, t, 0.12, 0.16 * vel, { to: f * 1.5 });
         noiseHit(dest, t, 0.015, 0.1 * vel, 'bandpass', 2000, 1);
         return null;
@@ -342,6 +342,60 @@
         ]);
       },
     },
+    {
+      id: 'BONGOS', name: 'BONGOS', type: 'drums', color: '#ffb35a',
+      play(lane, n, pitch, t, vel, dest) {
+        dest = dest || A.kit;
+        const q = n > 1 ? lane / (n - 1) : 0.5;          // low drum on the left
+        const f = 230 * Math.pow(2, q * 0.95);
+        vel *= 1 - q * 0.2;                               // the high bongo a touch softer
+        tone(dest, 'sine', f * 1.35, t, 0.2, 0.95 * vel, { to: f, sweep: 0.025 });
+        tone(dest, 'sine', f * 2.1, t, 0.05, 0.08 * vel);
+        noiseHit(dest, t, 0.02, 0.1 * vel, 'bandpass', 1400, 1.2);   // the hand slap
+        return null;
+      },
+    },
+    {
+      id: 'XYLOPHONE', name: 'XYLOPHONE', type: 'pitched', color: '#9dff6a',
+      play(lane, n, pitch, t, vel, dest) {
+        dest = dest || A.kit;
+        const f = mtof(pitch), k = highTilt(pitch);
+        vel *= 1 - k * 0.35;
+        return handle([
+          tone(dest, 'sine', f, t, 0.42, 0.55 * vel, { attack: 0.003 }),
+          tone(dest, 'sine', f * 4, t, 0.07, 0.05 * vel * (1 - k * 0.8), { attack: 0.002 }),
+          tone(dest, 'triangle', f, t, 0.12, 0.12 * vel, { attack: 0.002 }),
+        ]);
+      },
+    },
+    {
+      id: 'BELLS', name: 'BELLS', type: 'pitched', color: '#ffd6f4',
+      play(lane, n, pitch, t, vel, dest) {
+        dest = dest || A.kit;
+        const f = mtof(pitch), k = highTilt(pitch);
+        vel *= 1 - k * 0.35;
+        return handle([
+          tone(dest, 'sine', f, t, 1.8, 0.42 * vel, { attack: 0.004 }),
+          tone(dest, 'sine', f * 2.76, t, 0.9, 0.09 * vel * (1 - k * 0.6), { attack: 0.004 }),
+          tone(dest, 'sine', f * 5.4, t, 0.35, 0.03 * vel * (1 - k * 0.9), { attack: 0.003 }),
+        ]);
+      },
+    },
+    {
+      // the classic MickleCade square-wave blip -- but filtered round and kept soft, so it is
+      // chippy without the buzz (see the sound rules in CLAUDE.md)
+      id: '8-BIT', name: '8-BIT', type: 'pitched', color: '#7dff4f',
+      play(lane, n, pitch, t, vel, dest) {
+        dest = dest || A.kit;
+        const f = mtof(pitch), k = highTilt(pitch);
+        vel *= 1 - k * 0.35;
+        return handle([
+          tone(dest, 'square', f, t, 0.32, 0.19 * vel,
+            { attack: 0.004, filter: 'lowpass', ff: Math.min(2200, f * 3.5), ffTo: Math.min(1400, f * 2), q: 0.5 }),
+          tone(dest, 'triangle', f, t, 0.34, 0.34 * vel, { attack: 0.004 }),
+        ]);
+      },
+    },
   ];
   // How hard a tap sounds. Kids bang on pads: a stray tap (no note near it) is a little soft,
   // and when taps come thick and fast they get softer still, so mashing is never louder than
@@ -365,11 +419,7 @@
     tone(A.kit, 'sine', mtof(64 + steps[Math.min(steps.length - 1, Math.floor(k * steps.length))]), at, 0.08, 0.06, { attack: 0.003 });
   }
 
-  // songs name kits from the full set; until those kits exist they borrow a close one
-  const KIT_STANDIN = { BELLS: 'STEEL', XYLOPHONE: 'STEEL', BONGOS: 'TOMS', '8-BIT': 'PIANO' };
-  function kitById(id) {
-    return KITS.find((k) => k.id === id) || KITS.find((k) => k.id === KIT_STANDIN[id]) || KITS[0];
-  }
+  function kitById(id) { return KITS.find((k) => k.id === id) || KITS[0]; }
 
   // =========================================================================== Backing band
   // A style is drum, bass and chord patterns asked once per step (1/sub of a beat).
@@ -422,13 +472,46 @@
       chord(pos, bpb, sub) { return pos % 1 > 1e-6 ? { beats: 0.9 / sub, voice: 'pluck' } : null; },
       guide: 'sine',
     },
+    ROCK: {
+      drums(pos) {
+        const out = [];
+        if (pos === 0 || pos === 2 || pos === 2.5) out.push(['kick', 0.85]);
+        if (pos === 1 || pos === 3) out.push(['snare', 0.8]);
+        if (pos % 0.5 === 0) out.push(['hat', pos % 1 === 0 ? 0.35 : 0.22]);
+        return out;
+      },
+      bass(pos) { return pos % 0.5 === 0 ? [pos === 3.5 ? 7 : 0, 0.42] : null; },   // driving eighths
+      chord(pos) { return pos === 0 || pos === 2 ? { beats: 1.6, voice: 'power' } : null; },
+      guide: 'triangle',
+    },
+    CHIPTUNE: {
+      drums(pos) {
+        const out = [];
+        if (pos === 0 || pos === 2) out.push(['kick', 0.75]);
+        if (pos === 1 || pos === 3) out.push(['snare', 0.55]);
+        if (pos % 1 === 0.5) out.push(['hat', 0.2]);
+        return out;
+      },
+      bass(pos) { return pos % 0.5 === 0 ? [pos % 1 === 0 ? 0 : 12, 0.35] : null; },    // octave hops
+      chord(pos) { return { beats: 0.4, voice: 'arp' }; },                              // a chord arpeggio every step
+      guide: 'triangle',
+    },
   };
 
   function bassNote(at, midi, dur) {
     tone(A.band, 'triangle', mtof(midi), at, Math.max(0.15, dur), 0.55,
       { attack: 0.01, filter: 'lowpass', ff: 900, ffTo: 300 });
   }
-  function chordNotes(at, ch, dur, voice) {
+  function chordNotes(at, ch, dur, voice, pos, sub) {
+    if (voice === 'arp') {      // one chord tone per step, climbing
+      const i = Math.round((pos || 0) * (sub || 2)) % ch.tones.length;
+      tone(A.band, 'triangle', mtof(ch.tones[i] + 12), at, Math.max(0.1, dur), 0.08, { attack: 0.004 });
+      return;
+    }
+    if (voice === 'power') {    // root + fifth + octave, a little chunk of rock guitar
+      [0, 7, 12].forEach((iv) => tone(A.band, 'triangle', mtof(ch.bass + 12 + iv), at, Math.max(0.2, dur), 0.11, { attack: 0.008 }));
+      return;
+    }
     ch.tones.forEach((m) => {
       if (voice === 'pad') tone(A.band, 'triangle', mtof(m), at, Math.max(0.3, dur), 0.09, { attack: 0.12 });
       else tone(A.band, 'triangle', mtof(m), at, Math.max(0.12, dur), 0.12, { attack: 0.006 });
@@ -455,15 +538,15 @@
         if (vel > 0) ev.push({ t, play: (at) => DRUM[v](A.band, at, vel) });
       });
       const b = style.bass(pos, bpb, sub);
-      if (b) ev.push({ t, play: (at) => bassNote(at, ch.bass + b[0], b[1] * S.beatDur) });
+      if (b) ev.push({ t, play: (at) => bassNote(at, ch.bass + b[0], b[1] * beatLen(S, beat)) });
       const c = style.chord(pos, bpb, sub);
-      if (c) ev.push({ t, play: (at) => chordNotes(at, ch, c.beats * S.beatDur, c.voice) });
+      if (c) ev.push({ t, play: (at) => chordNotes(at, ch, c.beats * beatLen(S, beat), c.voice, pos, sub) });
     }
     // drum kits get the melody played quietly as a guide; pitched kits play it themselves
     if (kit.type === 'drums') {
       S.notes.forEach((n) => {
         if (n.midi == null) return;
-        ev.push({ t: beatTime(S, n.beat), guide: true, play: (at) => guideNote(at, n.midi, n.dur * S.beatDur * 0.9, style.guide) });
+        ev.push({ t: beatTime(S, n.beat), guide: true, play: (at) => guideNote(at, n.midi, (beatTime(S, n.beat + n.dur) - beatTime(S, n.beat)) * 0.9, style.guide) });
       });
     }
     // a big finish on the downbeat after the last bar
@@ -517,6 +600,84 @@
             'G4:2/3 F4:1/3 E4:2/3 D4:1/3 | C4:2',
       chords: 'C:12 G:2 C:2',
     },
+    {
+      id: 'ode', title: 'ODE TO JOY', bpm: 120, key: 'C', style: 'ROCK', kit: 'PIANO',
+      lead: 'E4:1 E4:1 F4:1 G4:1 | G4:1 F4:1 E4:1 D4:1 | C4:1 C4:1 D4:1 E4:1 | E4:1.5 D4:0.5 D4:2 |' +
+            'E4:1 E4:1 F4:1 G4:1 | G4:1 F4:1 E4:1 D4:1 | C4:1 C4:1 D4:1 E4:1 | D4:1.5 C4:0.5 C4:2 |' +
+            'D4:1 D4:1 E4:1 C4:1 | D4:1 E4:0.5 F4:0.5 E4:1 C4:1 | D4:1 E4:0.5 F4:0.5 E4:1 D4:1 | C4:1 D4:1 G3:2 |' +
+            'E4:1 E4:1 F4:1 G4:1 | G4:1 F4:1 E4:1 D4:1 | C4:1 C4:1 D4:1 E4:1 | D4:1.5 C4:0.5 C4:2',
+      chords: 'C:4 | G:4 | C:4 | C:2 G:2 | C:4 | G:4 | C:4 | G:2 C:2 | G:4 | C:4 | G:4 | C:2 G:2 | C:4 | G:4 | C:4 | G:2 C:2',
+    },
+    {
+      id: 'saints', title: 'WHEN THE SAINTS', bpm: 116, key: 'C', style: 'MARCH', kit: 'CLASSIC',
+      lead: '-:1 C4:1 E4:1 F4:1 | G4:4 | -:1 C4:1 E4:1 F4:1 | G4:4 | -:1 C4:1 E4:1 F4:1 | G4:2 E4:2 | C4:2 E4:2 | D4:4 |' +
+            '-:1 E4:1 E4:1 D4:1 | C4:3 C4:1 | E4:2 G4:2 | G4:2 F4:2 | -:1 E4:1 F4:1 G4:1 | E4:2 C4:2 | D4:4 | C4:4',
+      chords: 'C:4 | C:4 | C:4 | C:4 | C:4 | C:4 | C:4 | G:4 | C:4 | C:4 | C7:4 | F:4 | C:4 | C:4 | G:4 | C:4',
+    },
+    {
+      id: 'cancan', title: 'CAN-CAN', bpm: 132, key: 'C', style: 'ROCK', kit: 'PIANO',
+      lead: 'C4:2 D4:0.5 F4:0.5 E4:0.5 D4:0.5 | G4:1 G4:1 G4:0.5 A4:0.5 E4:0.5 F4:0.5 |' +
+            'D4:1 D4:1 D4:0.5 F4:0.5 E4:0.5 D4:0.5 | C4:0.5 C5:0.5 B4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:0.5 D4:0.5 |' +
+            'C4:2 D4:0.5 F4:0.5 E4:0.5 D4:0.5 | G4:1 G4:1 G4:0.5 A4:0.5 E4:0.5 F4:0.5 |' +
+            'D4:1 D4:1 D4:0.5 F4:0.5 E4:0.5 D4:0.5 | C4:0.5 G4:0.5 D4:0.5 E4:0.5 C4:2 |' +
+            // a second strain in the same galloping style
+            'E4:1 E4:1 E4:0.5 F4:0.5 G4:0.5 E4:0.5 | D4:1 D4:1 D4:0.5 E4:0.5 F4:0.5 D4:0.5 |' +
+            'C4:1 C4:1 C4:0.5 D4:0.5 E4:0.5 C4:0.5 | B3:0.5 C4:0.5 D4:0.5 E4:0.5 F4:0.5 G4:0.5 A4:0.5 B4:0.5 |' +
+            'C5:2 B4:0.5 A4:0.5 G4:0.5 F4:0.5 | E4:1 G4:1 E4:0.5 F4:0.5 D4:0.5 E4:0.5 |' +
+            'D4:1 F4:1 D4:0.5 E4:0.5 C4:0.5 D4:0.5 | C4:0.5 G4:0.5 D4:0.5 E4:0.5 C4:2',
+      chords: 'C:4 | C:2 F:2 | G:4 | C:2 G:2 | C:4 | C:2 F:2 | G:4 | G:2 C:2 |' +
+              'C:4 | G:4 | C:4 | G:4 | C:4 | C:2 F:2 | G:4 | G:2 C:2',
+    },
+    {
+      // speeds up the whole way through, like the real piece
+      id: 'mountain', title: 'HALL OF THE MOUNTAIN KING', bpm: 92, bpmEnd: 168, key: 'Am', style: 'CHIPTUNE', kit: '8-BIT',
+      lead: 'A3:0.5 B3:0.5 C4:0.5 D4:0.5 E4:0.5 C4:0.5 E4:1 | D#4:0.5 B3:0.5 D#4:1 D4:0.5 Bb3:0.5 D4:1 |' +
+            'A3:0.5 B3:0.5 C4:0.5 D4:0.5 E4:0.5 C4:0.5 E4:0.5 A4:0.5 | G4:0.5 E4:0.5 C4:0.5 E4:0.5 G4:2 |' +
+            'E4:0.5 F#4:0.5 G#4:0.5 A4:0.5 B4:0.5 G#4:0.5 B4:1 | C5:0.5 G#4:0.5 C5:1 B4:0.5 G#4:0.5 B4:1 |' +
+            'E4:0.5 F#4:0.5 G#4:0.5 A4:0.5 B4:0.5 G#4:0.5 B4:1 | C5:0.5 G#4:0.5 C5:1 B4:2 |' +
+            'A3:0.5 B3:0.5 C4:0.5 D4:0.5 E4:0.5 C4:0.5 E4:1 | D#4:0.5 B3:0.5 D#4:1 D4:0.5 Bb3:0.5 D4:1 |' +
+            'A3:0.5 B3:0.5 C4:0.5 D4:0.5 E4:0.5 C4:0.5 E4:0.5 A4:0.5 | G4:0.5 E4:0.5 C4:0.5 E4:0.5 A3:2',
+      chords: 'Am:4 | E:4 | Am:4 | C:4 | E:4 | E:4 | E:4 | E:4 | Am:4 | E:4 | Am:4 | Am:4',
+    },
+    {
+      id: 'neonrock', title: 'NEON ROCK', bpm: 138, key: 'G', style: 'ROCK', kit: 'CLASSIC',
+      lead: 'G4:1 G4:0.5 A4:0.5 B4:1 G4:1 | D5:1 B4:1 A4:2 | G4:1 G4:0.5 A4:0.5 B4:1 D5:1 | E5:1 D5:1 B4:2 |' +
+            'C5:1 C5:0.5 B4:0.5 A4:1 C5:1 | B4:1 A4:1 G4:2 | A4:0.5 A4:0.5 B4:0.5 A4:0.5 G4:1 E4:1 | D4:4 |' +
+            'G4:1 B4:1 D5:1 B4:1 | C5:1 E5:1 D5:2 | B4:0.5 B4:0.5 A4:0.5 B4:0.5 C5:1 A4:1 | B4:1 G4:1 E4:2 |' +
+            'C5:1 C5:0.5 B4:0.5 A4:1 C5:1 | D5:1 C5:1 B4:2 | A4:0.5 B4:0.5 C5:0.5 A4:0.5 D5:1 F#4:1 | G4:4',
+      chords: 'G:4 | G:2 D:2 | G:4 | Em:4 | C:4 | G:4 | Am:2 Em:2 | D:4 | G:4 | C:2 D:2 | Em:2 Am:2 | Em:4 | C:4 | D:2 G:2 | Am:2 D:2 | G:4',
+    },
+    {
+      id: 'island', title: 'ISLAND SUNSHINE', bpm: 112, key: 'C', style: 'ISLAND', kit: 'STEEL',
+      lead: 'E4:1 G4:0.5 C5:1 G4:0.5 E4:1 | F4:0.5 F4:0.5 A4:1 G4:2 | E4:1 G4:0.5 C5:1 G4:0.5 E4:1 | D4:0.5 E4:0.5 F4:1 E4:2 |' +
+            'F4:1 A4:0.5 C5:1 A4:0.5 F4:1 | E4:0.5 E4:0.5 G4:1 C5:2 | B4:0.5 A4:0.5 G4:1 F4:0.5 E4:0.5 D4:1 | C4:4 |' +
+            'G4:0.5 G4:0.5 A4:1 G4:0.5 E4:1 C4:0.5 | D4:1 E4:0.5 F4:1 E4:1.5 | G4:0.5 G4:0.5 A4:1 C5:0.5 A4:1 G4:0.5 | F4:1 E4:1 D4:2 |' +
+            'E4:1 G4:0.5 C5:1 G4:0.5 E4:1 | F4:0.5 F4:0.5 A4:1 G4:2 | E4:0.5 D4:0.5 C4:1 D4:0.5 E4:0.5 D4:1 | C4:4',
+      chords: 'C:4 | F:2 C:2 | C:4 | G:4 | F:4 | C:4 | G:4 | C:4 | C:4 | G:4 | F:4 | G:4 | C:4 | F:2 C:2 | G:4 | C:4',
+    },
+    {
+      id: 'funky', title: 'FUNKY BUNNY', bpm: 108, key: 'Dm', style: 'FUNK', kit: 'BONGOS',
+      lead: 'D4:0.5 D4:0.5 -:0.5 F4:0.5 G4:0.5 -:0.5 A4:1 | C5:0.5 A4:0.5 G4:0.5 F4:0.5 G4:2 |' +
+            'D4:0.5 D4:0.5 -:0.5 F4:0.5 G4:0.5 -:0.5 A4:1 | F4:0.5 G4:0.5 F4:0.5 D4:0.5 D4:2 |' +
+            'G4:0.5 G4:0.5 -:0.5 Bb4:0.5 C5:0.5 -:0.5 D5:1 | C5:0.5 Bb4:0.5 A4:0.5 G4:0.5 A4:2 |' +
+            'D5:0.5 C5:0.5 A4:0.5 G4:0.5 F4:0.5 G4:0.5 A4:1 | D4:4 |' +
+            'A4:1 A4:0.5 G4:0.5 F4:1 D4:1 | F4:0.5 G4:0.5 A4:0.5 C5:0.5 D5:2 | C5:1 C5:0.5 A4:0.5 G4:1 F4:1 |' +
+            'G4:0.5 A4:0.5 G4:0.5 F4:0.5 D4:2 | D4:0.5 D4:0.5 -:0.5 F4:0.5 G4:0.5 -:0.5 A4:1 |' +
+            'C5:0.5 A4:0.5 G4:0.5 F4:0.5 G4:2 | F4:0.5 G4:0.5 A4:0.5 C5:0.5 D5:0.5 C5:0.5 A4:1 | D5:2 D4:2',
+      chords: 'Dm:4 | C:4 | Dm:4 | Dm:4 | Gm:4 | Gm:2 Dm:2 | Dm:4 | Dm:4 | Dm:4 | F:4 | C:4 | Dm:4 | Dm:4 | C:4 | F:4 | Dm:4',
+    },
+    {
+      // a drum workout: the tune is really a pattern of low and high drums
+      id: 'thunder', title: 'THUNDER TOMS', bpm: 126, key: 'Am', style: 'ROCK', kit: 'TOMS',
+      lead: 'A3:1 A3:1 E4:1 E4:1 | A3:0.5 A3:0.5 C4:0.5 E4:0.5 A4:2 | A4:1 E4:1 C4:1 A3:1 | E4:0.5 E4:0.5 E4:0.5 E4:0.5 A3:2 |' +
+            'A3:0.5 C4:0.5 E4:0.5 A4:0.5 A3:0.5 C4:0.5 E4:0.5 A4:0.5 | A4:1 G4:1 E4:1 D4:1 |' +
+            'C4:0.5 C4:0.5 D4:0.5 D4:0.5 E4:0.5 E4:0.5 G4:0.5 G4:0.5 | A4:2 A3:2 |' +
+            'A3:1 E4:0.5 E4:0.5 A3:1 E4:1 | C4:0.5 D4:0.5 E4:0.5 G4:0.5 A4:1 E4:1 |' +
+            'A4:0.5 G4:0.5 E4:0.5 D4:0.5 C4:0.5 D4:0.5 E4:1 | A3:4 |' +
+            'E4:0.5 A3:0.5 E4:0.5 A3:0.5 G4:0.5 C4:0.5 G4:0.5 C4:0.5 | A4:1 A4:1 A4:0.5 G4:0.5 E4:1 |' +
+            'D4:0.5 E4:0.5 G4:0.5 A4:0.5 G4:0.5 E4:0.5 D4:0.5 C4:0.5 | A3:2 A4:2',
+      chords: 'Am:12 E:4 | Am:4 G:4 C:4 Am:4 | Am:8 G:4 Am:4 | C:4 Am:4 G:4 Am:4',
+    },
   ];
 
   const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -561,7 +722,13 @@
     S.notes = lead;
     S.chordList = chords;
     S.beats = Math.round(beat * 1000) / 1000;
-    S.keyPc = PC[S.key[0]] + (S.key[1] === '#' ? 1 : S.key[1] === 'b' ? -1 : 0);
+    // key: 'C', 'F#', or a minor key like 'Am'. rootPc is the tonic; keyPc is the major key
+    // that shares its notes (the relative major), used for pentatonic flourishes.
+    S.minor = /m$/.test(S.key);
+    S.rootPc = PC[S.key[0]] + (S.key[1] === '#' ? 1 : S.key[1] === 'b' ? -1 : 0);
+    S.keyPc = S.minor ? (S.rootPc + 3) % 12 : S.rootPc;
+    // tempo map: bpmEnd makes the tempo rise steadily from bpm to bpmEnd across the song
+    S.bpmEnd = def.bpmEnd || S.bpm;
     return S;
   }
   function chordAt(S, beat) {
@@ -569,12 +736,30 @@
     for (let i = list.length - 1; i >= 0; i--) if (list[i].beat <= beat + 1e-6) return list[i];
     return list[0];
   }
-  // beats -> song seconds. The one place a tempo map (speed-ups, practice speed) goes.
-  function beatTime(S, beat) { return beat * S.beatDur; }
+  // beats -> song seconds: the tempo map. A steady tempo is beat * beatDur; a song with bpmEnd
+  // speeds up steadily (tempo linear in beats), so time is the integral of 60 / bpm(beat).
+  // Count-in beats (negative) always run at the starting tempo. Practice speed goes here too.
+  function beatTime(S, beat) {
+    if (beat <= 0 || S.bpmEnd === S.bpm) return beat * S.beatDur;
+    const k = (S.bpmEnd - S.bpm) / S.beats;              // bpm gained per beat
+    return 60 / k * Math.log((S.bpm + k * beat) / S.bpm);
+  }
+  // song seconds -> beats (the inverse of beatTime)
+  function songBeat(S, t) {
+    if (t <= 0 || S.bpmEnd === S.bpm) return t / S.beatDur;
+    const k = (S.bpmEnd - S.bpm) / S.beats;
+    return S.bpm / k * (Math.exp(t * k / 60) - 1);
+  }
+  // seconds per beat at a given beat (for note lengths in the backing)
+  function beatLen(S, beat) { return beatTime(S, beat + 1) - beatTime(S, beat); }
 
-  // a lane's note from the song's major pentatonic, so a stray tap never sounds wrong
+  // a lane's note from the song's pentatonic scale (major, or minor for a minor key), so a
+  // stray tap never sounds wrong
   const PENT_LANES = { 3: [0, 4, 7], 4: [0, 2, 4, 7], 5: [0, 2, 4, 7, 9] };
-  function strayPitch(S, lane, n) { return 60 + ((S.keyPc + 6) % 12) - 6 + PENT_LANES[n][lane]; }
+  const PENT_LANES_MINOR = { 3: [0, 3, 7], 4: [0, 3, 5, 7], 5: [0, 3, 5, 7, 10] };
+  function strayPitch(S, lane, n) {
+    return 60 + ((S.rootPc + 6) % 12) - 6 + (S.minor ? PENT_LANES_MINOR : PENT_LANES)[n][lane];
+  }
 
   // =========================================================================== Chart builder
   const DIFFS = [
@@ -682,6 +867,14 @@
     return ts / 1000 + clockOff - C.songStart - latency();
   }
 
+  // audio-clock time of an input event, from its own timeStamp
+  function eventAudioTime(e) {
+    const pnow = performance.now();
+    let ts = e && e.timeStamp;
+    if (!(ts > 0) || Math.abs(ts - pnow) > 1000) ts = pnow;
+    return clockOff === null ? actx.currentTime - (pnow - ts) / 1000 : ts / 1000 + clockOff;
+  }
+
   function startSong(si, d, kitId) {
     if (!ensureAudio()) return;
     stopBand();
@@ -716,6 +909,15 @@
 
   // the lookahead scheduler: every 25 ms, start everything due in the next 120 ms at its exact time
   function schedule() {
+    if (state === 'sync' && sync && !sync.done && actx && actx.state === 'running') {
+      while (sync.next < SYNC_TICKS && sync.start + sync.next * SYNC_BEAT < actx.currentTime + 0.12) {
+        const at = sync.start + sync.next * SYNC_BEAT;
+        if (at >= actx.currentTime - 0.01) DRUM.stick(A.kit, Math.max(at, actx.currentTime), sync.next % 4 === 0 ? 1.2 : 0.9);
+        sync.next++;
+      }
+      if (sync.next >= SYNC_TICKS && actx.currentTime > sync.start + SYNC_TICKS * SYNC_BEAT) sync.done = true;   // ran out of clicks
+      return;
+    }
     if (!C.on || C.paused || C.resuming || !actx || actx.state !== 'running') return;
     const nowA = actx.currentTime, horizon = nowA + 0.12;
     while (C.ptr < C.backing.length) {
@@ -838,6 +1040,14 @@
   window.addEventListener('keydown', (e) => {
     ensureAudio();
     if (state === 'play') {
+      if (C.paused && C.why === 'pause') {   // the pause menu has the keys
+        const pk = {
+          ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+          Space: 'ok', Enter: 'ok', NumpadEnter: 'ok', Escape: 'back', KeyP: 'back',
+        }[e.code];
+        if (pk) { e.preventDefault(); if (!e.repeat) pauseInput(pk); }
+        return;
+      }
       const lane = KEY_LANES[C.lanes][e.code];
       if (lane !== undefined) {
         e.preventDefault();
@@ -847,8 +1057,16 @@
         }
         return;
       }
-      if (e.code === 'Escape') { e.preventDefault(); quitSong(); state = 'select'; }
+      if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); openPause(); }
       return;
+    }
+    if (state === 'sync') {
+      if (e.code === 'Escape' || e.code === 'Backspace') { e.preventDefault(); menuInput('back'); return; }
+      if (sync && !sync.done) {             // every other key is a tap along with the clicks
+        e.preventDefault();
+        if (!e.repeat) syncTap(eventAudioTime(e));
+        return;
+      }
     }
     if (e.repeat && (e.code === 'Space' || e.code === 'Enter')) return;
     const k = {
@@ -870,6 +1088,8 @@
     const p = toCanvas(e);
     if (state === 'play') {
       e.preventDefault();
+      const h = hotAt(p);                    // the pause button, or the pause menu's buttons
+      if (h) { h.fn(); return; }
       if (C.paused) return;
       const lane = laneAtX(p.x, p.y);
       if (lane < 0) return;
@@ -897,13 +1117,28 @@
     if (!window.Pad360) return;
     const P = Pad360;
     if (state === 'play') {
+      if (C.paused && C.why === 'pause') {
+        const dx = P.dxPressed(), dy = P.dyPressed();
+        if (dy < 0) pauseInput('up');
+        if (dy > 0) pauseInput('down');
+        if (dx < 0) pauseInput('left');
+        if (dx > 0) pauseInput('right');
+        if (P.pressed(P.BTN.A)) pauseInput('ok');
+        if (P.pressed(P.BTN.B) || P.pressed(P.BTN.START)) pauseInput('back');
+        return;
+      }
       if (C.paused) return;
       const btns = padButtons(C.lanes), t = songNow();
       btns.forEach((b, lane) => {
         if (P.pressed(b)) { players[0].down[lane] = true; hit(0, lane, t); }
         else if (P.released(b)) { players[0].down[lane] = false; release(0, lane, t); }
       });
-      if (P.pressed(P.BTN.BACK)) { quitSong(); state = 'select'; }
+      if (P.pressed(P.BTN.START) || P.pressed(P.BTN.BACK)) openPause();
+      return;
+    }
+    if (state === 'sync' && sync && !sync.done) {
+      if (P.pressed(P.BTN.A) || P.pressed(P.BTN.X) || P.pressed(P.BTN.Y)) syncTap(audioNow());
+      if (P.pressed(P.BTN.B) || P.pressed(P.BTN.BACK)) menuInput('back');
       return;
     }
     const dx = P.dxPressed(), dy = P.dyPressed();
@@ -1180,7 +1415,7 @@
   }
   // 0..1 through the current beat (idle pulse off the stage when no song is on)
   function beatPhase() {
-    if (state === 'play' && C.on && C.S) { const b = songNow() / C.S.beatDur; return b - Math.floor(b); }
+    if (state === 'play' && C.on && C.S) { const t = songNow(), b = t < 0 ? t / C.S.beatDur : songBeat(C.S, t); return b - Math.floor(b); }
     const b = fxNow() * 2;
     return b - Math.floor(b);
   }
@@ -1350,10 +1585,9 @@
     }
     // beat lines scrolling down with the music (same motion as the notes)
     if (C.S) {
-      const bd = C.S.beatDur;
-      const firstBeat = Math.ceil((now - 0.15) / bd);
+      const firstBeat = Math.ceil(now - 0.15 < 0 ? (now - 0.15) / C.S.beatDur : songBeat(C.S, now - 0.15));
       for (let b = firstBeat; ; b++) {
-        const z = noteZ(b * bd, now);
+        const z = noteZ(beatTime(C.S, b), now);
         if (z > ZMAX) break;
         const y = yOf(z);
         if (y > 244) continue;
@@ -1640,6 +1874,14 @@
     text('x' + m, 392, 11, 'bold 14px monospace', mc, 'right');
     text('STREAK', 446, 7, 'bold 6px monospace', '#b9b0e0', 'right');
     text(String(P.streak), 446, 15, 'bold 10px monospace', P.streak >= 10 ? '#ffe14f' : '#ffffff', 'right');
+    // pause button (also Esc / P / START)
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    rr(334, 3, 22, 16, 5); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.8;
+    rr(334, 3, 22, 16, 5); ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(341, 7, 2.5, 8); ctx.fillRect(346.5, 7, 2.5, 8);
+    if (!C.paused) hot.push({ x: 328, y: 0, w: 34, h: 24, fn: openPause });
     if (C.d === 0 && P.shield) {   // Easy: the next miss is forgiven
       ctx.fillStyle = '#4ff0ff';
       ctx.beginPath();
@@ -1675,6 +1917,7 @@
   }
 
   function drawPaused() {
+    if (C.why === 'pause') { drawPauseMenu(); return; }
     ctx.fillStyle = 'rgba(8,3,26,0.6)';
     ctx.fillRect(0, 0, W, H);
     text('PAUSED', CX, 120, 'bold 24px monospace', '#ffe14f');
@@ -1683,6 +1926,7 @@
 
   function drawPlay() {
     const now = songNow();
+    hot = [];
     ctx.save();
     if (shakeT > 0) {
       const a = 2.5 * shakeT / 0.3;
@@ -1722,16 +1966,62 @@
   let results = null;
   const SEL_SPACING = 122;
 
-  function curSave() { return songSave(PREPARED[selIndex].id); }
-  function curKitIndex() {
-    const id = curSave().kit || kitById(PREPARED[selIndex].kit).id;
-    return Math.max(0, KITS.findIndex((k) => k.id === id));
+  // ---- unlocks: songs 1-4 and three kits are open from the start; every 3 stars (best per
+  // song and level, added up) opens the next item, songs and kits taking turns ----
+  const START_SONGS = ['twinkle', 'mary', 'macdonald', 'rowboat'];
+  const START_KITS = ['CLASSIC', 'TOMS', 'PIANO'];
+  const UNLOCK_ORDER = [
+    ['song', 'ode'], ['kit', 'STEEL'], ['song', 'saints'], ['kit', 'BONGOS'], ['song', 'cancan'],
+    ['kit', 'XYLOPHONE'], ['song', 'neonrock'], ['kit', 'BELLS'], ['song', 'island'], ['kit', '8-BIT'],
+    ['song', 'mountain'], ['song', 'funky'], ['song', 'thunder'],
+  ];
+  const STARS_PER_UNLOCK = 3;
+  function totalStars() {
+    let n = 0;
+    Object.keys(save.songs).forEach((id) => save.songs[id].stars.forEach((st) => { n += st; }));
+    return n;
   }
-  function setKit(delta) {
-    const i = (curKitIndex() + delta + KITS.length) % KITS.length;
-    curSave().kit = KITS[i].id;
+  function unlockedCount() { return Math.min(UNLOCK_ORDER.length, Math.floor(totalStars() / STARS_PER_UNLOCK)); }
+  function unlockIndex(kind, id) { return UNLOCK_ORDER.findIndex((u) => u[0] === kind && u[1] === id); }
+  function isOpen(kind, id, start) {
+    const i = unlockIndex(kind, id);
+    return start.includes(id) || (i >= 0 && i < unlockedCount());
+  }
+  function songUnlocked(id) { return isOpen('song', id, START_SONGS); }
+  function kitUnlocked(id) { return isOpen('kit', id, START_KITS); }
+  // stars still needed to open a locked item
+  function starsToUnlock(kind, id) { return (unlockIndex(kind, id) + 1) * STARS_PER_UNLOCK - totalStars(); }
+  function nextUnlockIn() {
+    const c = unlockedCount();
+    return c >= UNLOCK_ORDER.length ? 0 : (c + 1) * STARS_PER_UNLOCK - totalStars();
+  }
+  // celebration cards for anything opened since the last one shown (save.unlocksShown)
+  const unlockQueue = [];
+  function checkUnlocks() {
+    const c = unlockedCount(), seen = save.unlocksShown | 0;
+    if (c <= seen) return;
+    for (let i = seen; i < c; i++) unlockQueue.push({ item: UNLOCK_ORDER[i], t0: null });
+    save.unlocksShown = c;
     writeSave();
-    previewKit(KITS[i]);
+  }
+  // the kit a song plays with: the one picked for it, else the one it likes best, else a
+  // stand-in of the same sort until that kit is unlocked
+  function songKitId(si) {
+    const S = PREPARED[si], sv = songSave(S.id);
+    if (sv.kit && kitUnlocked(sv.kit)) return sv.kit;
+    if (kitUnlocked(S.kit)) return S.kit;
+    return kitById(S.kit).type === 'pitched' ? 'PIANO' : 'CLASSIC';
+  }
+
+  function curSave() { return songSave(PREPARED[selIndex].id); }
+  function curKitIndex() { return Math.max(0, KITS.findIndex((k) => k.id === songKitId(selIndex))); }
+  function setKit(delta) {
+    const open = KITS.filter((k) => kitUnlocked(k.id));
+    const at = Math.max(0, open.findIndex((k) => k.id === songKitId(selIndex)));
+    const kit = open[(at + delta + open.length) % open.length];
+    curSave().kit = kit.id;
+    writeSave();
+    previewKit(kit);
   }
   function previewKit(kit) {
     if (!ensureAudio()) return;
@@ -1747,9 +2037,22 @@
     save.diff = (save.diff + d + DIFFS.length) % DIFFS.length;
     writeSave();
   }
-  function play() { startSong(selIndex, save.diff, KITS[curKitIndex()].id); }
+  let lockShake = 0;
+  function play() {
+    if (!songUnlocked(PREPARED[selIndex].id)) {   // a locked song just wiggles
+      lockShake = fxNow();
+      if (ensureAudio()) DRUM.tom(A.kit, actx.currentTime, 0.4);
+      return;
+    }
+    startSong(selIndex, save.diff, songKitId(selIndex));
+  }
 
+  function cardUp() { return unlockQueue.length && unlockQueue[0].t0 !== null && (state === 'select' || state === 'results'); }
   function menuInput(k) {
+    if (cardUp()) {   // a celebration card is showing: any press (after a moment) moves on
+      if (fxNow() - unlockQueue[0].t0 > 0.7) unlockQueue.shift();
+      return;
+    }
     if (state === 'title') {
       if (k === 'ok') { state = 'select'; drumFill(); }
       else if (k === 'back') { if (window.MickleMenu) MickleMenu.backToArcade(); }
@@ -1767,6 +2070,14 @@
       else if (k === 'back') state = 'title';
       return;
     }
+    if (state === 'sync') {
+      if (k === 'back') { leaveSync(); return; }
+      if (!sync || !sync.done) return;
+      if (k === 'left') sync.sel = (sync.sel + 2) % 3;
+      else if (k === 'right') sync.sel = (sync.sel + 1) % 3;
+      else if (k === 'ok') syncChoose(sync.sel);
+      return;
+    }
     if (state === 'results') {
       if (fxNow() - results.t0 < 0.8) return;   // don't skip the card by accident
       if (k === 'ok') startSong(results.si, results.d, results.kit);
@@ -1781,13 +2092,15 @@
     }
     return null;
   }
-  function menuPointerDown(p) {
+  function menuPointerDown(p, e) {
+    if (cardUp()) { swipe = null; menuInput('ok'); return; }
     if (state === 'select' && p.y > 36 && p.y < 168) { swipe = { x: p.x, y: p.y }; return; }
     swipe = null;
     const h = hotAt(p);
     if (h) { h.fn(); return; }
     if (state === 'title') menuInput('ok');
     else if (state === 'results') menuInput('ok');
+    else if (state === 'sync' && sync && !sync.done && e) syncTap(eventAudioTime(e));
   }
   function menuPointerUp(p) {
     if (!swipe || state !== 'select') { swipe = null; return; }
@@ -1832,7 +2145,7 @@
     }
   }
   function updateConfetti(dt) {
-    if (state !== 'title' && state !== 'results') { confetti.length = 0; return; }
+    if (state !== 'title' && state !== 'results' && state !== 'select') { confetti.length = 0; return; }
     for (let i = confetti.length - 1; i >= 0; i--) {
       const c = confetti[i];
       c.x += (c.vx + Math.sin(c.flip) * 12) * dt;
@@ -2064,6 +2377,9 @@
     glossyButton(CX - 72, 240, 144, 20, '▶ TAP TO ROCK!', '#ff4fd8', true, pulse);
     text('A MICKLEKIDS GAME', CX, 266, '6px monospace', 'rgba(185,176,224,0.7)');
     hot = [];
+    // SYNC: fix up the timing on a tablet whose sound comes out late
+    glossyButton(W - 74, 6, 66, 16, '\u23F1 SYNC', '#4ff0ff', false);
+    hot.push({ x: W - 78, y: 2, w: 74, h: 24, fn: goSync });
   }
 
   function starRow(x, y, n, of, size, gap) {
@@ -2107,11 +2423,28 @@
       ctx.translate(CX + d * SEL_SPACING, cy);
       ctx.transform(sc * squash, -skew * sc, 0, sc, 0, 0);
       const x = -cw / 2, y = -ch / 2;
-      ctx.fillStyle = sel ? 'rgba(52,26,100,0.97)' : 'rgba(28,16,60,0.92)';
+      const locked = !songUnlocked(S.id);
+      if (sel && locked && fxNow() - lockShake < 0.4) ctx.translate(Math.sin((fxNow() - lockShake) * 60) * 3, 0);
+      ctx.fillStyle = locked ? 'rgba(22,14,40,0.95)' : sel ? 'rgba(52,26,100,0.97)' : 'rgba(28,16,60,0.92)';
       rr(x, y, cw, ch, 8); ctx.fill();
-      ctx.strokeStyle = sel ? '#ffe14f' : '#4ff0ff';
+      ctx.strokeStyle = locked ? '#5a4f7a' : sel ? '#ffe14f' : '#4ff0ff';
       ctx.lineWidth = sel ? 2 : 1;
       rr(x + 0.5, y + 0.5, cw - 1, ch - 1, 8); ctx.stroke();
+      if (locked) {
+        drawLock(0, y + 30, 1);
+        ctx.font = 'bold 9px monospace';
+        const ll = wrapLines(S.title, cw - 12);
+        ll.forEach((ln, k) => text(ln, 0, y + 62 + k * 10 - (ll.length - 1) * 5, 'bold 9px monospace', '#8a7fc0'));
+        const need = starsToUnlock('song', S.id);
+        text('\u2605 ' + need + ' MORE STAR' + (need === 1 ? '' : 'S'), 0, y + 86, 'bold 7px monospace', '#ffe14f');
+        text('TO UNLOCK', 0, y + 96, 'bold 6px monospace', '#b9b0e0');
+        ctx.restore();
+        if (!sel) {
+          const sx = CX + d * SEL_SPACING;
+          hot.push({ x: sx - 40, y: cy - 50, w: 80, h: 100, fn: () => moveSong(i - selIndex) });
+        } else hot.push({ x: CX - cw / 2, y: cy - ch / 2, w: cw, h: ch, fn: play });
+        return;
+      }
       // mini stage: the lead line's first notes as coloured dots
       ctx.save();
       rr(x + 6, y + 6, cw - 12, 34, 5); ctx.clip();
@@ -2130,8 +2463,9 @@
       ctx.font = 'bold 9px monospace';
       const lines = wrapLines(S.title, cw - 12);
       lines.forEach((ln, k) => text(ln, 0, y + 50 + k * 10 - (lines.length - 1) * 5, 'bold 9px monospace', '#ffffff'));
-      text(S.style + '  ·  ' + S.bpm + ' BPM', 0, y + 68, '6px monospace', '#b9b0e0');
-      text('KIT: ' + kitById(sv.kit || S.kit).name, 0, y + 77, 'bold 6px monospace', kitById(sv.kit || S.kit).color);
+      text(S.style + '  ·  ' + S.bpm + (S.bpmEnd !== S.bpm ? '\u2192' + S.bpmEnd : '') + ' BPM', 0, y + 68, '6px monospace', '#b9b0e0');
+      const ck = kitById(songKitId(i));
+      text('KIT: ' + ck.name, 0, y + 77, 'bold 6px monospace', ck.color);
       ['E', 'M', 'H'].forEach((lab, k) => {
         text(lab, x + 20, y + 87 + k * 7, 'bold 6px monospace', k === save.diff ? '#ffe14f' : '#8a7fc0', 'left');
         starRow(4, y + 87 + k * 7, sv.stars[k], 5, 7, 8);
@@ -2184,7 +2518,96 @@
     });
     text('◀ ▶ PICK  ·  ▲ ▼ CHANGE ROW  ·  SPACE / A TO PLAY', CX, 252, '7px monospace', '#b9b0e0');
     text('★ = THE KIT THIS SONG LIKES BEST', CX, 262, '6px monospace', '#8a7fc0');
+    // star total and how far to the next unlock
+    const next = nextUnlockIn();
+    text('\u2605 ' + totalStars(), W - 12, 12, 'bold 10px monospace', '#ffe14f', 'right');
+    text(next ? 'NEXT UNLOCK: ' + next + ' MORE \u2605' : 'EVERYTHING UNLOCKED!', W - 12, 24, 'bold 6px monospace', '#b9b0e0', 'right');
+    checkUnlocks();
+    drawUnlockCard();
   }
+
+  function drawLock(x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.strokeStyle = '#8a7fc0';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, -6, 7, Math.PI, 0); ctx.stroke();
+    ctx.fillStyle = '#8a7fc0';
+    rr(-10, -6, 20, 16, 3); ctx.fill();
+    ctx.fillStyle = '#22163f';
+    circle(0, 1, 2.5); ctx.fill();
+    ctx.fillRect(-1, 1, 2, 5);
+    ctx.restore();
+  }
+
+  // the celebration card for a newly opened song or kit (over the song list or the results)
+  function drawUnlockCard() {
+    if (!unlockQueue.length) return;
+    const u = unlockQueue[0];
+    if (state === 'results' && fxNow() - results.t0 < 0.9 + results.stars * 0.35) return;   // after the stars
+    if (u.t0 === null) {
+      u.t0 = fxNow();
+      dropConfetti(60, false);
+      if (actx) {   // a fanfare, then (for a kit) a taste of the new sound
+        const t = actx.currentTime + 0.02;
+        [0, 4, 7, 12].forEach((st, i) => tone(A.kit, 'sine', mtof(60 + st), t + i * 0.1, 0.5, 0.2, { attack: 0.006 }));
+        if (u.item[0] === 'kit') {
+          const kit = kitById(u.item[1]), S = PREPARED[0];
+          for (let l = 0; l < 5; l++) kit.play(l, 5, strayPitch(S, l, 5), t + 0.55 + l * 0.14, 0.8);
+        }
+      }
+    }
+    const k = easeOut(clamp((fxNow() - u.t0) / 0.35, 0, 1));
+    ctx.fillStyle = 'rgba(8,3,26,' + (0.65 * k) + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(CX, 135);
+    ctx.scale(0.6 + 0.4 * k, 0.6 + 0.4 * k);
+    ctx.globalAlpha = k;
+    ctx.save();                      // turning rays
+    ctx.rotate(fxNow() * 0.4);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 16; i++) {
+      ctx.fillStyle = hexA(i % 2 ? '#ff4fd8' : '#ffe14f', 0.12);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 170, i / 16 * TAU, (i + 0.5) / 16 * TAU); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    const cg = ctx.createLinearGradient(0, -70, 0, 70);
+    cg.addColorStop(0, 'rgba(56,20,110,0.98)'); cg.addColorStop(1, 'rgba(18,8,44,0.98)');
+    ctx.fillStyle = cg;
+    rr(-120, -70, 240, 140, 14); ctx.fill();
+    ctx.strokeStyle = '#ffe14f'; ctx.lineWidth = 2.5;
+    rr(-120, -70, 240, 140, 14); ctx.stroke();
+    const isKit = u.item[0] === 'kit';
+    bigText(isKit ? 'NEW KIT!' : 'NEW SONG!', 0, -46, 20, ['#ffffff', '#fff6b0', '#ffd23d'], '#ff4fd8', { depth: 2, track: 1 });
+    if (isKit) {
+      const kit = kitById(u.item[1]);
+      ctx.fillStyle = '#1a1030';      // a drum in the kit's colour
+      ctx.beginPath(); ctx.ellipse(0, 4, 26, 11, 0, 0, TAU); ctx.fill();
+      ctx.fillRect(-26, -6, 52, 10);
+      ctx.strokeStyle = kit.color; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(0, -6, 25, 10, 0, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#ece7ff';
+      ctx.beginPath(); ctx.ellipse(0, -6, 21, 8, 0, 0, TAU); ctx.fill();
+      text(kit.name, 0, 30, '900 14px ' + LOGO_FONT, kit.color);
+    } else {
+      const S = PREPARED.find((q) => q.id === u.item[1]);
+      const nn = S.notes.filter((q) => q.midi != null).slice(0, 10);
+      const lo = Math.min.apply(null, nn.map((q) => q.midi)), hi = Math.max.apply(null, nn.map((q) => q.midi));
+      nn.forEach((q, j) => {
+        ctx.fillStyle = LANE_COLORS[5][j % 5];
+        circle(-45 + j * 10, 10 - (hi > lo ? (q.midi - lo) / (hi - lo) : 0.5) * 18, 3.5); ctx.fill();
+      });
+      ctx.font = '900 12px ' + LOGO_FONT;
+      const lines = wrapLines(S.title, 210);
+      lines.forEach((ln, j) => text(ln, 0, 30 + j * 13 - (lines.length - 1) * 6, '900 12px ' + LOGO_FONT, '#ffffff'));
+    }
+    if (fxNow() - u.t0 > 0.7) text('TAP OR PRESS A TO KEEP ROCKING', 0, 56, 'bold 7px monospace', '#b9b0e0');
+    ctx.restore();
+    drawConfetti();
+  }
+
 
   function finishSong() {
     const P = players[0];
@@ -2195,12 +2618,170 @@
     if (newBest) sv.best[C.d] = P.score;
     sv.stars[C.d] = Math.max(sv.stars[C.d], stars);
     writeSave();
+    if (window.MickleScores) {
+      MickleScores.record('boom-boom-band', P.score, { category: DIFFS[C.d].name, order: C.d + 1 });
+    }
+    checkUnlocks();
     results = {
       si: C.si, d: C.d, kit: C.kit.id, title: C.S.title, score: P.score, bestStreak: P.bestStreak,
       perfect: P.counts[0], stars, newBest, t0: fxNow(), shown: 0,
     };
     quitSong();
     state = 'results';
+  }
+
+  // ---- the pause menu (Esc / P / START / the HUD's pause button) ----
+  let pauseSel = 0;
+  function openPause() {
+    if (!C.on || C.paused) return;
+    pauseSong('pause');
+    pauseSel = 0;
+  }
+  function pauseInput(k) {
+    if (k === 'up') pauseSel = (pauseSel + 3) % 4;
+    else if (k === 'down') pauseSel = (pauseSel + 1) % 4;
+    else if (k === 'left' || k === 'right') { if (pauseSel === 2) pauseKit(k === 'left' ? -1 : 1); }
+    else if (k === 'back') resumeSong();
+    else if (k === 'ok') pauseChoose(pauseSel);
+  }
+  function pauseChoose(i) {
+    if (i === 0) resumeSong();
+    else if (i === 1) {                       // start the song again from the count-in
+      const si = C.si, d = C.d, kit = C.kit.id;
+      C.paused = false;
+      startSong(si, d, kit);
+    } else if (i === 2) pauseKit(1);
+    else { quitSong(); state = 'select'; }
+  }
+  // change kit mid-song; the backing is rebuilt because the guide melody comes and goes with it
+  function pauseKit(d) {
+    const open = KITS.filter((k) => kitUnlocked(k.id));
+    const at = Math.max(0, open.indexOf(C.kit));
+    const kit = open[(at + d + open.length) % open.length];
+    C.kit = kit;
+    songSave(C.S.id).kit = kit.id;
+    writeSave();
+    C.backing = buildBacking(C.S, kit);
+  }
+  function drawPauseMenu() {
+    ctx.fillStyle = 'rgba(8,3,26,0.72)';
+    ctx.fillRect(0, 0, W, H);
+    const x = CX - 90, y = 54, w = 180, h = 170;
+    ctx.fillStyle = 'rgba(30,12,66,0.97)';
+    rr(x, y, w, h, 12); ctx.fill();
+    ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = 2;
+    rr(x, y, w, h, 12); ctx.stroke();
+    bigText('PAUSED', CX, y + 20, 18, ['#ffffff', '#fff6b0', '#ffd23d'], '#ff4fd8', { depth: 2, track: 1 });
+    const rows = ['▶ RESUME', '↻ RESTART', 'KIT: ' + C.kit.name, '♪ SONGS'];
+    rows.forEach((label, i) => {
+      const ry = y + 46 + i * 30, focus = pauseSel === i;
+      if (i === 0) glossyButton(CX - 70, ry - 10, 140, 22, label, '#ff4fd8', true, focus ? 0.8 : 0);
+      else {
+        ctx.fillStyle = focus ? 'rgba(79,240,255,0.22)' : 'rgba(79,240,255,0.08)';
+        rr(CX - 70, ry - 10, 140, 22, 11); ctx.fill();
+        ctx.strokeStyle = focus ? '#ffe14f' : 'rgba(79,240,255,0.6)'; ctx.lineWidth = focus ? 1.5 : 1;
+        rr(CX - 70, ry - 10, 140, 22, 11); ctx.stroke();
+        text(label, CX, ry + 1, '900 10px ' + LOGO_FONT, i === 2 ? C.kit.color : '#4ff0ff');
+      }
+      if (i === 0 && focus) { ctx.strokeStyle = '#ffe14f'; ctx.lineWidth = 1.5; rr(CX - 72, ry - 12, 144, 26, 13); ctx.stroke(); }
+      if (i === 2) {                          // arrows to change kit
+        text('◀', CX - 60, ry + 1, 'bold 9px monospace', '#ffe14f');
+        text('▶', CX + 60, ry + 1, 'bold 9px monospace', '#ffe14f');
+        hot.push({ x: CX - 74, y: ry - 12, w: 40, h: 24, fn: () => { pauseSel = 2; pauseKit(-1); } });
+        hot.push({ x: CX + 34, y: ry - 12, w: 40, h: 24, fn: () => { pauseSel = 2; pauseKit(1); } });
+        hot.push({ x: CX - 34, y: ry - 12, w: 68, h: 24, fn: () => { pauseSel = 2; pauseKit(1); } });
+      } else hot.push({ x: CX - 72, y: ry - 12, w: 144, h: 26, fn: () => pauseChoose(i) });
+    });
+    text('ESC / START: KEEP PLAYING', CX, y + h - 8, 'bold 6px monospace', '#8a7fc0');
+  }
+
+  // ---- SYNC: tablets play sound late; tap along with a click to measure how late ----
+  // The clicks are scheduled on the audio clock; each tap is compared with the nearest click,
+  // and the middle (median) of 8 taps is saved as latencyMs, used for drawing and judging.
+  const SYNC_BEAT = 0.6, SYNC_TAPS = 8, SYNC_TICKS = 28;
+  let sync = null;
+  function goSync() {
+    if (!ensureAudio()) return;
+    const from = state === 'sync' && sync ? sync.from : (state === 'title' ? 'title' : 'select');
+    if (C.on) quitSong();
+    if (window.MickleMenu && MickleMenu.isOpen()) MickleMenu.close();
+    sync = { start: actx.currentTime + 0.8, next: 0, errs: [], done: false, result: null, sel: 1, flash: 0, from };
+    state = 'sync';
+  }
+  function leaveSync() {
+    const to = sync ? sync.from : 'title';
+    sync = null;
+    state = to;
+  }
+  function syncTap(at) {
+    if (!sync || sync.done) return;
+    sync.flash = fxNow();
+    const i = Math.round((at - sync.start) / SYNC_BEAT);
+    if (i < 1) return;                         // the first click is just for listening
+    const err = at - (sync.start + i * SYNC_BEAT);
+    if (Math.abs(err) > SYNC_BEAT * 0.5) return;
+    sync.errs.push(err);
+    if (sync.errs.length >= SYNC_TAPS) {
+      const v = sync.errs.slice().sort((a, b) => a - b);
+      const med = (v[3] + v[4]) / 2;
+      sync.result = clamp(Math.round(med * 1000), 0, 350);
+      save.latencyMs = sync.result;
+      writeSave();
+      sync.done = true;
+      sync.sel = 1;
+      if (actx) [0, 4, 7].forEach((st, j) => tone(A.kit, 'sine', mtof(64 + st), actx.currentTime + j * 0.08, 0.4, 0.2));
+    }
+  }
+  function syncChoose(i) {
+    if (i === 0) goSync();                                         // try again
+    else if (i === 1) leaveSync();                                 // done
+    else { save.latencyMs = null; writeSave(); leaveSync(); }      // back to automatic
+  }
+  function drawSync() {
+    drawBackground();
+    drawCrowd(false);
+    drawCrowd(true);
+    ctx.fillStyle = 'rgba(8,3,26,0.55)';
+    ctx.fillRect(0, 0, W, H);
+    hot = [];
+    bigText('SYNC TIMING', CX, 30, 20, ['#ffffff', '#b8fbff', '#4ff0ff'], '#b45cff', { depth: 2, track: 1 });
+    const now = latency() * 1000;
+    text('NOW: ' + (save.latencyMs == null ? 'AUTO (' + Math.round(now) + ' MS)' : save.latencyMs + ' MS'), CX, 50, 'bold 7px monospace', '#b9b0e0');
+    // the drum bounces on each of the kid's taps (not on the clicks, so eyes don't lead the ears)
+    const k = clamp(1 - (fxNow() - sync.flash) / 0.25, 0, 1);
+    drawGlow('#4ff0ff', CX, 132, 60, 0.25 + k * 0.5);
+    ctx.fillStyle = '#1a1030';
+    ctx.beginPath(); ctx.ellipse(CX, 146, 44, 18, 0, 0, TAU); ctx.fill();
+    ctx.fillRect(CX - 44, 126 + k * 3, 88, 20 - k * 3);
+    ctx.strokeStyle = '#4ff0ff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(CX, 126 + k * 3, 42, 17, 0, 0, TAU); ctx.stroke();
+    ctx.fillStyle = k > 0.3 ? '#ffffff' : '#e8e2ff';
+    ctx.beginPath(); ctx.ellipse(CX, 126 + k * 3, 37, 14, 0, 0, TAU); ctx.fill();
+    // progress dots
+    for (let i = 0; i < SYNC_TAPS; i++) {
+      ctx.fillStyle = i < sync.errs.length ? '#ffe14f' : 'rgba(255,255,255,0.18)';
+      circle(CX + (i - (SYNC_TAPS - 1) / 2) * 14, 182, 4.5); ctx.fill();
+    }
+    if (!sync.done) {
+      text('LISTEN TO THE CLICKS AND TAP ALONG!', CX, 78, '900 10px ' + LOGO_FONT, '#ffe14f');
+      text('TAP THE SCREEN, PRESS ANY KEY, OR PRESS A', CX, 92, 'bold 7px monospace', '#ffffff');
+      glossyButton(CX - 40, 222, 80, 18, '◀ BACK', '#4ff0ff', false);
+      hot.push({ x: CX - 44, y: 218, w: 88, h: 26, fn: leaveSync });
+    } else if (sync.result != null) {
+      bigText('ALL SET!', CX, 80, 16, ['#ffffff', '#fff6b0', '#ffd23d'], '#ff4fd8', { depth: 2 });
+      text('YOUR TABLET’S SOUND IS ' + sync.result + ' MS LATE – NOTES WILL MATCH IT', CX, 98, 'bold 7px monospace', '#ffffff');
+    } else {
+      bigText('LET’S TRY AGAIN!', CX, 84, 14, ['#ffffff', '#fff6b0', '#ffd23d'], '#ff4fd8', { depth: 2 });
+    }
+    if (sync.done) {
+      const labels = ['↻ TRY AGAIN', '✔ DONE', 'AUTO'];
+      labels.forEach((lab, i) => {
+        const bx = CX - 150 + i * 104;
+        glossyButton(bx, 220, 92, 20, lab, i === 1 ? '#ff4fd8' : '#4ff0ff', i === 1, sync.sel === i ? 0.8 : 0);
+        if (sync.sel === i) { ctx.strokeStyle = '#ffe14f'; ctx.lineWidth = 1.5; rr(bx - 2, 218, 96, 24, 12); ctx.stroke(); }
+        hot.push({ x: bx - 2, y: 216, w: 96, h: 28, fn: () => syncChoose(i) });
+      });
+    }
   }
 
   const RANKS = ['GOOD JAM!', 'COOL BEATS!', 'GREAT GROOVE!', 'AWESOME!', 'ROCK STAR!'];
@@ -2393,6 +2974,7 @@
     ctx.restore();
     text('SPACE / A: PLAY AGAIN  ·  ESC / B: SONGS', CX, 257, 'bold 6px monospace', 'rgba(185,176,224,0.85)');
     drawParticles();
+    drawUnlockCard();
   }
 
   // =========================================================================== Save
@@ -2433,16 +3015,34 @@
     get state() { return state; },
     get conductor() { return C; },
     get audio() { return actx; },
+    get sync() { return sync; },
+    goSync: () => goSync(),
+    unlocks: () => ({ stars: totalStars(), opened: unlockedCount(), nextIn: nextUnlockIn(), queue: unlockQueue.map((u) => u.item.join(':')) }),
     get player() { return players[0]; },
     get save() { return save; },
     songs: () => PREPARED.map((s) => {
       const lastChord = s.chordList[s.chordList.length - 1];
       return {
         id: s.id, title: s.title, seconds: beatTime(s, s.beats), leadBeats: s.beats,
-        chordBeats: lastChord.beat + lastChord.dur, badPitches: s.notes.filter((n) => n.midi === null).length,
+        chordBeats: lastChord.beat + lastChord.dur, rests: s.notes.filter((n) => n.midi === null).length,
       };
     }),
     chart: (si, d) => buildChart(PREPARED[si], d),
+    // every '|' bar of every lead and chord line should add up to one bar
+    barCheck() {
+      const bad = [];
+      SONGS.forEach((def) => {
+        const bpb = def.bpb || 4;
+        ['lead', 'chords'].forEach((part) => {
+          def[part].split('|').forEach((bar, i) => {
+            const sum = tokens(bar).reduce((a, tk) => a + parseDur(tk.split(':')[1]), 0);
+            if (Math.abs(sum % bpb) > 1e-6 && Math.abs(sum % bpb - bpb) > 1e-6) bad.push(def.id + ' ' + part + ' bar ' + (i + 1) + ' = ' + +sum.toFixed(3));
+          });
+        });
+        if (def.lead.split('|').some((b) => tokens(b).some((tk) => tk[0] !== '-' && parsePitch(tk.split(':')[0]) === null))) bad.push(def.id + ': bad pitch');
+      });
+      return bad;
+    },
     start(si, d, kitId) { startSong(si || 0, d || 0, kitId || PREPARED[si || 0].kit); return C.notes.length; },
     // accuracyMs: each hit lands up to this far off its note; frameTime: hit at the frame's time instead
     autoplay(accuracyMs, frameTime) { bot = accuracyMs == null ? null : { acc: accuracyMs / 1000, frameTime: !!frameTime }; },
@@ -2579,6 +3179,8 @@
     showVolume();
     if (actx && liveTarget) liveTarget.master.gain.setTargetAtTime(VOLUMES[save.volume], actx.currentTime, 0.05);
   }
+  const syncBtn = document.getElementById('syncbtn');
+  if (syncBtn) syncBtn.addEventListener('click', () => { goSync(); });
   if (volBtn) {
     showVolume();
     volBtn.addEventListener('click', () => {
@@ -2618,6 +3220,7 @@
     if (state === 'play') drawPlay();
     else if (state === 'select') drawSelect(dt);
     else if (state === 'results' && results) drawResults();
+    else if (state === 'sync' && sync) drawSync();
     else drawTitle();
     // debug: how long each frame's own work takes (update + draw), recent window
     frameWork.push(performance.now() - work0);

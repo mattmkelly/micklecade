@@ -64,8 +64,9 @@
     touch-action: none;
   }
 
-  /* SOUND: QUIET / MEDIUM / LOUD -- menu.js moves it into the ☰ menu */
-  #vol {
+  /* SOUND: QUIET / MEDIUM / LOUD and SYNC TIMING -- menu.js moves them into the ☰ menu */
+  #syncbtn { border-color: #4ff0ff !important; color: #4ff0ff !important; }
+  #vol, #syncbtn {
     font: bold 0.8rem 'Courier New', Courier, monospace;
     letter-spacing: 1px;
     padding: 9px 10px;
@@ -90,7 +91,7 @@
 <body>
   <div id="wrap">
     <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
-    <div id="topbar"><button id="vol" type="button">&#9834; SOUND: MEDIUM</button></div>
+    <div id="topbar"><button id="vol" type="button">&#9834; SOUND: MEDIUM</button><button id="syncbtn" class="bbb-btn" type="button">&#9201; SYNC TIMING</button></div>
     <canvas id="game" width="480" height="270"></canvas>
     <div id="hint">
       <p>HIT EACH DRUM PAD JUST AS ITS NOTE LANDS ON IT!</p>
@@ -98,6 +99,8 @@
       <p>CONTROLLER: X A B (+ D-PAD LEFT / RIGHT)</p>
       <p>TABLET: TAP THE PADS &mdash; ANYWHERE IN A PAD'S COLUMN COUNTS</p>
       <p>10 IN A ROW SENDS AN ENERGY WAVE!</p>
+      <p>PAUSE: ESC, P, START OR THE &#10074;&#10074; BUTTON &mdash; EVERY 3 STARS UNLOCKS A NEW SONG OR KIT</p>
+      <p>NOTES FEEL LATE ON A TABLET? TRY SYNC TIMING</p>
     </div>
   </div>
   <script src="../../shared/fullscreen.js"></script>
