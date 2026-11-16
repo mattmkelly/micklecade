@@ -247,6 +247,14 @@
       tone(dest, 'sine', 170, t, 0.32, 0.8 * v, { to: 105, sweep: 0.2 });
       noiseHit(dest, t, 0.012, 0.08 * v, 'bandpass', 2000, 1);
     },
+    lowTom(dest, t, v) {
+      tone(dest, 'sine', 120, t, 0.38, 0.85 * v, { to: 72, sweep: 0.22 });
+      noiseHit(dest, t, 0.012, 0.07 * v, 'bandpass', 1600, 1);
+    },
+    hiTom(dest, t, v) {
+      tone(dest, 'sine', 230, t, 0.26, 0.7 * v, { to: 150, sweep: 0.16 });
+      noiseHit(dest, t, 0.01, 0.06 * v, 'bandpass', 2200, 1);
+    },
     crash(dest, t, v) {   // a soft wash, not a hiss
       noiseHit(dest, t, 0.9, 0.16 * v, 'bandpass', 5000, 0.6);
       noiseHit(dest, t, 0.5, 0.1 * v, 'bandpass', 3000, 0.8);
@@ -261,11 +269,17 @@
       noiseHit(dest, t, 0.015, 0.08 * v, 'bandpass', 2500, 2);
     },
   };
+  // The player's pads are all drums with a body -- no hi-hat or crash under a kid's finger:
+  // pure-noise cymbals banged over and over are the harshest sound a game can make.
+  // (The backing band still plays a soft hat.)
   const CLASSIC_LANES = {
-    3: ['kick', 'snare', 'hat'],
-    4: ['kick', 'snare', 'tom', 'hat'],
-    5: ['kick', 'snare', 'tom', 'hat', 'crash'],
+    3: ['kick', 'snare', 'tom'],
+    4: ['kick', 'snare', 'tom', 'hiTom'],
+    5: ['kick', 'lowTom', 'snare', 'tom', 'hiTom'],
   };
+
+  // 0 at middle C, rising to 1 an octave and a half up: how much to tame a high note
+  function highTilt(pitch) { return clamp((pitch - 60) / 18, 0, 1); }
 
   function handle(voices) {
     return {
@@ -283,7 +297,7 @@
     {
       id: 'CLASSIC', name: 'CLASSIC KIT', type: 'drums', color: '#ff4fd8',
       play(lane, n, pitch, t, vel, dest) {
-        DRUM[CLASSIC_LANES[n][lane]](dest || A.kit, t, vel * 1.35);   // drums sit a little lower than pitched kits
+        DRUM[CLASSIC_LANES[n][lane]](dest || A.kit, t, vel * 1.1);   // drums sit a little lower than pitched kits
         return null;
       },
     },
@@ -303,11 +317,13 @@
       id: 'STEEL', name: 'STEEL DRUMS', type: 'pitched', color: '#4ff0ff',
       play(lane, n, pitch, t, vel, dest) {
         dest = dest || A.kit;
-        const f = mtof(pitch);
+        const f = mtof(pitch), k = highTilt(pitch);
+        vel *= 1 - k * 0.35;
+        const atk = 0.004 + k * 0.004;
         return handle([
-          tone(dest, 'sine', f, t, 0.65, 0.5 * vel, { attack: 0.004, detune: -4 }),
-          tone(dest, 'sine', f * 2, t, 0.4, 0.26 * vel, { attack: 0.003, detune: 5 }),
-          tone(dest, 'sine', f * 3, t, 0.22, 0.13 * vel, { attack: 0.002 }),
+          tone(dest, 'sine', f, t, 0.65, 0.5 * vel, { attack: atk, detune: -4 }),
+          tone(dest, 'sine', f * 2, t, 0.4, 0.22 * vel * (1 - k * 0.6), { attack: atk, detune: 5 }),
+          tone(dest, 'sine', f * 3, t, 0.18, 0.08 * vel * (1 - k * 0.9), { attack: atk }),
         ]);
       },
     },
@@ -315,13 +331,14 @@
       id: 'PIANO', name: 'PIANO', type: 'pitched', color: '#ffe14f',
       play(lane, n, pitch, t, vel, dest) {
         dest = dest || A.kit;
-        const f = mtof(pitch);
+        const f = mtof(pitch), k = highTilt(pitch);
+        vel *= 1 - k * 0.3;
         return handle([
           tone(dest, 'triangle', f, t, 1.1, 0.42 * vel,
-            { attack: 0.005, detune: -6, filter: 'lowpass', ff: Math.min(12000, f * 9), ffTo: f * 1.6 }),
+            { attack: 0.006, detune: -6, filter: 'lowpass', ff: Math.min(5000, f * (7 - k * 3)), ffTo: f * 1.5 }),
           tone(dest, 'triangle', f, t, 1.0, 0.24 * vel,
-            { attack: 0.005, detune: 7, filter: 'lowpass', ff: Math.min(6000, f * 5), ffTo: f * 1.3 }),
-          tone(dest, 'sine', f * 2, t, 0.5, 0.07 * vel, { attack: 0.004 }),
+            { attack: 0.006, detune: 7, filter: 'lowpass', ff: Math.min(4000, f * (5 - k * 2)), ffTo: f * 1.3 }),
+          tone(dest, 'sine', f * 2, t, 0.5, 0.06 * vel * (1 - k * 0.7), { attack: 0.005 }),
         ]);
       },
     },
@@ -345,7 +362,7 @@
   // the results card's count-up: a soft rising marimba blip (k = 0..1 through the count)
   function scoreTick(at, k) {
     const steps = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
-    tone(A.kit, 'sine', mtof(72 + steps[Math.min(steps.length - 1, Math.floor(k * steps.length))]), at, 0.08, 0.06, { attack: 0.003 });
+    tone(A.kit, 'sine', mtof(64 + steps[Math.min(steps.length - 1, Math.floor(k * steps.length))]), at, 0.08, 0.06, { attack: 0.003 });
   }
 
   // songs name kits from the full set; until those kits exist they borrow a close one
@@ -466,29 +483,25 @@
 
   // =========================================================================== Songs
   // Songs are data: one lead line ("pitch:beats" tokens, '-' is a rest, '|' is just for
-  // reading) plus chords. Every chart is derived from the lead. `repeat` plays it again.
+  // reading) plus chords. Every chart is derived from the lead. A song plays its tune once
+  // through -- no repeats. (`repeat` stays in the loader for generated grooves later.)
   // bpb = beats per bar (default 4); sub = steps per beat (2 = eighths, 3 = a lilting 6/8).
   const SONGS = [
     {
-      id: 'twinkle', title: 'TWINKLE TWINKLE', bpm: 100, key: 'C', style: 'LULLABY', kit: 'BELLS', repeat: 2,
+      id: 'twinkle', title: 'TWINKLE TWINKLE', bpm: 100, key: 'C', style: 'LULLABY', kit: 'BELLS',
       lead: 'C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 | F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2 |' +
             'G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 | G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 |' +
             'C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 | F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2',
       chords: 'C:4 F:2 C:2 | F:2 C:2 G:2 C:2 | C:2 F:2 C:2 G:2 | C:2 F:2 C:2 G:2 | C:4 F:2 C:2 | F:2 C:2 G:2 C:2',
     },
     {
-      id: 'mary', title: 'MARY HAD A LITTLE LAMB', bpm: 116, key: 'C', style: 'MARCH', kit: 'XYLOPHONE', repeat: 1,
+      id: 'mary', title: 'MARY HAD A LITTLE LAMB', bpm: 116, key: 'C', style: 'MARCH', kit: 'XYLOPHONE',
       lead: 'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:2 | D4:1 D4:1 D4:2 E4:1 G4:1 G4:2 |' +
-            'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:1 E4:1 | D4:1 D4:1 E4:1 D4:1 C4:4 |' +
-            // second time round, with some skipping eighth notes
-            'E4:0.5 F4:0.5 E4:0.5 D4:0.5 C4:1 D4:1 E4:1 E4:1 E4:2 | D4:1 D4:1 D4:2 E4:1 G4:1 G4:2 |' +
-            'E4:0.5 F4:0.5 E4:0.5 D4:0.5 C4:1 D4:1 E4:1 E4:1 E4:1 E4:1 | D4:1 D4:1 E4:1 D4:1 C4:4 |' +
-            'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:2 | D4:1 D4:1 D4:2 E4:1 G4:1 G4:2 |' +
             'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:1 E4:1 | D4:1 D4:1 E4:1 D4:1 C4:4',
-      chords: 'C:8 | G:4 C:4 | C:8 | G:4 C:4 | C:8 | G:4 C:4 | C:8 | G:4 C:4 | C:8 | G:4 C:4 | C:8 | G:4 C:4',
+      chords: 'C:8 | G:4 C:4 | C:8 | G:4 C:4',
     },
     {
-      id: 'macdonald', title: 'OLD MACDONALD', bpm: 126, key: 'G', style: 'FUNK', kit: 'CLASSIC', repeat: 2,
+      id: 'macdonald', title: 'OLD MACDONALD', bpm: 126, key: 'G', style: 'FUNK', kit: 'CLASSIC',
       lead: 'G4:1 G4:1 G4:1 D4:1 | E4:1 E4:1 D4:2 | B4:1 B4:1 A4:1 A4:1 | G4:3 D4:1 |' +
             'G4:1 G4:1 G4:1 D4:1 | E4:1 E4:1 D4:2 | B4:1 B4:1 A4:1 A4:1 | G4:4 |' +
             'D4:0.5 D4:0.5 G4:1 G4:1 G4:1 | D4:0.5 D4:0.5 G4:1 G4:2 |' +
@@ -497,7 +510,7 @@
       chords: 'G:4 C:2 G:2 G:2 D:2 G:4 | G:4 C:2 G:2 G:2 D:2 G:4 | G:16 | G:4 C:2 G:2 G:2 D:2 G:4',
     },
     {
-      id: 'rowboat', title: 'ROW ROW ROW YOUR BOAT', bpm: 66, key: 'C', style: 'ISLAND', kit: 'STEEL', repeat: 4,
+      id: 'rowboat', title: 'ROW ROW ROW YOUR BOAT', bpm: 66, key: 'C', style: 'ISLAND', kit: 'STEEL',
       bpb: 2, sub: 3,
       lead: 'C4:1 C4:1 | C4:2/3 D4:1/3 E4:1 | E4:2/3 D4:1/3 E4:2/3 F4:1/3 | G4:2 |' +
             'C5:1/3 C5:1/3 C5:1/3 G4:1/3 G4:1/3 G4:1/3 | E4:1/3 E4:1/3 E4:1/3 C4:1/3 C4:1/3 C4:1/3 |' +
@@ -1040,14 +1053,13 @@
     shakeT = 0.3;
     banners.push({ str: streak + ' IN A ROW!', t0: fxNow(), color, rainbow });
     for (let l = 0; l < C.lanes; l++) burst(laneX(l, HIT_Y, C.lanes), HIT_Y, LANE_COLORS[C.lanes][l], 8, false);
-    // a rising arpeggio in the song's key
-    const base = 72 + ((C.S.keyPc + 6) % 12) - 6;
+    // a rising arpeggio in the song's key -- kept in the middle of the range (no shrill top notes)
+    const base = 60 + ((C.S.keyPc + 6) % 12) - 6;
     const steps = [0, 4, 7, 12, 16, 19, 24];
     const now = actx.currentTime;
     for (let i = 0; i < 3 + Math.min(4, tier); i++) {
       const f = mtof(base + steps[i]), t = now + i * 0.06;
-      tone(A.kit, 'sine', f, t, 0.45, 0.22, { attack: 0.004 });
-      tone(A.kit, 'triangle', f * 2, t, 0.2, 0.06, { attack: 0.003 });
+      tone(A.kit, 'sine', f, t, 0.45, 0.2 * (1 - i * 0.06), { attack: 0.006 });
     }
   }
 
@@ -2282,8 +2294,8 @@
       if (on && results.shown <= i) {
         results.shown = i + 1;
         if (actx) {
-          tone(A.kit, 'sine', mtof(76 + [0, 2, 4, 7, 9][i]), actx.currentTime, 0.45, 0.25);
-          tone(A.kit, 'triangle', mtof(88 + [0, 2, 4, 7, 9][i]), actx.currentTime, 0.2, 0.06);
+          tone(A.kit, 'sine', mtof(67 + [0, 2, 4, 7, 9][i]), actx.currentTime, 0.5, 0.22, { attack: 0.006 });
+          tone(A.kit, 'sine', mtof(55 + [0, 2, 4, 7, 9][i]), actx.currentTime, 0.4, 0.1, { attack: 0.006 });
         }
         burst(px, py, '#ffe14f', 14, false);
         if (i === results.stars - 1) dropConfetti(25 + results.stars * 8, false);
@@ -2465,24 +2477,36 @@
         latencyMs: latency() * 1000,
       };
     },
-    kitFingerprint(kitId, lane, laneCount) {
+    // pitch: optional midi note (pitched kits); otherwise the lane's pentatonic note
+    kitFingerprint(kitId, lane, laneCount, pitch) {
       const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
       const oc = new OAC(1, 44100, 44100);
       const keep = A;
       A = makeTarget(oc, oc.destination);
       const n = laneCount || 4, l = lane == null ? 1 : lane;
-      kitById(kitId).play(l, n, strayPitch(PREPARED[0], l, n), 0.01, 1);
+      kitById(kitId).play(l, n, pitch == null ? strayPitch(PREPARED[0], l, n) : pitch, 0.01, 1);
       A = keep;
       return oc.startRendering().then((buf) => {
         const d = buf.getChannelData(0);
         let e = 0, zc = 0, peakAt = 0, peak = 0, tail = 0;
+        // one-pole high-passes at 2 kHz and 5 kHz: 2-5 kHz is where ears are most sensitive
+        // (shrill), above 5 kHz is hiss
+        const a2 = 1 / (1 + 2 * Math.PI * 2000 / 44100), a5 = 1 / (1 + 2 * Math.PI * 5000 / 44100);
+        let h2 = 0, h5 = 0, p2 = 0, p5 = 0, e2 = 0, e5 = 0;
         for (let i = 0; i < d.length; i++) {
           e += d[i] * d[i];
           if (i && (d[i] >= 0) !== (d[i - 1] >= 0)) zc++;
           if (Math.abs(d[i]) > peak) { peak = Math.abs(d[i]); peakAt = i; }
           if (Math.abs(d[i]) > 0.01) tail = i;
+          h2 = a2 * (h2 + d[i] - p2); p2 = d[i]; e2 += h2 * h2;
+          h5 = a5 * (h5 + d[i] - p5); p5 = d[i]; e5 += h5 * h5;
         }
-        return { kit: kitId, rms: +Math.sqrt(e / d.length).toFixed(4), zeroCrossings: zc, ringMs: Math.round(tail / 44.1), peakMs: Math.round(peakAt / 44.1) };
+        const db = (v) => +(20 * Math.log10(Math.max(1e-9, v))).toFixed(1);
+        return {
+          kit: kitId, lane: l, rmsDb: db(Math.sqrt(e / d.length)), peakDb: db(peak), ringMs: Math.round(tail / 44.1),
+          shrillPct: +(100 * Math.max(0, e2 - e5) / Math.max(1e-12, e)).toFixed(1),
+          hissPct: +(100 * e5 / Math.max(1e-12, e)).toFixed(1),
+        };
       });
     },
     // Render a stretch of a song offline -- backing band plus a player -- and measure it, so
