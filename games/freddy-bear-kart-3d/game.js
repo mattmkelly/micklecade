@@ -912,6 +912,8 @@
   // goes from y1 at u = -hl to y2 at u = +hl, and it is solid from y0 up. A deck is thin
   // (you can drive under it), a wall and a ramp go down to the ground, a rail sits on a deck.
   const ARENA_STEP = 1;                    // how high a kart can just drive up onto
+  // ...except a ramp, which you can hop onto from the side anywhere it's still low
+  const stepFor = (p) => (p.kind === 'ramp' ? 2.5 : ARENA_STEP);
   const deck = (x, z, ang, hl, hw, y) => ({ x, z, ang, hl, hw, y0: y - 1, y1: y, y2: y, kind: 'deck' });
   const solid = (x, z, ang, hl, hw, y) => ({ x, z, ang, hl, hw, y0: -1, y1: y, y2: y, kind: 'wall' });
   const ramp = (x, z, ang, hl, hw, ya, yb) => ({ x, z, ang, hl, hw, y0: -1, y1: ya, y2: yb, kind: 'ramp' });
@@ -930,12 +932,12 @@
     { name: 'SNOWBALL SQUARE', theme: 'snow', arena: true, shape: 'square', R: 95, bowl: 4, spawn: [0.3, 0.8],
       colors: [0xe6f0f8, 0x8fb8d8, 0x3a7fd0],
       blocks: [[35, 35, 'snowman'], [-35, 35, 'snowman'], [35, -35, 'snowman'], [-35, -35, 'snowman'],
-               [0, 58, 'pillar'], [0, -58, 'pillar'], [58, 0, 'pillar'], [-58, 0, 'pillar'],
-               [13, 13, 'post'], [-13, 13, 'post'], [13, -13, 'post'], [-13, -13, 'post']],
-      pieces: [deck(0, 0, 0, 15, 15, 8),
-               ramp(28, 0, 0, 13, 6, 8, 0), ramp(-28, 0, 0, 13, 6, 0, 8),
-               ramp(0, 28, PI / 2, 13, 6, 0, 8), ramp(0, -28, PI / 2, 13, 6, 8, 0)],
-      boxes: [[7, 7, 9.6], [-7, -7, 9.6], [0, 0], [68, 68], [-68, 68], [68, -68], [-68, -68], [40, 25], [-40, -25], [25, -40], [-25, 40]] },
+               [56, 56, 'pillar'], [-56, 56, 'pillar'], [56, -56, 'pillar'], [-56, -56, 'pillar'],   // (off the ramps' line)
+               [16, 16, 'post'], [-16, 16, 'post'], [16, -16, 'post'], [-16, -16, 'post']],
+      pieces: [deck(0, 0, 0, 18, 18, 7),
+               ramp(34, 0, 0, 16, 10, 7, 0), ramp(-34, 0, 0, 16, 10, 0, 7),
+               ramp(0, 34, PI / 2, 16, 10, 0, 7), ramp(0, -34, PI / 2, 16, 10, 7, 0)],
+      boxes: [[8, 8, 8.6], [-8, -8, 8.6], [0, 0], [68, 68], [-68, 68], [68, -68], [-68, -68], [40, 25], [-40, -25], [25, -40], [-25, 40]] },
     // two railed bridges to drive over (or under)
     { name: 'CANDY CASTLE', theme: 'night', arena: true, shape: 'circle', R: 112, bowl: 3, spawn: [0.8, 0.62],
       colors: [0xff9ad6, 0x8a5ac8, 0xffffff],
@@ -959,7 +961,7 @@
       const [u, v] = pieceLocal(p, x, z);
       if (Math.abs(u) > p.hl || Math.abs(v) > p.hw) continue;
       const t = pieceTopAt(p, u);
-      if (t <= y + ARENA_STEP && t > best) best = t;
+      if (t <= y + stepFor(p) && t > best) best = t;
     }
     return best;
   }
@@ -968,7 +970,7 @@
     for (const p of A.pieces) {
       const [u, v] = pieceLocal(p, x, z), pu = p.hl + r - Math.abs(u), pv = p.hw + r - Math.abs(v);
       if (pu <= 0 || pv <= 0) continue;
-      if (pieceTopAt(p, u) <= y + ARENA_STEP || p.y0 >= y + tall) continue;
+      if (pieceTopAt(p, u) <= y + stepFor(p) || p.y0 >= y + tall) continue;
       if (hit(p, u, v, pu, pv) === false) return true;
     }
     return false;
@@ -1019,8 +1021,16 @@
       tx[i] = Math.cos(a); tz[i] = -Math.sin(a);
       nx[i] = -tz[i]; nz[i] = tx[i];
     }
-    const blocks = def.blocks.map(([x, z, kind]) => ({ x, z, kind, r: BLOCK_R[kind] || 4 }));
     const pieces = def.pieces || [];
+    // nothing big may stand in front of a ramp (the 35 units leading up to its foot), so the way
+    // up is always clear -- a tower there is simply left out
+    const inFrontOfRamp = (x, z, r) => pieces.some((q) => {
+      if (q.kind !== 'ramp') return false;
+      const [u, v] = pieceLocal(q, x, z), along = u * (q.y1 < q.y2 ? -1 : 1) - q.hl;
+      return along > -2 && along < 35 && Math.abs(v) < q.hw + 3 + r;
+    });
+    const blocks = def.blocks.map(([x, z, kind]) => ({ x, z, kind, r: BLOCK_R[kind] || 4 }))
+      .filter((b) => b.kind === 'post' || !inFrontOfRamp(b.x, b.z, b.r));
     const T = { def, sig: trackSig(def), N, len: TAU * RL, SP: TAU * RL / N, px, pz, tx, tz, nx, nz,
                 curv: f32(), bank: f32(), hy: f32(), rail: new Uint8Array(N), guard: new Uint8Array(N), open: false,
                 fenceL: f32().fill(1e9), fenceR: f32().fill(1e9), wall: f32().fill(1e9),
@@ -1691,8 +1701,10 @@
   const honeyGeo = new THREE.CylinderGeometry(1.7, 1.9, 0.14, 14);
   const honeyMat = lam(0xffb81e);
   const cams = [camera, new THREE.PerspectiveCamera(62, 16 / 9, 0.5, 1800)];
-  cams[0].layers.enable(2);      // player 1's camera sees player 2's balloons (layer 2), not their own (1)
+  cams[0].layers.enable(2);      // player 1's camera sees player 2's tall balloons (layer 2), not their own (1)
   cams[1].layers.enable(1);      // and the other way round
+  cams[0].layers.enable(3);      // each player's own small low balloons: 3 for player 1, 4 for player 2
+  cams[1].layers.enable(4);
 
   function resetModel(m) {
     m.g.visible = false; m.shadow.visible = false; m.flame.visible = false; m.bubble.visible = false;
@@ -1773,14 +1785,21 @@
 
   // three balloons on strings behind a kart in a battle
   const balloonGroups = [];
-  function makeBalloons(color) {
+  function makeBalloons(color, low) {
     const g = new THREE.Group(), mat = lam(color), str = lamC(0xffffff);
     for (let i = 0; i < 3; i++) {
       const b = new THREE.Group();
-      // long strings, so the balloons float above the camera's view of the road
-      part(b, GEO.box, str, 0, 2.3, 0, 0.05, 4.6, 0.05);
-      part(b, GEO.sphere, mat, 0, 5.1, 0, 0.6, 0.75, 0.6);
-      b.position.set((i - 1) * 0.3, 0.9, 0);
+      if (low) {
+        // your own set: little balloons on short strings at the back of the kart, under the view
+        part(b, GEO.box, str, 0, 0.45, 0, 0.04, 0.9, 0.04);
+        part(b, GEO.sphere, mat, 0, 1.15, 0, 0.42, 0.52, 0.42);
+        b.position.set((i - 1) * 0.6, 0.75, -1.1);
+      } else {
+        // long strings, so the balloons float above other players' view of the road
+        part(b, GEO.box, str, 0, 2.3, 0, 0.05, 4.6, 0.05);
+        part(b, GEO.sphere, mat, 0, 5.1, 0, 0.6, 0.75, 0.6);
+        b.position.set((i - 1) * 0.3, 0.9, 0);
+      }
       g.add(b);
     }
     scene.add(g);
@@ -1797,6 +1816,18 @@
       b.rotation.z = (i - 1) * 0.2 + Math.sin(t * 2 + i * 2) * 0.05;
       b.rotation.x = -0.05 - clamp(k.v / 50, 0, 1) * 0.12;      // blown back a little by the speed
     });
+    const lo = k.balLow;
+    if (lo) {
+      lo.position.set(k.x, k.ay, k.z);
+      lo.rotation.y = k.h;
+      lo.scale.setScalar(k.tinyS);
+      lo.visible = k.model.g.visible;
+      lo.children.forEach((b, i) => {
+        b.visible = i < k.balloons;
+        b.rotation.z = (i - 1) * 0.25 + Math.sin(t * 3 + i * 2) * 0.08;
+        b.rotation.x = -0.2 - clamp(k.v / 50, 0, 1) * 0.35;
+      });
+    }
   }
   function popBalloon(k, by) {
     if (!race.battle || k.balloons <= 0 || race.done) return;
@@ -1889,9 +1920,13 @@
       applyLook(k.model, pi >= 0 ? save.look[pi] : null);
       if (T.arena) {
         k.bal = makeBalloons(kartColor(k.model));
-        // your own balloons would sit right in front of your camera (the HUD shows them), so
-        // they go on a layer only the other player's camera draws
-        if (pi >= 0) k.bal.traverse((o) => o.layers.set(1 + pi));
+        // your own tall balloons would sit right in front of your camera, so they go on a layer
+        // only the other player's camera draws; you see a small low set on your kart instead
+        if (pi >= 0) {
+          k.bal.traverse((o) => o.layers.set(1 + pi));
+          k.balLow = makeBalloons(kartColor(k.model), true);
+          k.balLow.traverse((o) => o.layers.set(3 + pi));
+        }
       }
       k.model.g.visible = true;
       k.model.shadow.visible = true;
