@@ -1598,7 +1598,12 @@
   let jumpQueued = false;
   const drag = { id: null, x0: 0, y0: 0, x: 0, y: 0, t0: 0 };
 
+  // a tablet (Fire / Android / iPad, or any touch screen without a mouse) starts with the stick
+  // and JUMP button showing, unless someone has already picked ON or OFF (same check as Kart 3D)
+  const looksLikeTablet = /Android|Silk|KF[A-Z]{2,}|iPad|iPhone|Mobile/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && !(window.matchMedia && matchMedia('(pointer: fine)').matches));
   const touch = MickleTouch.create({
+    defaultOn: looksLikeTablet,
     toggleParent: document.getElementById('topbar'),
     buttons: [{ id: 'jump', label: 'JUMP' }],
     onPress(id) { unlockAudio(); if (id === 'jump' && mode === 'race') primary(); },
