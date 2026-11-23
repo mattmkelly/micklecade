@@ -150,11 +150,16 @@
   }
   function undo() {
     if (!undoStack.length) { toast('NOTHING TO UNDO'); return; }
-    var snap = JSON.parse(undoStack.pop());
+    // skip steps that look just like now (focusing the words box saves one), so UNDO always changes something
+    var now = JSON.stringify(project), raw = undoStack.pop();
+    while (raw === now && undoStack.length) raw = undoStack.pop();
+    var snap = JSON.parse(raw);
     // media blobs aren't in the snapshot; keep any media that still has a file loaded
     snap.media = snap.media.filter(function (m) { return rt[m.id]; });
+    var shapeWas = project.aspect;
     project = snap;
     dropBrokenClips();
+    if (project.aspect !== shapeWas) setOutSize(false);
     changed();
     toast('UNDONE');
   }
@@ -373,28 +378,8 @@
     list.dataset.ids = ids;
     list.innerHTML = '';
     binItems = {}; bgTiles = [];
-    // fun backgrounds first: always there, animated, tap to add one to the movie
-    if (BGS.length) {
-      list.appendChild(el('div', 'binSec', 'FUN BACKGROUNDS'));
-      BGS.forEach(function (def) {
-        var d = el('div', 'bItem bg');
-        var c = document.createElement('canvas');
-        c.width = 160; c.height = 100;
-        d.appendChild(c);
-        d.appendChild(el('div', 'dur', def.label));
-        var add = el('div', 'add', '+');
-        d.appendChild(add);
-        d.addEventListener('click', function () { addBackground(def); });
-        list.appendChild(d);
-        bgTiles.push({ c: c, def: def });
-      });
-      drawBgTiles(1.5);
-      list.appendChild(el('div', 'binSec', 'MY VIDEOS AND PHOTOS'));
-    }
-    if (!mine.length) {
-      list.appendChild(el('div', 'binEmpty', 'Tap + ADD or RECORD to bring in videos and photos.'));
-      return;
-    }
+    list.appendChild(el('div', 'binSec', 'MY VIDEOS AND PHOTOS'));
+    if (!mine.length) list.appendChild(el('div', 'binEmpty', 'Tap + ADD or RECORD to bring in videos and photos.'));
     mine.forEach(function (m) {
       var d = document.createElement('div');
       d.className = 'bItem';
@@ -421,6 +406,22 @@
       binItems[m.id] = c;
       renderBinThumb(m);
     });
+    // fun backgrounds after: always there, animated, tap to add one to the movie
+    if (BGS.length) {
+      list.appendChild(el('div', 'binSec', 'FUN BACKGROUNDS'));
+      BGS.forEach(function (def) {
+        var d = el('div', 'bItem bg');
+        var c = document.createElement('canvas');
+        c.width = 160; c.height = 100;
+        d.appendChild(c);
+        d.appendChild(el('div', 'dur', def.label));
+        d.appendChild(el('div', 'add', '+'));
+        d.addEventListener('click', function () { addBackground(def); });
+        list.appendChild(d);
+        bgTiles.push({ c: c, def: def });
+      });
+      drawBgTiles(1.5);
+    }
   }
   function drawBgTiles(t) {
     bgTiles.forEach(function (b) {
@@ -522,7 +523,9 @@
 
   // ---------------------------------------------------------------- output canvas + WebGL
   var outW = 960, outH = 540;
+  var laidOut = false;
   function setOutSize(forExport) {
+    if (laidOut && !forExport) layout();
     var sh = SHAPES[project.aspect] || SHAPES.wide;
     var long = forExport ? 1280 : 960;
     if (sh.w >= sh.h) { outW = long; outH = Math.round(long * sh.h / sh.w / 2) * 2; }
@@ -1485,9 +1488,7 @@
     r3.appendChild(chips([{ id: false, label: 'NO' }, { id: true, label: 'YES' }], !!c.fade, function (v) { pushUndo(); c.fade = v; changed(); }));
     box.appendChild(r3);
     var b = el('div', 'btnRow');
-    b.appendChild(button('SNIP', 'gold', splitAtPlayhead));
     b.appendChild(button('PUT ON TOP', 'green', function () { moveMainToTop(c); }));
-    b.appendChild(button('DELETE', 'red', deleteSelected));
     box.appendChild(b);
   }
 
@@ -1536,9 +1537,7 @@
     if (m.kind === 'video') box.appendChild(slider('SOUND', 0, 1.5, 0.05, function () { return c.vol; }, function (v) { c.vol = v; }));
     var b = el('div', 'btnRow');
     b.appendChild(button('MIDDLE', '', function () { pushUndo(); c.x = 0.5; c.y = 0.5; c.scale = 1; changed(); }));
-    b.appendChild(button('SNIP', 'gold', splitAtPlayhead));
     b.appendChild(button('BACK IN MOVIE', '', function () { moveTopToMain(c); }));
-    b.appendChild(button('DELETE', 'red', deleteSelected));
     box.appendChild(b);
   }
 
@@ -1572,7 +1571,6 @@
     box.appendChild(r3);
     var b = el('div', 'btnRow');
     b.appendChild(button('MIDDLE', '', function () { pushUndo(); it.x = 0.5; it.y = 0.5; changed(); }));
-    b.appendChild(button('DELETE', 'red', deleteSelected));
     box.appendChild(b);
   }
 
@@ -1698,11 +1696,37 @@
 
   function savePicture() {
     renderFrame(playT, true);
+    var name = 'dreamreel-picture-' + stamp() + '.png';
+    if (IOS) {
+      // the share sheet only opens straight from the tap, so make the file right now (toBlob waits)
+      var bin = atob(view.toDataURL('image/png').split(',')[1]), u8 = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      dirty = true;
+      saveFile(new Blob([u8], { type: 'image/png' }), name);
+      return;
+    }
     view.toBlob(function (b) {
       if (!b) return;
-      download(b, 'dreamreel-picture-' + stamp() + '.png');
+      saveFile(b, name);
       dirty = true;
     }, 'image/png');
+  }
+  // iPhones and iPads: a plain download lands in the Files app (and is easy to lose), so hand the
+  // file to the share sheet instead, where "Save Video" / "Save Image" puts it in Photos.
+  var IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function canShareFile(blob, name) {
+    try {
+      return IOS && !!navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: blob.type })] });
+    } catch (e) { return false; }
+  }
+  function saveFile(blob, name) {
+    if (!canShareFile(blob, name)) { download(blob, name); toast('SAVED AS ' + name.toUpperCase(), 3500); return; }
+    navigator.share({ files: [new File([blob], name, { type: blob.type })] }).then(function () {
+      toast('SAVED!', 2500);
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;   // closed the share sheet
+      download(blob, name);
+    });
   }
   function stamp() {
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -1714,7 +1738,8 @@
     a.download = name;
     document.body.appendChild(a);
     a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+    // Safari asks first and fetches the file only after the answer, so keep it around a good while
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 600000);
   }
 
   // ---------------------------------------------------------------- sound effects (tiny)
@@ -1733,6 +1758,12 @@
   // ---------------------------------------------------------------- timeline
   var tlW = 0, tlH = 0, tlDpr = 1;
   var pps = 60;   // css px per second
+  var zoomed = false;   // until someone zooms by hand, the whole movie fits in the right half
+  function fitZoom() {
+    if (zoomed || (drag && drag.mode !== 'scroll' && drag.mode !== 'pending')) return;
+    var T = total();
+    pps = T > 0 ? clamp((tlW / 2 - 24) / T, 12, 160) : 60;
+  }
   function tlLayout() {
     var rulerH = Math.round(tlH * 0.15), gap = Math.max(3, Math.round(tlH * 0.03));
     var avail = tlH - rulerH - gap * 4;
@@ -1755,6 +1786,7 @@
 
   var drag = null;  // timeline gesture
   function drawTL() {
+    fitZoom();
     var x = tctx, L = tlLayout(), T = total();
     x.setTransform(tlDpr, 0, 0, tlDpr, 0, 0);
     x.clearRect(0, 0, tlW, tlH);
@@ -1965,7 +1997,7 @@
     if (drag.mode === 'pinch') {
       if (tlPtrs.size < 2) return;
       var xs = Array.from(tlPtrs.values());
-      pps = clamp(drag.pps0 * Math.abs(xs[0] - xs[1]) / drag.d0, 6, 600);
+      pps = clamp(drag.pps0 * Math.abs(xs[0] - xs[1]) / drag.d0, 6, 600); zoomed = true;
       tlDirty = true;
       return;
     }
@@ -2095,12 +2127,12 @@
   tl.addEventListener('wheel', function (e) {
     e.preventDefault();
     if (e.ctrlKey || Math.abs(e.deltaY) > Math.abs(e.deltaX) * 1.2 && e.shiftKey === false && e.altKey) {
-      pps = clamp(pps * Math.exp(-e.deltaY * 0.002), 6, 600);
+      pps = clamp(pps * Math.exp(-e.deltaY * 0.002), 6, 600); zoomed = true;
     } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
       playT = clamp(playT + e.deltaX / pps, 0, total()); dirty = true;
     } else {
       // plain wheel zooms: it's the friendliest thing a mouse wheel can do here
-      pps = clamp(pps * Math.exp(-e.deltaY * 0.002), 6, 600);
+      pps = clamp(pps * Math.exp(-e.deltaY * 0.002), 6, 600); zoomed = true;
     }
     tlDirty = true;
   }, { passive: false });
@@ -2307,10 +2339,11 @@
       el('h2', null, 'YOUR MOVIE IS READY!'),
       v,
       btnRow([
-        button('SAVE TO DEVICE', 'gold', function () { download(blob, name); toast('SAVED AS ' + name.toUpperCase(), 3500); }),
+        button(canShareFile(blob, name) ? 'SAVE TO PHOTOS' : 'SAVE TO DEVICE', 'gold', function () { saveFile(blob, name); }),
         button('BACK TO EDITING', '', function () { v.pause(); URL.revokeObjectURL(v.src); hideSheet(); })
       ]),
-      el('p', null, ext === 'webm' ? 'This browser saves movies as .webm files.' : '')
+      el('p', null, canShareFile(blob, name) ? 'Then tap SAVE VIDEO in the list that pops up.'
+        : ext === 'webm' ? 'This browser saves movies as .webm files.' : '')
     ]);
   }
 
@@ -2502,8 +2535,8 @@
       if (playing) stopPlay();
       playT = clamp(playT + d, 0, total()); dirty = true; tlDirty = true;
     } else if (k === 'Escape' && sel) { sel = null; renderInspector(); tlDirty = true; dirty = true; }
-    else if (k === '+' || k === '=') { pps = clamp(pps * 1.25, 6, 600); tlDirty = true; }
-    else if (k === '-') { pps = clamp(pps / 1.25, 6, 600); tlDirty = true; }
+    else if (k === '+' || k === '=') { pps = clamp(pps * 1.25, 6, 600); zoomed = true; tlDirty = true; }
+    else if (k === '-') { pps = clamp(pps / 1.25, 6, 600); zoomed = true; tlDirty = true; }
   });
   function pollPad(dt) {
     if (!window.Pad360) return;
@@ -2515,8 +2548,8 @@
     if (Pad360.pressed(B.X)) splitAtPlayhead();
     if (Pad360.pressed(B.Y)) addText();
     if (Pad360.pressed(B.B)) undo();
-    if (Pad360.pressed(B.LB)) { pps = clamp(pps / 1.25, 6, 600); tlDirty = true; }
-    if (Pad360.pressed(B.RB)) { pps = clamp(pps * 1.25, 6, 600); tlDirty = true; }
+    if (Pad360.pressed(B.LB)) { pps = clamp(pps / 1.25, 6, 600); zoomed = true; tlDirty = true; }
+    if (Pad360.pressed(B.RB)) { pps = clamp(pps * 1.25, 6, 600); zoomed = true; tlDirty = true; }
     var dx = Pad360.dx();
     if (dx) {
       if (playing) stopPlay();
@@ -2531,6 +2564,13 @@
     ui.classList.toggle('tall', tall);
     var fs = tall ? Math.min(r.width / 66, r.height / 130) : Math.min(r.height / 100, r.width / 178);
     ui.style.fontSize = fs + 'px';
+    // upright screen: the picture gets just the height its shape needs, the panels get the rest
+    if (tall) {
+      var sh = SHAPES[project.aspect] || SHAPES.wide;
+      var ph = clamp((r.width - 2 * fs) * sh.h / sh.w, r.height * 0.2, r.height * 0.42);
+      ui.style.gridTemplateRows = Math.round(ph) + 'px minmax(0, 1fr) auto 30em';
+    } else ui.style.gridTemplateRows = '';
+    laidOut = true;
     $('#sheet').style.fontSize = fs + 'px';
     $('#cam').style.fontSize = fs + 'px';
     resizeTL();
