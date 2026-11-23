@@ -1,52 +1,91 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
   <defs>
-    <radialGradient id="bg" cx="0.5" cy="0.45" r="0.75">
-      <stop offset="0" stop-color="#4a2a7a"/><stop offset="1" stop-color="#120a26"/>
-    </radialGradient>
-    <linearGradient id="scr" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3aa0ff"/><stop offset="0.62" stop-color="#ffd27a"/><stop offset="0.62" stop-color="#1b6fd0"/><stop offset="1" stop-color="#1557a8"/>
+    <!-- dusk sky, in the same family as the DREAMSCAPE cover -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#140b33"/><stop offset="0.5" stop-color="#3a1d63"/>
+      <stop offset="0.8" stop-color="#8e3a7e"/><stop offset="1" stop-color="#d9607a"/>
     </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff9fd8" stop-opacity="0.55"/><stop offset="0.55" stop-color="#b44fd0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#b44fd0" stop-opacity="0"/>
+    </radialGradient>
+    <!-- brushed-metal reel -->
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf6ff"/><stop offset="0.45" stop-color="#c9bde0"/>
+      <stop offset="0.7" stop-color="#8f80b0"/><stop offset="1" stop-color="#e6dcf5"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7a6a9e"/>
+    </linearGradient>
+    <radialGradient id="hole" cx="0.5" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#2a1748"/><stop offset="1" stop-color="#120a26"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9a0"/><stop offset="1" stop-color="#f0a92e"/>
+    </linearGradient>
+    <!-- the frames on the film: little scenes, sea to space to sunset -->
+    <linearGradient id="frames" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="380" y2="0">
+      <stop offset="0" stop-color="#4ff0ff"/><stop offset="0.3" stop-color="#6a7dff"/>
+      <stop offset="0.55" stop-color="#ff6fcf"/><stop offset="0.8" stop-color="#ffb35a"/><stop offset="1" stop-color="#ffe08a"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#07031a" flood-opacity="0.65"/>
+    </filter>
   </defs>
-  <rect width="400" height="300" fill="url(#bg)"/>
-  <!-- film strip -->
-  <g transform="rotate(-8 200 230)">
-    <rect x="-20" y="208" width="440" height="52" fill="#1a1a1a"/>
-    <g fill="#f4f0e0">
-      <rect x="0" y="213" width="14" height="9" rx="2"/><rect x="34" y="213" width="14" height="9" rx="2"/><rect x="68" y="213" width="14" height="9" rx="2"/>
-      <rect x="102" y="213" width="14" height="9" rx="2"/><rect x="136" y="213" width="14" height="9" rx="2"/><rect x="170" y="213" width="14" height="9" rx="2"/>
-      <rect x="204" y="213" width="14" height="9" rx="2"/><rect x="238" y="213" width="14" height="9" rx="2"/><rect x="272" y="213" width="14" height="9" rx="2"/>
-      <rect x="306" y="213" width="14" height="9" rx="2"/><rect x="340" y="213" width="14" height="9" rx="2"/><rect x="374" y="213" width="14" height="9" rx="2"/>
-      <rect x="0" y="246" width="14" height="9" rx="2"/><rect x="34" y="246" width="14" height="9" rx="2"/><rect x="68" y="246" width="14" height="9" rx="2"/>
-      <rect x="102" y="246" width="14" height="9" rx="2"/><rect x="136" y="246" width="14" height="9" rx="2"/><rect x="170" y="246" width="14" height="9" rx="2"/>
-      <rect x="204" y="246" width="14" height="9" rx="2"/><rect x="238" y="246" width="14" height="9" rx="2"/><rect x="272" y="246" width="14" height="9" rx="2"/>
-      <rect x="306" y="246" width="14" height="9" rx="2"/><rect x="340" y="246" width="14" height="9" rx="2"/><rect x="374" y="246" width="14" height="9" rx="2"/>
-    </g>
-    <rect x="20" y="225" width="70" height="18" fill="#2fbf4a"/><rect x="110" y="225" width="70" height="18" fill="#ff4fd8"/>
-    <rect x="200" y="225" width="70" height="18" fill="#ffe14f"/><rect x="290" y="225" width="70" height="18" fill="#4ff0ff"/>
+
+  <rect width="400" height="300" fill="url(#sky)"/>
+
+  <!-- stars -->
+  <g fill="#fff6dc">
+    <circle cx="34" cy="28" r="1.3"/><circle cx="78" cy="58" r="0.9"/><circle cx="118" cy="22" r="1.1"/>
+    <circle cx="300" cy="30" r="1.2"/><circle cx="346" cy="62" r="0.9"/><circle cx="372" cy="22" r="1.4"/>
+    <circle cx="56" cy="102" r="0.8"/><circle cx="352" cy="118" r="0.8"/><circle cx="262" cy="16" r="0.8"/>
+    <circle cx="160" cy="12" r="0.7"/><circle cx="22" cy="150" r="0.7"/><circle cx="384" cy="160" r="0.7"/>
   </g>
-  <!-- the screen -->
-  <rect x="88" y="34" width="224" height="140" rx="12" fill="#0c0818" stroke="#ff4fd8" stroke-width="5"/>
-  <rect x="98" y="44" width="204" height="120" rx="6" fill="url(#scr)"/>
-  <circle cx="140" cy="76" r="18" fill="#ffef5a"/>
-  <!-- the green-screen kid on the beach -->
-  <circle cx="214" cy="92" r="17" fill="#e8b090"/>
-  <path d="M194 112 h40 v52 h-40z" fill="#d0305a"/>
-  <circle cx="208" cy="90" r="2.4" fill="#222"/><circle cx="220" cy="90" r="2.4" fill="#222"/>
-  <path d="M207 98 q7 6 14 0" stroke="#222" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-  <text x="200" y="66" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="22"
-        fill="#ffe14f" stroke="#111" stroke-width="4" paint-order="stroke" letter-spacing="1">ACTION!</text>
-  <!-- clapper -->
-  <g transform="translate(286 128) rotate(12)">
-    <rect x="0" y="16" width="78" height="54" rx="5" fill="#222" stroke="#f4f0e0" stroke-width="3"/>
-    <g transform="rotate(-18 0 14)">
-      <rect x="0" y="0" width="78" height="16" rx="3" fill="#f4f0e0"/>
-      <path d="M8 0 l12 16 M30 0 l12 16 M52 0 l12 16" stroke="#222" stroke-width="7"/>
-    </g>
-    <path d="M10 34 h58 M10 46 h40 M10 58 h50" stroke="#f4f0e0" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <path d="M330 46 l2.2 6 6 2.2 -6 2.2 -2.2 6 -2.2 -6 -6 -2.2 6 -2.2z" fill="#fff6dc" opacity="0.9"/>
+  <path d="M70 76 l1.6 4.4 4.4 1.6 -4.4 1.6 -1.6 4.4 -1.6 -4.4 -4.4 -1.6 4.4 -1.6z" fill="#fff6dc" opacity="0.75"/>
+
+  <!-- glow behind the reel -->
+  <circle cx="200" cy="118" r="128" fill="url(#glow)"/>
+
+  <!-- film ribbon flowing out of the reel and across the picture -->
+  <g filter="url(#soft)" fill="none" stroke-linecap="butt">
+    <path d="M262 150 C 330 186, 360 214, 410 206" stroke="#16101f" stroke-width="34"/>
+    <path d="M-10 236 C 60 250, 130 214, 200 206 S 330 200, 410 206" stroke="#16101f" stroke-width="34"/>
   </g>
-  <!-- scissors -->
-  <g transform="translate(70 150) rotate(-30)" stroke="#4ff0ff" stroke-width="6" fill="none" stroke-linecap="round">
-    <circle cx="0" cy="0" r="11"/><circle cx="0" cy="34" r="11"/>
-    <path d="M8 8 L46 30 M8 26 L46 4"/>
+  <g fill="none" stroke-linecap="butt">
+    <!-- frames -->
+    <path d="M-10 236 C 60 250, 130 214, 200 206 S 330 200, 410 206" stroke="url(#frames)" stroke-width="18" stroke-dasharray="28 6"/>
+    <path d="M262 150 C 330 186, 360 214, 410 206" stroke="url(#frames)" stroke-width="18" stroke-dasharray="28 6" opacity="0.85"/>
+    <path d="M268 138 C 336 174, 364 201, 410 193" stroke="#f4eefc" stroke-width="4" stroke-dasharray="5 7" opacity="0.8"/>
+    <path d="M256 162 C 324 198, 356 227, 410 219" stroke="#f4eefc" stroke-width="4" stroke-dasharray="5 7" opacity="0.8"/>
+    <!-- sprocket holes along both edges -->
+    <path d="M-10 223 C 60 237, 130 201, 200 193 S 330 187, 410 193" stroke="#f4eefc" stroke-width="4" stroke-dasharray="5 7" opacity="0.9"/>
+    <path d="M-10 249 C 60 263, 130 227, 200 219 S 330 213, 410 219" stroke="#f4eefc" stroke-width="4" stroke-dasharray="5 7" opacity="0.9"/>
+    <!-- a soft shine along the film -->
+    <path d="M-10 230 C 60 244, 130 208, 200 200 S 330 194, 410 200" stroke="#ffffff" stroke-width="1.5" opacity="0.18"/>
   </g>
+
+  <!-- the reel -->
+  <g filter="url(#soft)">
+    <circle cx="200" cy="118" r="76" fill="url(#metal)"/>
+  </g>
+  <circle cx="200" cy="118" r="76" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <circle cx="200" cy="118" r="66" fill="none" stroke="#7a6a9e" stroke-width="1.2" opacity="0.6"/>
+  <!-- six windows round the hub -->
+  <g fill="url(#hole)" stroke="#6d5d93" stroke-width="1.5">
+    <circle cx="200" cy="74" r="17"/>
+    <circle cx="238.1" cy="96" r="17"/>
+    <circle cx="238.1" cy="140" r="17"/>
+    <circle cx="200" cy="162" r="17"/>
+    <circle cx="161.9" cy="140" r="17"/>
+    <circle cx="161.9" cy="96" r="17"/>
+  </g>
+  <!-- the hub: a gold play button -->
+  <circle cx="200" cy="118" r="23" fill="#1c1236" stroke="url(#gold)" stroke-width="3.5"/>
+  <path d="M193 106 L214 118 L193 130 Z" fill="url(#gold)" stroke="#ffe9a0" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- a highlight on the metal -->
+  <path d="M146 72 A 72 72 0 0 1 222 46" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+
+  <text x="200" y="288" text-anchor="middle" font-family="Trebuchet MS, Verdana, sans-serif" font-weight="bold" font-size="30" letter-spacing="4" fill="#fff6dc" stroke="#2a1b3a" stroke-width="1.2">DREAMREEL</text>
 </svg>
