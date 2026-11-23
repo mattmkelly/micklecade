@@ -458,6 +458,8 @@
       'uniform float uKey, uSim, uSoft, uSpill, uAlpha;',
       'uniform vec3 uKeyCol;',
       'uniform vec2 uTexel;',
+      'uniform sampler2D uMaskTex;',
+      'uniform float uCut, uCutEdge;',
       'varying vec2 vUV;',
       'vec2 cbcr(vec3 c) { return vec2(dot(c, vec3(-0.1687, -0.3313, 0.5)), dot(c, vec3(0.5, -0.4187, -0.0813))); }',
       'float dist(vec2 uv, vec2 k) { return distance(cbcr(texture2D(tex, uv).rgb), k); }',
@@ -483,6 +485,8 @@
       '    float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));',
       '    rgb = mix(vec3(lum), rgb, s);',
       '  }',
+      // CUT OUT PERSON: the segmenter's person mask (bilinear-filtered, so the edge is smooth)
+      '  if (uCut > 0.5) a *= smoothstep(uCutEdge - 0.12, uCutEdge + 0.12, texture2D(uMaskTex, vUV).r);',
       '  gl_FragColor = vec4(rgb, a * uAlpha);',
       '}'
     ].join('\n');
@@ -500,7 +504,7 @@
       if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     } catch (e) { console.warn(e); gl = null; return; }
     gl.useProgram(prog);
-    ['uRect', 'tex', 'uKey', 'uSim', 'uSoft', 'uSpill', 'uAlpha', 'uKeyCol', 'uTexel'].forEach(function (n) { loc[n] = gl.getUniformLocation(prog, n); });
+    ['uRect', 'tex', 'uKey', 'uSim', 'uSoft', 'uSpill', 'uAlpha', 'uKeyCol', 'uTexel', 'uMaskTex', 'uCut', 'uCutEdge'].forEach(function (n) { loc[n] = gl.getUniformLocation(prog, n); });
     loc.p = gl.getAttribLocation(prog, 'p');
     quadBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
@@ -508,7 +512,9 @@
     gl.enableVertexAttribArray(loc.p);
     gl.vertexAttribPointer(loc.p, 2, gl.FLOAT, false, 0, 0);
     gl.uniform1i(loc.tex, 0);
+    gl.uniform1i(loc.uMaskTex, 1);
     gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);   // the one-byte-per-pixel person masks
   })();
   setOutSize(false);
 
@@ -571,6 +577,7 @@
   function gcEls() {
     var live = {}, now = performance.now();
     project.main.concat(project.top).forEach(function (c) { live[c.id] = 1; });
+    segCache.forEach(function (mc, id) { if (!live[id]) { if (gl) gl.deleteTexture(mc.tex); segCache.delete(id); } });
     els.forEach(function (e, id) {
       var dead = !live[id];
       if (dead || (e.loaded && now - e.used > 8000)) {
@@ -719,6 +726,18 @@
     var m = mediaById(a.clip.media), tex, src = sourceFor(a);
     var r = clipRect(a);
     if (a.layer === 'top') lastBoxes[a.clip.id] = r;
+    // CUT OUT PERSON: work out (or reuse) this frame's person mask on texture unit 1
+    var mc = null;
+    if (a.layer === 'top' && a.clip.cut && a.clip.cut.on) {
+      if (seg.state === 'idle') loadSegmenter().catch(function () {});
+      if (src) {
+        gl.activeTexture(gl.TEXTURE1);
+        mc = maskFor(a, src);
+        if (mc) gl.bindTexture(gl.TEXTURE_2D, mc.tex);
+        gl.activeTexture(gl.TEXTURE0);
+      } else mc = segCache.get(a.clip.id) || null;
+      if (mc && !mc.w) mc = null;
+    }
     if (m.kind === 'image') {
       if (!src) return;
       tex = imgTex[m.id];
@@ -746,7 +765,105 @@
     }
     gl.uniform2f(loc.uTexel, 1.5 / sz[0], 1.5 / sz[1]);
     gl.uniform1f(loc.uAlpha, clipAlpha(a));
+    gl.uniform1f(loc.uCut, mc ? 1 : 0);
+    if (mc) {
+      gl.uniform1f(loc.uCutEdge, a.clip.cut.edge == null ? 0.5 : a.clip.cut.edge);
+      if (!src) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mc.tex); gl.activeTexture(gl.TEXTURE0); }
+    }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // ---------------------------------------------------------------- CUT OUT PERSON
+  // Google's MediaPipe selfie segmenter finds the person in each frame. It loads from the web
+  // (jsDelivr + Google's model bucket) the first time a clip turns it on, so it only works on
+  // the website, not from file:// -- everything else in DreamReel still works offline.
+  var MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  var MP_MODEL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite';
+  var SEG_LONG = 320;   // frames are shrunk to this before segmenting (the mask is smoothed back up)
+  var seg = { state: 'idle', tool: null, promise: null, lastTs: 0 };
+  var segCanvas = document.createElement('canvas'), segCtx = segCanvas.getContext('2d');
+  var segCache = new Map();   // clip id -> { key, tex, data, w, h }
+  function loadSegmenter() {
+    if (seg.state === 'ready') return Promise.resolve(seg.tool);
+    if (seg.promise) return seg.promise;
+    seg.state = 'loading';
+    var importer;
+    // built at run time so an old browser that can't parse import() still runs the rest of the game
+    try { importer = new Function('u', 'return import(u);'); } catch (e) { importer = null; }
+    if (!importer || location.protocol === 'file:') {
+      seg.state = 'failed';
+      return Promise.reject(new Error('unavailable'));
+    }
+    seg.promise = importer(MP_BASE + '/vision_bundle.mjs').then(function (vision) {
+      return vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm').then(function (files) {
+        function make(delegate) {
+          return vision.ImageSegmenter.createFromOptions(files, {
+            baseOptions: { modelAssetPath: MP_MODEL, delegate: delegate },
+            runningMode: 'VIDEO', outputCategoryMask: false, outputConfidenceMasks: true
+          });
+        }
+        return make('GPU').catch(function () { return make('CPU'); });
+      });
+    }).then(function (tool) {
+      seg.tool = tool; seg.state = 'ready'; dirty = true;
+      return tool;
+    }, function (e) {
+      console.warn('cut out person:', e);
+      seg.state = 'failed'; seg.promise = null;
+      throw e;
+    });
+    return seg.promise;
+  }
+  // The person mask for this clip's current frame, uploaded to the bound texture (unit 1).
+  function maskFor(a, src) {
+    if (!seg.tool) return null;
+    var e = a.e;
+    var frameKey = e ? e.el.currentTime.toFixed(3) : 'still';
+    var mc = segCache.get(a.clip.id);
+    if (!mc) { mc = { key: '', tex: newTex(), data: null, w: 0, h: 0 }; segCache.set(a.clip.id, mc); }
+    if (mc.key === frameKey) return mc;
+    var sz = srcSize(a), k = SEG_LONG / Math.max(sz[0], sz[1]);
+    var w = Math.max(16, Math.round(sz[0] * k)), h = Math.max(16, Math.round(sz[1] * k));
+    if (segCanvas.width !== w || segCanvas.height !== h) { segCanvas.width = w; segCanvas.height = h; }
+    try { segCtx.drawImage(src, 0, 0, w, h); } catch (err) { return mc.w ? mc : null; }
+    var ts = Math.max(performance.now(), seg.lastTs + 1);
+    seg.lastTs = ts;
+    var got = false;
+    try {
+      seg.tool.segmentForVideo(segCanvas, ts, function (res) {
+        var masks = res && res.confidenceMasks;
+        if (!masks || !masks.length) return;
+        var mk = masks[masks.length - 1];      // the selfie model's one mask: how sure it is this is a person
+        var f = mk.getAsFloat32Array(), n = f.length;
+        // while playing, average with the last frame so the edge doesn't shimmer
+        var blend = playing && mc.data && mc.data.length === n && mc.w === mk.width;
+        if (!mc.data || mc.data.length !== n) mc.data = new Uint8Array(n);
+        for (var i = 0; i < n; i++) {
+          var v = f[i] * 255;
+          mc.data[i] = blend ? (mc.data[i] + v) * 0.5 : v;
+        }
+        mc.w = mk.width; mc.h = mk.height;
+        got = true;
+      });
+    } catch (err) { return mc.w ? mc : null; }
+    if (got) {
+      gl.bindTexture(gl.TEXTURE_2D, mc.tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, mc.w, mc.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, mc.data);
+      mc.key = frameKey;
+    }
+    return mc.w ? mc : null;
+  }
+  function startCutOut(c) {
+    if (!gl) { toast('CUT OUT NEEDS A NEWER BROWSER', 3000); return; }
+    if (seg.state === 'ready') return;
+    toast('GETTING CUT OUT READY...', 60000);
+    loadSegmenter().then(function () {
+      toast('CUT OUT IS READY!');
+    }, function () {
+      toast(location.protocol === 'file:' ? 'CUT OUT ONLY WORKS ON THE WEBSITE' : 'CUT OUT NEEDS THE INTERNET -- TRY AGAIN', 4000);
+      if (c.cut) c.cut.on = false;
+      changed();
+    });
   }
 
   // ---------------------------------------------------------------- words
@@ -1105,6 +1222,20 @@
   function inspectTop(box, c, m) {
     box.appendChild(el('div', 'head', 'ON TOP'));
     box.appendChild(el('div', 'note', 'Drag it around the picture. Pinch or use SIZE to change how big it is.'));
+    var cutOn = !!(c.cut && c.cut.on);
+    var rc = row('CUT OUT PERSON');
+    rc.appendChild(chips([{ id: false, label: 'OFF' }, { id: true, label: 'ON' }], cutOn, function (v) {
+      pushUndo();
+      if (!c.cut) c.cut = { on: false, edge: 0.5 };
+      c.cut.on = v;
+      changed();
+      if (v) startCutOut(c);
+    }));
+    box.appendChild(rc);
+    if (cutOn) {
+      box.appendChild(el('div', 'note', seg.state === 'loading' ? 'Getting it ready...' : 'Finds the person and hides everything else. No green screen needed!'));
+      box.appendChild(slider('TRIM EDGES', 0.15, 0.85, 0.01, function () { return c.cut.edge; }, function (v) { c.cut.edge = v; }));
+    }
     var r = row('GREEN SCREEN');
     r.appendChild(chips([{ id: false, label: 'OFF' }, { id: true, label: 'ON' }], !!c.key.on, function (v) {
       pushUndo();
@@ -1466,6 +1597,7 @@
     x.font = 'bold ' + fs + 'px Trebuchet MS, sans-serif';
     x.textBaseline = 'top'; x.textAlign = 'left';
     var badge = m.kind === 'image' ? 'PHOTO' : fmt(len);
+    if (layer === 'top' && c.cut && c.cut.on) badge += ' CUT OUT';
     if (layer === 'top' && c.key && c.key.on) badge += ' GREEN SCREEN';
     var bw = x.measureText(badge).width + fs * 0.6;
     if (w > bw + 8) {
