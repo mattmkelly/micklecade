@@ -3381,9 +3381,8 @@
       '<stop offset=".35" stop-color="#ffd83d"/><stop offset=".7" stop-color="#4ff0ff"/><stop offset="1" stop-color="#b48cff"/></linearGradient></defs>' +
       '<rect x="13" y="13" width="74" height="74" rx="12" fill="url(#mtItemG)" stroke="#ffffff" stroke-width="6"/>' +
       '<text x="50" y="73" text-anchor="middle" font-size="60" font-weight="900" font-family="Arial Black, Arial, sans-serif" fill="#ffffff" stroke="#120b28" stroke-width="5" paint-order="stroke">?</text></svg>',
-    // a red stop sign
-    brake: '<svg viewBox="0 0 100 100"><polygon points="32,5 68,5 95,32 95,68 68,95 32,95 5,68 5,32" fill="#ff3b4f" stroke="#ffffff" stroke-width="6" stroke-linejoin="round"/>' +
-      '<rect x="22" y="41" width="56" height="18" rx="5" fill="#ffffff"/></svg>',
+    // a plain red stop sign (no bar across it -- that read as "do not enter")
+    brake: '<svg viewBox="0 0 100 100"><polygon points="32,5 68,5 95,32 95,68 68,95 32,95 5,68 5,32" fill="#ff3b4f" stroke="#ffffff" stroke-width="6" stroke-linejoin="round"/></svg>',
   };
   // the ITEM button shows the item you're holding (same shapes as the HUD's drawItemIcon)
   const svgCarrot = (x, y, k) => `<g transform="translate(${x} ${y}) scale(${k})"><polygon points="-7,-4 5,-7 -2,9" fill="#ff8a1e" stroke="#120b28" stroke-width="1.2" stroke-linejoin="round"/>` +
