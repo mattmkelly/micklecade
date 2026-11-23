@@ -92,11 +92,18 @@
     cannon:   { name: 'CANNON', color: 0x64748b, star: true, len: 4, tall: 1,
                 tip: 'Roll in and... BOOM! Fly across to the landing deck.' },
   };
-  // the builder shows two rows of cards: track pieces, then obstacles
-  const TRACK_ROW = ['straight', 'left', 'right', 'down', 'up', 'boost', 'conveyor', 'loop', 'jump',
-    'spiral', 'corkscrew', 'tube', 'halfpipe', 'trampoline', 'portal', 'ice', 'fork'];
-  const OBSTACLE_ROW = ['spinner', 'gates', 'bumpers', 'hammer', 'flippers', 'fan', 'seesaw', 'tiles', 'plank', 'cannon'];
-  const PALETTE = TRACK_ROW.concat(OBSTACLE_ROW);
+  // The builder's cards, sorted into labelled groups over two rows.
+  const PIECE_GROUPS = [
+    { name: 'BASICS',       color: '#9fd8ff', row: 0, pieces: ['straight', 'left', 'right', 'down', 'up'] },
+    { name: 'DOWNHILL',     color: '#7ee08a', row: 0, pieces: ['spiral', 'corkscrew', 'tube'] },
+    { name: 'UPHILL',       color: '#ffcc33', row: 0, pieces: ['conveyor', 'trampoline'] },
+    { name: 'ZOOM & FLY',   color: '#5ff3ff', row: 0, pieces: ['boost', 'jump', 'loop', 'cannon', 'portal'] },
+    { name: 'TRICKY TRACK', color: '#c8a8ff', row: 1, pieces: ['fork', 'halfpipe', 'plank', 'ice', 'tiles', 'seesaw'] },
+    { name: 'OBSTACLES',    color: '#ff8a8a', row: 1, pieces: ['spinner', 'gates', 'bumpers', 'hammer', 'flippers', 'fan'] },
+  ];
+  const PALETTE = PIECE_GROUPS.flatMap((g) => g.pieces);
+  // the hard bits: story levels never start with one or put two in a row
+  const OBSTACLE_TYPES = ['spinner', 'gates', 'bumpers', 'hammer', 'flippers', 'fan', 'seesaw', 'tiles', 'plank', 'cannon'];
   const DEFAULT_TRACK = ['straight', 'down', 'spinner', 'right', 'boost', 'loop', 'left', 'down',
     'gates', 'right', 'jump', 'bumpers', 'left', 'hammer', 'down', 'straight'];
   // the middle two sit a little off centre, so a marble rolling straight in glances off
@@ -988,7 +995,8 @@
         return fr(SP_X * (1 - k), -LH * T, b, t[0], t[1], SP_W + (HW - SP_W) * k);
       };
       const path = (t) => t < 0.25 ? lead(t / 0.25) : t < 0.75 ? ring((t - 0.25) / 0.5) : exit((t - 0.75) / 0.25);
-      return { sweeps: [{ n: 10, at: lead }, { n: 44 * T, at: ring }, { n: 10, at: exit }], path,
+      // the turns have glass walls in every world, so you can watch the marble wind down from the side
+      return { sweeps: [{ n: 10, at: lead }, { n: 44 * T, at: ring, glass: true }, { n: 10, at: exit }], path,
         pillars: [lead(0.3), exit(0.75)], star: ring(0.5) };
     }
     if (pl.type === 'fork') {
@@ -1218,7 +1226,7 @@
           const p0 = side < 0 ? l0 : r0, p1 = side < 0 ? l1 : r1;
           const h0 = (side < 0 ? e0 : pr0[pr0.length - 1][1]) + wallH, h1 = (side < 0 ? e1 : pr1[pr1.length - 1][1]) + wallH;
           const w0 = P(f0, side, h0, 0), w1 = P(f1, side, h1, 0);
-          pushQuad(sw.roof ? glass : walls, p0, p1, w1, w0);
+          pushQuad(sw.roof || sw.glass ? glass : walls, p0, p1, w1, w0);
           quadTris(piece.tris, p0, p1, w1, w0, piece);
           // rails along the wall tops, leaning outward a touch
           pushQuad(rails, w0, w1, P(f1, side, h1, 0.14), P(f0, side, h0, 0.14));
@@ -2205,7 +2213,6 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  const OBSTACLE_TYPES = OBSTACLE_ROW;
   const storyCache = {};
   function storyTrack(n) {
     if (storyCache[n]) return storyCache[n];
@@ -2654,11 +2661,14 @@
         toW(pc.B, 12, LOOP_R + 1.5, 10, wantPos);
         toW(pc.B, 0, LOOP_R, 10, wantLook);
       }
-      // round the spiral, look down on it from above
+      // round the spiral, watch from off to the side (like the loop), keeping level with the
+      // marble as it winds down so the turns above never hide it
       if (fr.coast && (pc.pl.type === 'spiral' || pc.pl.type === 'corkscrew')) {
-        const turns = PIECES[pc.pl.type].turns || 1;
-        toW(pc.B, 0, 9, SP_C - 5 - turns, wantPos);
-        toW(pc.B, 0, -1.5 * turns, SP_C, wantLook);
+        const h = player.pos.y - pc.B.y0;
+        // the open side (the way in and out run down the other), just above the marble: low
+        // enough to look under the turn above, through the glass walls
+        toW(pc.B, 9, h + 1.8, SP_C - 2, wantPos);
+        toW(pc.B, 0, h - 0.3, SP_C, wantLook);
       }
     }
     if (snapCam) { camPos.copy(wantPos); camLook.copy(wantLook); snapCam = false; }
@@ -3354,34 +3364,47 @@
     button('TURN \u21BB', 8, 128, 66, 20, '#9fd8ff', () => { buildYawTarget += Math.PI / 2; sfxSelect(); });
     button('\u25C0 MENU', 8, 152, 66, 20, '#9fd8ff', toMenu);
 
-    // picker cards along the bottom: track pieces on top, obstacles underneath
-    const cw = 26, gap = 2, y0 = 211;
-    PALETTE.forEach((type, i) => {
-      const row = i < TRACK_ROW.length ? 0 : 1, list = row ? OBSTACLE_ROW : TRACK_ROW;
-      const col = row ? i - TRACK_ROW.length : i;
-      const x = (W - (list.length * (cw + gap) - gap)) / 2 + col * (cw + gap);
-      const on = i === sel;
-      const y = y0 + row * (cw + 4);
-      const ok = canAdd(lay, type);
-      roundRect(x, y, cw, cw, 6);
-      hctx.fillStyle = hex(PIECES[type].color);
-      hctx.globalAlpha = ok ? 0.95 : 0.35;
-      hctx.fill();
-      hctx.globalAlpha = 1;
-      hctx.lineWidth = on ? 3 : 1.5;
-      hctx.strokeStyle = on ? '#ffe14f' : 'rgba(255,255,255,0.7)';
-      if (on) { hctx.shadowColor = '#ffe14f'; hctx.shadowBlur = 10; }
-      hctx.stroke();
-      hctx.shadowBlur = 0;
-      hctx.globalAlpha = ok ? 1 : 0.4;
-      drawIcon(type, x + cw / 2, y + cw / 2, cw * 0.6);
-      hctx.globalAlpha = 1;
-      if (PIECES[type].len) text(PIECES[type].len + 'x', x + cw - 6, y + 6, 6, '#ffffff', 'center');
-      hudButtons.push({ x, y, w: cw, h: cw, fn: () => { if (sel === i) addPiece(); else selectPiece(i); } });
-    });
+    // picker cards along the bottom, in labelled groups (two rows)
+    const cw = 26, gap = 2, GG = 10, rowY = [201, 240];
+    for (const row of [0, 1]) {
+      const groups = PIECE_GROUPS.filter((g) => g.row === row);
+      const widths = groups.map((g) => g.pieces.length * (cw + gap) - gap);
+      let gx = (W - (widths.reduce((a, b) => a + b, 0) + GG * (groups.length - 1))) / 2;
+      groups.forEach((grp, gi) => {
+        const y = rowY[row];
+        // a soft panel behind each group, with its name on top
+        roundRect(gx - 3, y - 10, widths[gi] + 6, cw + 13, 6);
+        hctx.fillStyle = 'rgba(10,12,40,0.55)'; hctx.fill();
+        hctx.lineWidth = 1; hctx.strokeStyle = grp.color; hctx.globalAlpha = 0.6; hctx.stroke(); hctx.globalAlpha = 1;
+        text(grp.name, gx + 1, y - 4, 6, grp.color);
+        grp.pieces.forEach((type, k) => {
+          const i = PALETTE.indexOf(type);
+          const x = gx + k * (cw + gap);
+          const on = i === sel;
+          const ok = canAdd(lay, type);
+          roundRect(x, y, cw, cw, 6);
+          hctx.fillStyle = hex(PIECES[type].color);
+          hctx.globalAlpha = ok ? 0.95 : 0.35;
+          hctx.fill();
+          hctx.globalAlpha = 1;
+          hctx.lineWidth = on ? 3 : 1.5;
+          hctx.strokeStyle = on ? '#ffe14f' : 'rgba(255,255,255,0.7)';
+          if (on) { hctx.shadowColor = '#ffe14f'; hctx.shadowBlur = 10; }
+          hctx.stroke();
+          hctx.shadowBlur = 0;
+          hctx.globalAlpha = ok ? 1 : 0.4;
+          drawIcon(type, x + cw / 2, y + cw / 2, cw * 0.6);
+          hctx.globalAlpha = 1;
+          if (PIECES[type].len) text(PIECES[type].len + 'x', x + cw - 6, y + 6, 6, '#ffffff', 'center');
+          hudButtons.push({ x, y, w: cw, h: cw, fn: () => { if (sel === i) addPiece(); else selectPiece(i); } });
+        });
+        gx += widths[gi] + GG;
+      });
+    }
     const def = PIECES[PALETTE[sel]];
-    text(def.name + (def.len ? '  (' + def.len + ' SPACES)' : ''), W / 2, y0 - 25, 12, '#ffffff', 'center', '#ffffff');
-    text(def.tip + '  (TAP AGAIN TO ADD)', W / 2, y0 - 12, 8, '#ffe14f', 'center');
+    const grp = PIECE_GROUPS.find((g) => g.pieces.includes(PALETTE[sel]));
+    text(def.name + (def.len ? '  (' + def.len + ' SPACES)' : ''), W / 2, 172, 12, '#ffffff', 'center', grp.color);
+    text(def.tip + '  (TAP AGAIN TO ADD)', W / 2, 185, 8, '#ffe14f', 'center');
   }
 
   function fmtTime(t) {
