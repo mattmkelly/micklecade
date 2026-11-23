@@ -906,6 +906,129 @@
     });
     return seg.promise;
   }
+  // ---- buffering: work the masks out once per video, ahead of time, so playback just looks
+  // them up. A hidden copy of the video plays through (muted) and every presented frame
+  // (requestVideoFrameCallback) up to MASK_FPS a second is segmented and kept as bytes. If the
+  // device is too slow to keep up, the hidden copy plays slower. One video at a time.
+  var MASK_LONG = 256, MASK_FPS = 15, MASK_NEAR = 0.15;
+  var maskStore = {};   // media id -> { state, times, masks, w, h, progress }
+  var prepChain = Promise.resolve();
+  function prepCutOut(m) {
+    if (!m || m.kind !== 'video' || !rt[m.id]) return null;
+    var s = maskStore[m.id];
+    if (s) return s;
+    s = maskStore[m.id] = { state: 'waiting', times: [], masks: [], w: 0, h: 0, progress: 0 };
+    prepChain = prepChain.then(function () {
+      if (maskStore[m.id] !== s) return;   // started over meanwhile
+      return loadSegmenter().then(function () { return runPrep(m, s); }, function () { s.state = 'failed'; });
+    });
+    return s;
+  }
+  function runPrep(m, s) {
+    s.state = 'preparing'; tlDirty = true;
+    var v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    mediaBox.appendChild(v);
+    v.src = rt[m.id].url;
+    var c = document.createElement('canvas'), x = c.getContext('2d');
+    var lastKept = -1, avgMs = 0, filling = false, fillFrom = 0;
+    function grab(mediaTime) {
+      if (lastKept >= 0 && mediaTime - lastKept < 1 / MASK_FPS - 0.005) return;
+      var vw = v.videoWidth, vh = v.videoHeight;
+      if (!vw || !vh) return;
+      var k = MASK_LONG / Math.max(vw, vh), w = Math.max(16, Math.round(vw * k)), h = Math.max(16, Math.round(vh * k));
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      var t0 = performance.now();
+      x.drawImage(v, 0, 0, w, h);
+      var ts = Math.max(performance.now(), seg.lastTs + 1);
+      seg.lastTs = ts;
+      seg.tool.segmentForVideo(c, ts, function (res) {
+        var ms = res && res.confidenceMasks;
+        if (!ms || !ms.length) return;
+        var mk = ms[ms.length - 1], f = mk.getAsFloat32Array(), n = f.length;
+        // (not while filling gaps: those frames arrive out of order)
+        var prev = !filling && s.masks.length && s.w === mk.width ? s.masks[s.masks.length - 1] : null;
+        var out = new Uint8Array(n);
+        // a little of the frame before keeps the edge from shimmering
+        for (var i = 0; i < n; i++) out[i] = prev ? f[i] * 178 + prev[i] * 0.3 : f[i] * 255;
+        s.masks.push(out); s.times.push(mediaTime);
+        s.w = mk.width; s.h = mk.height;
+      });
+      lastKept = mediaTime;
+      var took = performance.now() - t0;
+      avgMs = avgMs ? avgMs * 0.8 + took * 0.2 : took;
+      // too slow for real time? play the hidden copy slower so fewer frames are skipped
+      if (v.playbackRate !== undefined) v.playbackRate = clamp(1000 / MASK_FPS / Math.max(1, avgMs), 0.25, 1);
+      if (!filling) s.progress = m.dur ? clamp(mediaTime / m.dur, 0, 1) * 0.95 : 0;
+      tlDirty = true;
+    }
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        v.pause(); v.removeAttribute('src'); v.load(); v.remove();
+        s.state = ok && s.masks.length ? 'ready' : 'failed';
+        s.progress = 1; dirty = true; tlDirty = true;
+        if (sel && findItem(sel) && sel.layer === 'top') renderInspector();
+        resolve();
+      }
+      // Second pass: seek to every moment the playing pass missed (frames are only delivered while
+      // the page is painting -- a dimmed screen or background tab skips them), or do it all this
+      // way where requestVideoFrameCallback doesn't exist.
+      function fillGaps() {
+        if (done || filling) return;
+        filling = true;
+        fillFrom = s.progress;
+        v.pause();
+        var want = [], step = 1 / MASK_FPS;
+        for (var t = 0; t < m.dur; t += step) if (!covered(t, step * 0.75)) want.push(t);
+        var i = 0;
+        (function next() {
+          if (done) return;
+          if (i >= want.length) { sortStore(s); finish(true); return; }
+          var t = want[i++];
+          seekTo(v, t).then(function () {
+            try { lastKept = -1; grab(t); } catch (err) {}
+            s.progress = fillFrom + (1 - fillFrom) * i / want.length;
+            next();
+          });
+        })();
+      }
+      function covered(t, d) {
+        for (var k = 0; k < s.times.length; k++) if (Math.abs(s.times[k] - t) <= d) return true;
+        return false;
+      }
+      function onFrame(now, meta) {
+        if (done || filling) return;
+        try { grab(meta.mediaTime); } catch (err) {}
+        if (!v.ended) v.requestVideoFrameCallback(onFrame);
+      }
+      function stepSeek() { fillGaps(); }
+      v.addEventListener('ended', fillGaps);
+      v.addEventListener('error', function () { finish(false); });
+      waitEvent(v, 'loadeddata', 'error', 15000).then(function () {
+        if (v.requestVideoFrameCallback) {
+          v.requestVideoFrameCallback(onFrame);
+          var p = v.play();
+          if (p && p.catch) p.catch(function () { stepSeek(0); });
+        } else stepSeek(0);
+      }, function () { finish(false); });
+    });
+  }
+  function sortStore(s) {
+    var idx = s.times.map(function (t, i) { return i; }).sort(function (a, b) { return s.times[a] - s.times[b]; });
+    s.times = idx.map(function (i) { return s.times[i]; });
+    s.masks = idx.map(function (i) { return s.masks[i]; });
+  }
+  function nearestMask(s, t) {
+    var a = s.times, lo = 0, hi = a.length - 1;
+    if (hi < 0) return -1;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (a[mid] < t) lo = mid; else hi = mid; }
+    var i = Math.abs(a[lo] - t) <= Math.abs(a[hi] - t) ? lo : hi;
+    return Math.abs(a[i] - t) <= MASK_NEAR ? i : -1;
+  }
+
   // The person mask for this clip's current frame, uploaded to the bound texture (unit 1).
   function maskFor(a, src) {
     if (!seg.tool) return null;
@@ -914,6 +1037,23 @@
     var mc = segCache.get(a.clip.id);
     if (!mc) { mc = { key: '', tex: newTex(), data: null, w: 0, h: 0 }; segCache.set(a.clip.id, mc); }
     if (mc.key === frameKey) return mc;
+    // buffered masks first: no model work during playback
+    if (e) {
+      var store = prepCutOut(mediaById(a.clip.media));
+      if (store && store.masks.length) {
+        var mi = nearestMask(store, e.el.currentTime);
+        if (mi >= 0) {
+          if (mc.bufIdx !== mi || mc.w !== store.w) {
+            gl.bindTexture(gl.TEXTURE_2D, mc.tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, store.w, store.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, store.masks[mi]);
+            mc.bufIdx = mi; mc.w = store.w; mc.h = store.h;
+          }
+          mc.key = frameKey;
+          return mc;
+        }
+      }
+    }
+    mc.bufIdx = -1;
     var sz = srcSize(a), k = SEG_LONG / Math.max(sz[0], sz[1]);
     var w = Math.max(16, Math.round(sz[0] * k)), h = Math.max(16, Math.round(sz[1] * k));
     if (segCanvas.width !== w || segCanvas.height !== h) { segCanvas.width = w; segCanvas.height = h; }
@@ -947,10 +1087,12 @@
   }
   function startCutOut(c) {
     if (!gl) { toast('CUT OUT NEEDS A NEWER BROWSER', 3000); return; }
-    if (seg.state === 'ready') return;
+    var m = mediaById(c.media);
+    if (seg.state === 'ready') { prepCutOut(m); return; }
     toast('GETTING CUT OUT READY...', 60000);
     loadSegmenter().then(function () {
-      toast('CUT OUT IS READY!');
+      prepCutOut(m);
+      toast(m && m.kind === 'video' ? 'CUT OUT IS GETTING YOUR CLIP READY...' : 'CUT OUT IS READY!', 3000);
     }, function () {
       toast(location.protocol === 'file:' ? 'CUT OUT ONLY WORKS ON THE WEBSITE' : 'CUT OUT NEEDS THE INTERNET -- TRY AGAIN', 4000);
       if (c.cut) c.cut.on = false;
@@ -1329,7 +1471,10 @@
     }));
     box.appendChild(rc);
     if (cutOn) {
-      box.appendChild(el('div', 'note', seg.state === 'loading' ? 'Getting it ready...' : 'Finds the person and hides everything else. No green screen needed!'));
+      var ms = maskStore[c.media];
+      box.appendChild(el('div', 'note', seg.state === 'loading' ? 'Getting it ready...'
+        : ms && (ms.state === 'preparing' || ms.state === 'waiting') ? 'Getting this clip ready so it plays smoothly -- it may stutter until then.'
+        : 'Finds the person and hides everything else. No green screen needed!'));
       box.appendChild(slider('TRIM EDGES', 0.15, 0.85, 0.01, function () { return c.cut.edge; }, function (v) { c.cut.edge = v; }));
     }
     var r = row('GREEN SCREEN');
@@ -1491,8 +1636,19 @@
       ])
     ]);
   }
+  // How far along the cut-out buffering is for the clips that need it (0..1), or null if done.
+  function cutPending() {
+    var sum = 0, n = 0;
+    project.top.forEach(function (c) {
+      if (!c.cut || !c.cut.on) return;
+      var s = prepCutOut(mediaById(c.media));
+      if (s && (s.state === 'waiting' || s.state === 'preparing')) { sum += s.progress; n++; }
+    });
+    return n ? sum / n : null;
+  }
   function startOver() {
     stopPlay();
+    maskStore = {};
     Object.keys(rt).forEach(function (id) { URL.revokeObjectURL(rt[id].url); });
     rt = {};
     if (gl) Object.keys(imgTex).forEach(function (id) { gl.deleteTexture(imgTex[id]); });
@@ -1694,7 +1850,10 @@
     x.font = 'bold ' + fs + 'px Trebuchet MS, sans-serif';
     x.textBaseline = 'top'; x.textAlign = 'left';
     var badge = m.kind === 'image' ? 'PHOTO' : m.kind === 'bg' ? m.name : fmt(len);
-    if (layer === 'top' && c.cut && c.cut.on) badge += ' CUT OUT';
+    if (layer === 'top' && c.cut && c.cut.on) {
+      var ms = maskStore[c.media];
+      badge += ms && ms.state !== 'ready' && ms.state !== 'failed' ? ' CUT OUT ' + Math.round(ms.progress * 100) + '%' : ' CUT OUT';
+    }
     if (layer === 'top' && c.key && c.key.on) badge += ' GREEN SCREEN';
     var bw = x.measureText(badge).width + fs * 0.6;
     if (w > bw + 8) {
@@ -2025,6 +2184,14 @@
     var waited = 0;
     (function ready() {
       if (cancelled) return;
+      // cut-outs must be buffered first, or the movie would stutter
+      var pend = cutPending(), head = $('#sheetBox h2');
+      if (pend != null) {
+        if (head) head.textContent = 'GETTING CUT OUT READY... ' + Math.round(pend * 100) + '%';
+        setTimeout(ready, 250);
+        return;
+      }
+      if (head) head.textContent = 'MAKING YOUR MOVIE...';
       var act = activeAt(0), ok = true;
       act.forEach(function (a) { if (isVideoClip(a.clip)) { var e = els.get(a.clip.id); if (!e || e.el.readyState < 2 || e.el.seeking) ok = false; } });
       if (!ok && waited < 3000) { waited += 100; renderFrame(0, true); setTimeout(ready, 100); return; }
@@ -2370,6 +2537,7 @@
     importFiles: importFiles, select: function (layer, id) { sel = { layer: layer, id: id }; renderInspector(); tlDirty = true; dirty = true; },
     split: splitAtPlayhead, addText: addText, play: startPlay, stop: stopPlay, total: total,
     exportMovie: startExport, els: els, gl: !!gl,
-    render: function (t) { renderFrame(t == null ? playT : t, false); }, pickKeyAt: pickKeyAt, toOut: toOut, lastBoxes: function () { return lastBoxes; }
+    render: function (t) { renderFrame(t == null ? playT : t, false); },
+    cutStore: function (mediaId) { return maskStore[mediaId]; }, pickKeyAt: pickKeyAt, toOut: toOut, lastBoxes: function () { return lastBoxes; }
   };
 })();
