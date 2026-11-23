@@ -135,6 +135,7 @@
   function changed(keepInspector) {
     dirty = true; tlDirty = true;
     if (!findItem(sel)) sel = null;
+    fitAutoBackground();
     var T = total();
     if (playT > T) playT = T;
     if (!keepInspector) renderInspector();
@@ -443,12 +444,22 @@
       project.media.push(m);
     }
     var emptyUnderTop = project.main.length === 0 && project.top.length > 0;
-    var topEnd = total();   // measured before the background goes in
     addMainAtPlayhead(m);
     if (emptyUnderTop) {
-      project.main[0].out = clamp(topEnd, MIN_LEN, PHOTO_MAX);
+      project.main[0].autoLen = true;   // keeps matching the clips on top (fitAutoBackground)
       changed();
     }
+  }
+  // A background that was sized to the clips on top stays as long as they are when they're
+  // trimmed or moved -- otherwise the movie kept playing the background alone after them.
+  // Trimming the background by hand (doTrim) hands its length back to the kid.
+  function fitAutoBackground() {
+    if (project.main.length !== 1 || !project.main[0].autoLen) return;
+    var end = 0, i;
+    for (i = 0; i < project.top.length; i++) end = Math.max(end, project.top[i].start + clipLen(project.top[i]));
+    if (end <= 0) return;
+    var c = project.main[0];
+    c.out = c.in + clamp(end, MIN_LEN, PHOTO_MAX);
   }
   function bgRuntime(m) {
     if (rt[m.id]) return;
@@ -2015,6 +2026,7 @@
         it.out = clamp(o.in + (ne2 - o.start), o.in + MIN_LEN, maxOut);
       }
     } else {   // main: ripple
+      delete it.autoLen;   // the kid is choosing its length now
       if (drag.side === 'l') {
         if (isStill(m)) it.out = clamp(o.out - d, MIN_LEN, PHOTO_MAX);
         else it.in = clamp(o.in + d, 0, o.out - MIN_LEN);
@@ -2095,7 +2107,7 @@
 
   // ---------------------------------------------------------------- transport
   var lastNow = 0, stallFor = 0;
-  function togglePlay() { if (playing || cutWait) stopPlay(); else startPlay(); }
+  function togglePlay() { if (playing || cutWait || priming) stopPlay(); else startPlay(); }
   function startPlay() {
     var T = total();
     if (T <= 0) { toast('ADD SOMETHING TO PLAY'); return; }
@@ -2103,8 +2115,31 @@
     if (playT >= T - 0.05) playT = 0;
     // a cut-out still buffering would stutter: wait for it, like a video site does
     if (!exporting && cutPending() != null) { waitForCut(); return; }
-    playing = true; lastNow = performance.now(); stallFor = 0;
-    updateButtons();
+    primeThenPlay();
+  }
+  // Park every video under the playhead on its starting frame and wait for it to get there
+  // BEFORE pressing play. Playing and jumping at the same moment let a blip of the old spot's
+  // sound out (the end of the clip heard at the start).
+  var priming = 0;
+  function primeThenPlay() {
+    var token = ++priming, wait = [];
+    els.forEach(function (e) { e.lastSeek = 0; });
+    activeAt(playT).forEach(function (a) {
+      if (!isVideoClip(a.clip)) return;
+      var e = getEl(a.clip);
+      e.el.pause();
+      if (Math.abs(e.el.currentTime - a.src) > 0.02) e.el.currentTime = a.src;
+      wait.push(e);
+    });
+    var t0 = performance.now();
+    (function check() {
+      if (token !== priming) return;   // stopped (or started again) meanwhile
+      var ready = wait.every(function (e) { return !e.el.seeking && e.el.readyState >= 2; });
+      if (!ready && performance.now() - t0 < 1500) { setTimeout(check, 25); return; }
+      priming = 0;
+      playing = true; lastNow = performance.now(); stallFor = 0;
+      updateButtons();
+    })();
   }
   var cutWait = 0;
   function waitForCut() {
@@ -2123,6 +2158,7 @@
   }
   function stopPlay() {
     if (cutWait) { clearInterval(cutWait); cutWait = 0; toast('STOPPED', 1000); }
+    priming = 0;
     playing = false;
     els.forEach(function (e) { if (!e.el.paused) e.el.pause(); });
     dirty = true; tlDirty = true;
