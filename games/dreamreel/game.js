@@ -305,7 +305,7 @@
   function newTopClip(m, start) {
     return {
       id: uid(), media: m.id, start: start, in: 0, out: m.kind === 'image' ? PHOTO_DUR : m.dur, vol: 1,
-      x: 0.5, y: 0.5, scale: 1, key: { on: false, color: [0.2, 0.75, 0.3], sim: 0.14, soft: 0.06, spill: 0.12 }
+      x: 0.5, y: 0.5, scale: 1, key: { on: false, color: [0.2, 0.75, 0.3], sim: 0.17, soft: 0.06, spill: 0.12 }
     };
   }
 
@@ -473,11 +473,13 @@
       '    d += dist(vUV - vec2(uTexel.x, 0.0), k) * 0.15;',
       '    d += dist(vUV + vec2(0.0, uTexel.y), k) * 0.15;',
       '    d += dist(vUV - vec2(0.0, uTexel.y), k) * 0.15;',
+      // the soft edge is centred on the strength and never wider than it, so STRENGTH 0 keys nothing
+      '    float sh = min(uSoft, uSim * 2.0) * 0.5;',
+      '    a = uSim < 0.001 ? 1.0 : smoothstep(uSim - sh, uSim + sh + 0.0001, d);',
+      // spill: pull the key colour out of what's left near the edges (fades out with strength too)
       '    float base = d - uSim;',
-      '    a = clamp(base / max(uSoft, 0.001), 0.0, 1.0);',
-      '    a = a * a * (3.0 - 2.0 * a);',
-      // spill: pull the key colour out of what's left near the edges
       '    float s = pow(clamp(base / max(uSpill, 0.001), 0.0, 1.0), 1.5);',
+      '    s = mix(1.0, s, clamp(uSim / 0.05, 0.0, 1.0));',
       '    float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));',
       '    rgb = mix(vec3(lum), rgb, s);',
       '  }',
@@ -1120,7 +1122,7 @@
       pk.appendChild(sw);
       rp.appendChild(pk);
       box.appendChild(rp);
-      box.appendChild(slider('STRENGTH', 0.01, 0.4, 0.005, function () { return c.key.sim; }, function (v) { c.key.sim = v; }));
+      box.appendChild(slider('STRENGTH', 0, 0.4, 0.005, function () { return c.key.sim; }, function (v) { c.key.sim = v; }));
       box.appendChild(slider('SOFT EDGES', 0.005, 0.25, 0.005, function () { return c.key.soft; }, function (v) { c.key.soft = v; }));
       box.appendChild(slider('GREEN GLOW FIX', 0.01, 0.5, 0.01, function () { return c.key.spill; }, function (v) { c.key.spill = v; }));
     }
@@ -2136,6 +2138,7 @@
     get sel() { return sel; },
     importFiles: importFiles, select: function (layer, id) { sel = { layer: layer, id: id }; renderInspector(); tlDirty = true; dirty = true; },
     split: splitAtPlayhead, addText: addText, play: startPlay, stop: stopPlay, total: total,
-    exportMovie: startExport, els: els, gl: !!gl, pickKeyAt: pickKeyAt, toOut: toOut, lastBoxes: function () { return lastBoxes; }
+    exportMovie: startExport, els: els, gl: !!gl,
+    render: function (t) { renderFrame(t == null ? playT : t, false); }, pickKeyAt: pickKeyAt, toOut: toOut, lastBoxes: function () { return lastBoxes; }
   };
 })();
