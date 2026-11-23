@@ -1778,7 +1778,8 @@
     g.rotation.y = k.h;
     g.scale.setScalar(k.tinyS);
     g.userData.crown.rotation.y = t * 1.5;
-    g.userData.crown.position.y = 6.9 + Math.sin(t * 4) * 0.15;      // up above the balloons
+    // up above the balloons (or the top of the coin stack)
+    g.userData.crown.position.y = (race.coinMode ? Math.max(3.2, 2.4 + Math.min(k.score, STACK_TALL) * 0.2) : 6.9) + Math.sin(t * 4) * 0.15;
     glowMat.opacity = 0.3 + Math.sin(t * 6) * 0.1;
     beamMat.opacity = 0.16 + Math.sin(t * 3) * 0.06;
   }
@@ -1841,6 +1842,185 @@
     if (k.balloons <= 0) { k.outT = 1.1; if (k.pi != null) say(k, 'NO BALLOONS!', 1.2); }
   }
 
+  // ---------- Coin Battle ----------
+  // Same arenas, no balloons: golden coins lie all over the floor and you stack them up on the
+  // back of your kart by driving over them. Get hit (snowball, honey, a boost ram, a bump while
+  // you're shrunk) and some fly off for anyone to grab. You never lose your last coin: big stacks
+  // lose 5, small ones lose a third. Most coins in the stack when the clock runs out wins.
+  const COIN_FIELD = 48;          // loose coins kept lying about the arena (they come in little rows of 3)
+  const COIN_DROP_MAX = 5;        // the most one hit knocks off
+  const STACK_TALL = 40, STACK_LOW = 8;   // coins drawn in the tall stack (others see) and your own low one
+  const coinsLost = (n) => Math.max(0, Math.min(COIN_DROP_MAX, Math.ceil(n / 3), n - 1));
+  const stackGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.2, 14);
+  const stackGroups = [];
+  function makeStack(low, layer) {
+    const g = new THREE.Group();
+    const m = new THREE.InstancedMesh(stackGeo, coinMat, low ? STACK_LOW : STACK_TALL);
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    m.count = 0;
+    m.frustumCulled = false;
+    g.add(m);
+    g.userData = { m, low };
+    if (layer != null) g.traverse((o) => o.layers.set(layer));
+    scene.add(g);
+    stackGroups.push(g);
+    return g;
+  }
+  // a wobbly tower of coins on the back of the kart that leans back with the speed
+  function placeStack(g, k, n) {
+    const { m, low } = g.userData, t = race.t;
+    g.position.set(k.x, k.ay, k.z);
+    g.rotation.y = k.h;
+    g.scale.setScalar(k.tinyS * (low ? 0.75 : 1));
+    g.visible = k.model.g.visible;
+    m.count = n;
+    const lean = clamp(k.v / 50, 0, 1), sway = Math.sin(t * 3 + k.ri) * 0.5 + k.steer * 0.8;
+    for (let i = 0; i < n; i++) {
+      const f = i / STACK_TALL;
+      dummy.position.set(sway * f * f * 3 + ((i * 37) % 7 - 3) * 0.02, (low ? 1.1 : 1.3) + i * 0.2, (low ? -1.2 : -1.0) - lean * f * f * 4);
+      dummy.rotation.set(0, i * 0.7, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  }
+  function showStack(k) {
+    if (k.stack) placeStack(k.stack, k, Math.min(k.score, STACK_TALL));
+    if (k.stackLow) placeStack(k.stackLow, k, Math.min(k.score, STACK_LOW));
+  }
+
+  // the loose coins on the floor (one instanced mesh for all of them)
+  const LOOSE_MAX = 160;
+  const looseMesh = new THREE.InstancedMesh(coinGeo, coinMat, LOOSE_MAX);
+  looseMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  looseMesh.frustumCulled = false;
+  looseMesh.count = 0;
+  looseMesh.visible = false;
+  scene.add(looseMesh);
+  // somewhere a coin can lie: on the floor or up on a deck or ramp, not inside anything
+  function coinSpot(A) {
+    for (let tries = 0; tries < 40; tries++) {
+      let x, z;
+      if (A.shape === 'square') { x = rand(-1, 1) * A.R * 0.88; z = rand(-1, 1) * A.R * 0.88; }
+      else { const a = rand(0, TAU), r = Math.sqrt(Math.random()) * A.R * 0.88; x = Math.sin(a) * r; z = Math.cos(a) * r; }
+      if (A.rimD(x, z) > A.R - 6) continue;
+      if (A.blocks.some((b) => (b.x - x) ** 2 + (b.z - z) ** 2 < (b.r + 3) ** 2)) continue;
+      // the highest thing here, if it's something you can drive on
+      let y = A.height(x, z), top = null;
+      for (const p of A.pieces) {
+        const [u, v] = pieceLocal(p, x, z);
+        if (Math.abs(u) > p.hl + 1.5 || Math.abs(v) > p.hw + 1.5) continue;
+        if (Math.abs(u) > p.hl || Math.abs(v) > p.hw) { top = 'edge'; break; }    // right at a side: skip
+        const ty = pieceTopAt(p, u);
+        if (ty > y) { y = ty; top = p; }
+      }
+      if (top === 'edge') continue;
+      if (top && (top.kind === 'rail' || (top.kind === 'wall' && !A.ramps.some((q) => Math.abs(Math.max(q.y1, q.y2) - y) < 2.5)))) continue;
+      return { x, z, y: y + 1.4 };
+    }
+    return null;
+  }
+  function addFieldCoins() {
+    const A = world.arena, s = coinSpot(A);
+    if (!s) return;
+    const a = rand(0, TAU), dx = Math.sin(a) * 3, dz = Math.cos(a) * 3;
+    for (let i = -1; i <= 1; i++) {
+      const x = s.x + dx * i, z = s.z + dz * i;
+      // (a coin of the row that would land inside something or a step away is left out)
+      if (A.rimD(x, z) > A.R - 5 || arenaBlocked(A, x, z, s.y - 1.4, 0.6) || Math.abs(arenaFloor(A, x, z, s.y - 1.4) + 1.4 - s.y) > 0.6) continue;
+      race.loose.push({ x, y: s.y, z, vx: 0, vy: 0, vz: 0, air: false, field: true, grow: -Math.abs(i) * 0.3, wait: 0, from: null, life: 0 });
+    }
+  }
+  // knocked off a kart: they fly up out of the stack and land round about
+  function dropCoins(k, by) {
+    const n = coinsLost(k.score);
+    if (n <= 0) { if (k.pi != null) say(k, 'WHOA!', 0.9); return; }
+    k.score -= n;
+    const top = k.ay + 1.3 + Math.min(k.score + n, STACK_TALL) * 0.2;
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, TAU), sp = rand(5, 10);
+      race.loose.push({ x: k.x, y: top, z: k.z, vx: Math.sin(a) * sp + Math.sin(k.h) * k.v * 0.3, vy: rand(9, 14), vz: Math.cos(a) * sp + Math.cos(k.h) * k.v * 0.3,
+        air: true, field: false, grow: 1, wait: 0.35, from: k, fromWait: 2.2, life: 15 });
+    }
+    // too many lying about: the oldest dropped ones go
+    while (race.loose.length > LOOSE_MAX) {
+      const i = race.loose.findIndex((c) => !c.field);
+      race.loose.splice(i < 0 ? 0 : i, 1);
+    }
+    if (nearView(k)) burst(k.x, top, k.z, [0xffd23f, 0xfff3a0, 0xffffff], 12, { size: 0.35, spread: 5 });
+    sfxCoin();
+    if (k.pi != null) say(k, '-' + n + (n === 1 ? ' COIN!' : ' COINS!'), 1.2);
+    if (by && by !== k && by.pi != null) say(by, 'BONK! GRAB THEM!', 1.2);
+  }
+  let fieldT = 0;
+  const r0Field = () => race.loose.filter((c) => c.field).length;
+  function stepLoose(dt) {
+    const r = race, A = world.arena, L = r.loose;
+    // keep the floor topped up
+    if (r.state === 'go' && !r.done) {
+      fieldT -= dt;
+      if (fieldT <= 0) { fieldT = 1.2; if (L.filter((c) => c.field).length <= COIN_FIELD - 3) addFieldCoins(); }
+    }
+    for (let i = L.length - 1; i >= 0; i--) {
+      const c = L[i];
+      c.grow = Math.min(1, c.grow + dt * 3);
+      if (c.wait > 0) c.wait -= dt;
+      if (c.fromWait > 0) c.fromWait -= dt;
+      if (!c.field) { c.life -= dt; if (c.life <= 0) { L.splice(i, 1); continue; } }
+      if (c.air) {
+        c.vy -= GRAV * dt;
+        const ox = c.x, oz = c.z;
+        c.x += c.vx * dt; c.z += c.vz * dt; c.y += c.vy * dt;
+        // the arena wall: bounce back towards the middle
+        const lim = A.R - 4, rd = A.rimD(c.x, c.z);
+        if (rd > lim) {
+          if (A.shape === 'square') {
+            if (Math.abs(c.x) > lim) { c.x = Math.sign(c.x) * lim; c.vx = -Math.sign(c.x) * Math.abs(c.vx) * 0.5; }
+            if (Math.abs(c.z) > lim) { c.z = Math.sign(c.z) * lim; c.vz = -Math.sign(c.z) * Math.abs(c.vz) * 0.5; }
+          } else {
+            const nx = c.x / rd, nz = c.z / rd, dot = c.vx * nx + c.vz * nz;
+            c.x = nx * lim; c.z = nz * lim;
+            if (dot > 0) { c.vx -= nx * dot * 1.5; c.vz -= nz * dot * 1.5; }
+          }
+        }
+        // the side of a ramp, deck or wall: stop going that way (unless it started out inside one)
+        else if (arenaHits(A, c.x, c.z, c.y - 1.4, 0.5, 1, () => false) && !arenaHits(A, ox, oz, c.y - 1.4, 0.5, 1, () => false)) {
+          c.x = ox; c.z = oz; c.vx *= -0.3; c.vz *= -0.3;
+        }
+        const fl = arenaFloor(A, c.x, c.z, c.y - 1.4) + 1.4;
+        if (c.y <= fl && c.vy < 0) {
+          c.y = fl;
+          if (c.vy < -9) { c.vy *= -0.35; c.vx *= 0.6; c.vz *= 0.6; } else c.air = false;
+        }
+      }
+      if (c.wait > 0 || r.state !== 'go' || r.done) continue;
+      // driven over: onto that kart's stack
+      for (const k of r.karts) {
+        if (k.rescue > 0 || k.finished || (c.from === k && c.fromWait > 0)) continue;
+        if ((k.x - c.x) ** 2 + (k.z - c.z) ** 2 > 9 * k.tinyS || Math.abs(k.ay + 1.3 - c.y) > 3) continue;
+        k.score++;
+        if (k.pi != null) sfxCoin();
+        if (nearView(k)) burst(c.x, c.y, c.z, [0xffd23f, 0xfff3a0], 6, { spread: 3, up: 4, life: 0.4, size: 0.3 });
+        L.splice(i, 1);
+        break;
+      }
+    }
+    // draw them: spinning on the floor, tumbling in the air, blinking just before they vanish
+    let n = 0;
+    for (const c of L) {
+      if (n >= LOOSE_MAX) break;
+      const blink = !c.field && c.life < 3 && Math.floor(c.life * 8) % 2 === 0;
+      dummy.position.set(c.x, c.y + (c.air ? 0 : Math.sin(r.t * 3 + c.x) * 0.15), c.z);
+      dummy.rotation.set(c.air ? r.t * 9 : 0, r.t * 3 + c.z * 0.1, 0);
+      dummy.scale.setScalar(blink || c.grow <= 0 ? 0.0001 : c.grow);
+      dummy.updateMatrix();
+      looseMesh.setMatrixAt(n++, dummy.matrix);
+    }
+    looseMesh.count = n;
+    looseMesh.instanceMatrix.needsUpdate = true;
+  }
+
   const puffs = [];
   function showPuff(k) {
     if (k.pi == null) return;
@@ -1858,6 +2038,9 @@
     balloonGroups.length = 0;
     crownGroups.forEach((g) => scene.remove(g));
     crownGroups.length = 0;
+    stackGroups.forEach((g) => { scene.remove(g); g.userData.m.dispose(); });
+    stackGroups.length = 0;
+    looseMesh.visible = false; looseMesh.count = 0;
     balls.forEach((b) => scene.remove(b.mesh));
     puddles.forEach((p) => scene.remove(p.mesh));
     balls.length = puddles.length = 0;
@@ -1885,6 +2068,7 @@
     showroom.visible = podium.visible = false;
     const T = world;
     const speed = SPEEDS[opts.demo ? 1 : save.speed];
+    const coinMode = !!T.arena && battleKind === 'coins';
     const humans = opts.demo ? [] : save.look.slice(0, save.players).map((l) => l.racer);
     let others;
     if (opts.from === 'gp' && gp.lineup) others = gp.lineup.slice();
@@ -1918,7 +2102,11 @@
         lane: lat, laneGoal: lat, laneT: rand(1, 3), cam: { h, y: 5, fov: 62 },
       };
       applyLook(k.model, pi >= 0 ? save.look[pi] : null);
-      if (T.arena) {
+      if (T.arena && coinMode) {
+        // coin battle: a tall stack the others see, and a short one on your own kart for you
+        k.stack = makeStack(false, pi >= 0 ? 1 + pi : null);
+        if (pi >= 0) k.stackLow = makeStack(true, 3 + pi);
+      } else if (T.arena) {
         k.bal = makeBalloons(kartColor(k.model));
         // your own tall balloons would sit right in front of your camera, so they go on a layer
         // only the other player's camera draws; you see a small low set on your kart instead
@@ -1935,11 +2123,17 @@
     karts.forEach((k) => { locate(k); k.ay = k.gy; k.cam.y = k.gy + 4.4; });
     const view = opts.demo ? [karts[0]] : karts.filter((k) => k.pi != null).sort((a, b) => a.pi - b.pi);
     race = {
-      def, demo: !!opts.demo, from: opts.from || 'track', battle: !!T.arena, limit: BATTLE_T, warn: 99, key: opts.key || '', order: opts.order || 0, board: opts.board || def.name,
+      def, demo: !!opts.demo, from: opts.from || 'track', battle: !!T.arena, coinMode, loose: [], limit: BATTLE_T, warn: 99, key: opts.key || '', order: opts.order || 0, board: opts.board || def.name,
       state: 'count', count: opts.demo ? 0.4 : 3.6, lastTick: 4, t: 0, karts, view, top: speed.top,
       finishCount: 0, done: false, doneT: 0, results: null, confetti: [], before: unlockedSet(),
       hiProg: 0, loProg: 0, newBest: false, unlocked: [], coinsWon: 0,
     };
+    if (coinMode) {
+      for (let i = 0; i < 40 && r0Field() < COIN_FIELD; i++) addFieldCoins();
+      looseMesh.visible = true;
+      fieldT = 0;
+      stepLoose(0);
+    }
     karts.forEach((k) => showKart(k, 0));
     mode = opts.demo ? 'title' : 'race';
     touch.show(mode === 'race');
@@ -2093,29 +2287,54 @@
     const T = world, A = T.arena, fx = Math.sin(k.h), fz = Math.cos(k.h);
     k.laneT -= dt;
     const g0 = k.goal;
-    if (k.laneT <= 0 || !g0 || (g0.box && g0.box.t > 0) || (g0.kart && (g0.kart.balloons <= 0 || g0.kart.rescue > 0))) {
+    const coinGone = g0 && g0.coin && !race.loose.includes(g0.coin);
+    if (k.laneT <= 0 || !g0 || coinGone || (g0.box && g0.box.t > 0) || (g0.kart && (g0.kart.balloons <= 0 || g0.kart.rescue > 0))) {
       k.laneT = rand(1.2, 2.8);
       let best = null, bd = Infinity;
-      if (!k.item) for (const b of T.boxes) {
-        if (b.t > 0) continue;
-        // (boxes up on a deck count as nearer, so computer racers go up there too)
-        const d = ((b.x - k.x) ** 2 + (b.z - k.z) ** 2) * (b.y > k.ay + 5 ? 0.3 : 1);
-        if (d < bd) { bd = d; best = { box: b }; }
+      if (race.coinMode) {
+        // coin battle: mostly scoop up coins; with an item in hand, go and knock some off a big stack
+        k.laneT = rand(0.8, 1.8);
+        if (k.item && Math.random() < 0.6) {
+          for (const o of race.karts) {
+            if (o === k || o.rescue > 0 || o.score < 3) continue;
+            const d = ((o.x - k.x) ** 2 + (o.z - k.z) ** 2) / (1 + o.score * 0.15) * (o.pi != null ? 1.3 : 1);
+            if (d < bd) { bd = d; best = { kart: o }; }
+          }
+        }
+        if (!best && !k.item && Math.random() < 0.3) for (const b of T.boxes) {
+          if (b.t > 0) continue;
+          const d = ((b.x - k.x) ** 2 + (b.z - k.z) ** 2) * (b.y > k.ay + 5 ? 0.3 : 1);
+          if (d < bd) { bd = d; best = { box: b }; }
+        }
+        if (!best) for (const c of race.loose) {
+          if (c.from === k && c.fromWait > 0) continue;
+          const d = ((c.x - k.x) ** 2 + (c.z - k.z) ** 2) * (c.y > k.ay + 5 ? 0.4 : 1) * rand(0.7, 1.3);
+          if (d < bd) { bd = d; best = { coin: c }; }
+        }
       }
-      if (!best || (k.item && Math.random() < 0.85) || Math.random() < 0.2) {
-        bd = Infinity;
-        for (const o of race.karts) {
-          if (o === k || o.balloons <= 0 || o.rescue > 0) continue;
-          const d = (o.x - k.x) ** 2 + (o.z - k.z) ** 2 * (o.pi != null ? 1.3 : 1);
-          if (d < bd) { bd = d; best = { kart: o }; }
+      // balloon battle (and a coin battle with no coins about): an item, then someone to use it on
+      if (!best) {
+        if (!k.item) for (const b of T.boxes) {
+          if (b.t > 0) continue;
+          // (boxes up on a deck count as nearer, so computer racers go up there too)
+          const d = ((b.x - k.x) ** 2 + (b.z - k.z) ** 2) * (b.y > k.ay + 5 ? 0.3 : 1);
+          if (d < bd) { bd = d; best = { box: b }; }
+        }
+        if (!best || (k.item && Math.random() < 0.85) || Math.random() < 0.2) {
+          bd = Infinity;
+          for (const o of race.karts) {
+            if (o === k || o.balloons <= 0 || o.rescue > 0) continue;
+            const d = (o.x - k.x) ** 2 + (o.z - k.z) ** 2 * (o.pi != null ? 1.3 : 1);
+            if (d < bd) { bd = d; best = { kart: o }; }
+          }
         }
       }
       if (!best) { const a = rand(0, TAU), r = rand(20, A.R * 0.7); best = { x: Math.sin(a) * r, z: Math.cos(a) * r }; }
       k.goal = best;
     }
-    const g = k.goal, gk = g.kart;
-    let gx = gk ? gk.x : g.box ? g.box.x : g.x, gz = gk ? gk.z : g.box ? g.box.z : g.z;
-    const gy = gk ? gk.ay : g.box ? g.box.y - 1.6 : k.ay;
+    const g = k.goal, gk = g.kart, gc = g.coin;
+    let gx = gk ? gk.x : g.box ? g.box.x : gc ? gc.x : g.x, gz = gk ? gk.z : g.box ? g.box.z : gc ? gc.z : g.z;
+    const gy = gk ? gk.ay : g.box ? g.box.y - 1.6 : gc ? gc.y - 1.4 : k.ay;
     const dist = Math.hypot(gx - k.x, gz - k.z);
     // the target is up on a deck: head for the bottom of a ramp that goes up there, then up it
     if (gy > k.ay + 3 && A.ramps.length) {
@@ -2213,7 +2432,7 @@
     if (RESCUE_T - k.rescue < RESCUE_SWAP) { k.ay += (k.gy + 3 - k.ay) * Math.min(1, dt * 4); return; }
     if (!k.moved) {
       k.moved = true;
-      if (T.arena) { k.balloons = 3; if (k.pi != null) say(k, 'NEW BALLOONS!', 1.4); }
+      if (T.arena) { k.balloons = 3; if (k.pi != null && !race.coinMode) say(k, 'NEW BALLOONS!', 1.4); }
       else {
         const i = k.idx;
         k.x = T.px[i]; k.z = T.pz[i];
@@ -2429,7 +2648,7 @@
   // leaders get more honey and shields, the back of the pack gets more carrots and shrink stars
   function rollItem(k) {
     const f = (k.place - 1) / Math.max(1, race.karts.length - 1);
-    const w = race.battle ? { carrot: 0.2, carrot3: 0.08, snowball: 0.34, honey: 0.18, shield: 0.14, shrink: 0.06 } : {
+    const w = race.coinMode ? { carrot: 0.26, carrot3: 0.1, snowball: 0.3, honey: 0.16, shield: 0.12, shrink: 0.06 } : race.battle ? { carrot: 0.2, carrot3: 0.08, snowball: 0.34, honey: 0.18, shield: 0.14, shrink: 0.06 } : {
       carrot: 0.22 + 0.15 * f, carrot3: 0.02 + 0.2 * f, snowball: 0.15 + 0.08 * f, honey: 0.24 - 0.16 * f,
       shield: 0.2 - 0.08 * f, shrink: k.place > 2 ? 0.02 + 0.12 * f : 0,
     };
@@ -2485,12 +2704,12 @@
     k.spin = SPIN_T;
     k.safe = 2.6;
     k.v *= 0.4;
-    popBalloon(k, by);
+    if (race.coinMode) dropCoins(k, by); else popBalloon(k, by);
     k.boost = 0;
     k.drift = 0;
     if (nearView(k)) burst(k.x, k.ay + 1.5, k.z, [0xffe14f, 0xffffff, 0xff9a2e], 14);
     if (k.pi != null || (by && by.pi != null)) sfxSpin();
-    if (k.pi != null && !race.demo) say(k, 'WHOA!', 0.9);
+    if (k.pi != null && !race.demo && !race.coinMode) say(k, 'WHOA!', 0.9);
     return true;
   }
 
@@ -2600,6 +2819,7 @@
     m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy) * 0.25));
     showPuff(k);
     if (k.bal) { showBalloons(k); showCrown(k); }
+    if (k.stack) { showStack(k); showCrown(k); }
   }
 
   function chase(k, cam, dt) {
@@ -2678,6 +2898,7 @@
     }
     if (r.state === 'go') stepItems(dt);
     stepCoins(dt);
+    if (r.coinMode) stepLoose(dt);
 
     if (r.battle) {
       // places by pops (then balloons left); when the clock runs out, everyone stops and dances
@@ -2760,6 +2981,7 @@
     if (gp && r.from === 'gp') {
       r.results.forEach((x) => { x.pts = POINTS[x.place - 1] || 0; gp.points[x.ri] = (gp.points[x.ri] || 0) + x.pts; });
     }
+    if (r.coinMode) r.view.forEach((k) => { k.coins = k.score; });     // you keep your whole stack
     r.coinsWon = r.view.reduce((s, k) => s + k.coins, 0);
     save.coins += r.coinsWon;
     if (r.view.length === 1 && r.key) {
@@ -2782,6 +3004,7 @@
 
   // ---------- Menus: title, pick racers, pick a track, Grand Prix ----------
   let titleSel = 0, trackSel = 0, spin = 0, flow = 'race', pickIdx = 0, rowSel = 0, demoTrack = -1;
+  let battleKind = 'balloons';     // which battle: 'balloons' or 'coins' (same arenas)
 
   function trackList() {
     if (flow === 'battle') return ARENAS.map((def, i) => ({ def, key: '', order: 0, name: def.name }));
@@ -2806,15 +3029,17 @@
     demoTrack = (demoTrack + 1) % BUILTIN.length;
     startRace(BUILTIN[demoTrack], { demo: true });
   }
-  // 0 RACE!  1 GRAND PRIX  2 BATTLE  3 BUILD A TRACK  4 PLAYERS
+  // 0 RACE!  1 GRAND PRIX  2 BALLOON BATTLE  3 COIN BATTLE  4 BUILD A TRACK  5 PLAYERS
+  const TITLE_N = 6;
   function titleChoose(i) {
     titleSel = i;
-    if (i === 4) { save.players = save.players === 1 ? 2 : 1; writeSave(); sfxSelect(); return; }
+    if (i === 5) { save.players = save.players === 1 ? 2 : 1; writeSave(); sfxSelect(); return; }
     sfxOk();
-    if (i === 3) toBuild();
+    if (i === 4) toBuild();
     else {
       const was = flow;
-      flow = ['race', 'gp', 'battle'][i];
+      flow = ['race', 'gp', 'battle', 'battle'][i];
+      if (i >= 2) battleKind = i === 3 ? 'coins' : 'balloons';
       if ((was === 'battle') !== (flow === 'battle')) trackSel = 0;
       pickIdx = 0; toRacer();
     }
@@ -3162,7 +3387,7 @@
     sfxSelect();
   }
   function nav(dx, dy) {
-    if (mode === 'title') { titleSel = mod(titleSel + (dy || dx), 5); sfxSelect(); }
+    if (mode === 'title') { titleSel = mod(titleSel + (dy || dx), TITLE_N); sfxSelect(); }
     else if (mode === 'racer') {
       if (dy) { rowSel = mod(rowSel + dy, 3); sfxSelect(); } else cycleRow(dx);
     } else if (mode === 'track') {
@@ -3438,6 +3663,10 @@
       });
       hctx.fillStyle = 'rgba(255,255,255,0.45)';
       A.blocks.forEach((b) => { hctx.beginPath(); hctx.arc(cx + b.x * sc, cy + b.z * sc, Math.max(1.5, b.r * sc), 0, TAU); hctx.fill(); });
+      if (race && race.coinMode) {
+        hctx.fillStyle = '#ffd23f';
+        race.loose.forEach((c) => hctx.fillRect(cx + c.x * sc - 0.8, cy + c.z * sc - 0.8, 1.6, 1.6));
+      }
       karts.slice().sort((a, b) => (a.pi != null) - (b.pi != null)).forEach((k) => {
         if (k.crowned) { hctx.beginPath(); hctx.arc(cx + k.x * sc, cy + k.z * sc, 5.5, 0, TAU); hctx.lineWidth = 2; hctx.strokeStyle = '#ffd23f'; hctx.stroke(); }
         hctx.beginPath();
@@ -3526,11 +3755,12 @@
     text('KART 3D', W / 2, 70, 38, '#ff7a1e', 'center', '#120b28');
     // RACE! under the right thumb, the others under the left
     goBtn('RACE!', () => titleChoose(0), { go: titleSel === 0, color: '#ffe14f', px: 16 });
-    button('GRAND PRIX', 8, 164, 130, 28, () => titleChoose(1), { go: titleSel === 1, color: '#ff9a2e', px: 12 });
-    button('BALLOON BATTLE', 8, 198, 130, 28, () => titleChoose(2), { go: titleSel === 2, color: '#ff7ab8', px: 11 });
-    button('BUILD A TRACK', 8, 232, 130, 30, () => titleChoose(3), { go: titleSel === 3, color: '#5ff3ff', px: 12 });
-    button(save.players === 2 ? 'PLAYERS: 2 (SPLIT SCREEN)' : 'PLAYERS: 1', 148, 238, 188, 22, () => titleChoose(4),
-      { sel: titleSel === 4, color: '#8fe36b', px: 9 });
+    button('GRAND PRIX', 8, 126, 130, 26, () => titleChoose(1), { go: titleSel === 1, color: '#ff9a2e', px: 12 });
+    button('BALLOON BATTLE', 8, 160, 130, 26, () => titleChoose(2), { go: titleSel === 2, color: '#ff7ab8', px: 11 });
+    button('COIN BATTLE', 8, 194, 130, 26, () => titleChoose(3), { go: titleSel === 3, color: '#ffd23f', px: 11 });
+    button('BUILD A TRACK', 8, 230, 130, 30, () => titleChoose(4), { go: titleSel === 4, color: '#5ff3ff', px: 12 });
+    button(save.players === 2 ? 'PLAYERS: 2 (SPLIT SCREEN)' : 'PLAYERS: 1', 148, 238, 188, 22, () => titleChoose(5),
+      { sel: titleSel === 5, color: '#8fe36b', px: 9 });
     coinIcon(440, 16, 6);
     text(String(save.coins), 452, 16.5, 12, '#ffe14f', 'left', '#120b28');
     text('A MICKLEKIDS GAME', W / 2, 94, 8, '#ffffff', 'center', '#120b28');
@@ -3579,14 +3809,14 @@
   }
 
   function drawTrackPick() {
-    const list = trackList(), t = list[trackSel], battle = flow === 'battle';
-    text(battle ? 'BALLOON BATTLE: PICK AN ARENA' : 'PICK A TRACK', W / 2, 22, battle ? 15 : 18, battle ? '#ff7ab8' : '#ffe14f', 'center', '#120b28');
+    const list = trackList(), t = list[trackSel], battle = flow === 'battle', coins = battle && battleKind === 'coins';
+    text(battle ? (coins ? 'COIN' : 'BALLOON') + ' BATTLE: PICK AN ARENA' : 'PICK A TRACK', W / 2, 22, battle ? 15 : 18, coins ? '#ffd23f' : battle ? '#ff7ab8' : '#ffe14f', 'center', '#120b28');
     button('◀', 8, 108, 40, 48, () => nav(-1, 0), { px: 20 });
     button('▶', 432, 108, 40, 48, () => nav(1, 0), { px: 20 });
     panel(110, 176, 260, 50);
     text(t.name, W / 2, 190, 16, '#ffffff', 'center');
     const best = save.best[t.key], place = save.cups[t.key];
-    text(battle ? 'POP THE MOST BALLOONS IN ' + BATTLE_T / 60 + ' MINUTES!' : best ? 'BEST ' + fmtTime(best) : (THEMES[t.def.theme] || THEMES.meadow).name + ' · ' + LAPS + ' LAPS',
+    text(coins ? 'STACK UP THE MOST COINS IN ' + BATTLE_T / 60 + ' MINUTES!' : battle ? 'POP THE MOST BALLOONS IN ' + BATTLE_T / 60 + ' MINUTES!' : best ? 'BEST ' + fmtTime(best) : (THEMES[t.def.theme] || THEMES.meadow).name + ' · ' + LAPS + ' LAPS',
       W / 2, 212, battle ? 9 : 10, '#5ff3ff', 'center');
     if (place && place <= 3) drawCup(352, 194, 0.6, place);
     text((trackSel + 1) + ' / ' + list.length, W / 2, 166, 8, '#ffffff', 'center', '#120b28');
@@ -3620,7 +3850,12 @@
     const px = small ? lx + 20 : lx;
     text(ORD[k.place - 1], px, y0 + 18 * s + (small ? 0 : 2), 26 * s, k.place === 1 ? '#ffe14f' : '#ffffff', 'left', '#120b28');
     if (k.crowned) crownIcon(px + 66 * s, y0 + 16 * s + (small ? 0 : 2), 1.3 * s);
-    if (r.battle) {
+    if (r.coinMode) {
+      // the coins in your stack
+      const by = y0 + (small ? 32 : 48);
+      for (let c = 0; c < 3; c++) coinIcon(lx + 6, by + 4 - c * 3 * s, 6 * s + 1);
+      text('x ' + k.score, lx + 16 * s + 4, by, 15 * s + 2, '#ffe14f', 'left', '#120b28');
+    } else if (r.battle) {
       // the balloons you have left, and how many you've popped
       const by = y0 + (small ? 30 : 44), col = hex(kartColor(k.model));
       for (let b = 0; b < 3; b++) {
@@ -3631,8 +3866,10 @@
       }
       text('POPS ' + k.score, lx + 36 * s + 2, by, 10 * s + 1, '#ff9ad6', 'left', '#120b28');
     } else text('LAP ' + clamp(k.lap, 1, LAPS) + '/' + LAPS, lx, y0 + (small ? 30 : 44), 11 * s + (small ? 1 : 0), '#5ff3ff', 'left', '#120b28');
-    coinIcon(lx + 4, y0 + (small ? 43 : 60), 5 * s + 1);
-    text(String(k.coins), lx + 12, y0 + (small ? 43.5 : 60.5), 11 * s + 1, '#ffe14f', 'left', '#120b28');
+    if (!r.coinMode) {
+      coinIcon(lx + 4, y0 + (small ? 43 : 60), 5 * s + 1);
+      text(String(k.coins), lx + 12, y0 + (small ? 43.5 : 60.5), 11 * s + 1, '#ffe14f', 'left', '#120b28');
+    }
     // item box -- tap it to use the item
     const bs = 34 * s + (small ? 4 : 0), bx = x0 + w / 2 - bs / 2, by = y0 + 5;
     panel(bx, by, bs, bs, 'rgba(12,10,40,0.7)', k.item ? '#ffe14f' : '#5ff3ff');
@@ -3646,7 +3883,7 @@
     const cy = y0 + h * 0.4;
     if (r.state === 'count' && r.count < 3) {
       text(String(Math.max(1, Math.ceil(r.count))), x0 + w / 2, cy, 64 * s, '#ffe14f', 'center', '#120b28');
-      text(r.battle ? 'HIT THEM WITH ITEMS TO POP THEIR BALLOONS!' : 'PRESS HOP ON GO FOR A ROCKET START!', x0 + w / 2, cy + 40 * s, 9 * s + 1, '#ffffff', 'center', '#120b28');
+      text(r.coinMode ? 'DRIVE OVER COINS! HIT OTHERS TO KNOCK THEIRS OFF!' : r.battle ? 'HIT THEM WITH ITEMS TO POP THEIR BALLOONS!' : 'PRESS HOP ON GO FOR A ROCKET START!', x0 + w / 2, cy + 40 * s, 9 * s + 1, '#ffffff', 'center', '#120b28');
     } else if (k.wrongT > 0.7 && r.state === 'go' && !k.finished) {
       const T = world, turn = wrapAngle(Math.atan2(T.tx[k.idx], T.tz[k.idx]) - k.h);
       if (Math.floor(r.t * 4) % 2 === 0) text('WRONG WAY!', x0 + w / 2, cy, 30 * s, '#ff5c5c', 'center', '#120b28');
@@ -3743,7 +3980,7 @@
     panel(96, 8, 288, 218);
     const best = Math.min(...mine.map((x) => x.place));
     const title = isGp ? 'RACE ' + (gp.idx + 1) + ' OF ' + BUILTIN.length : r.battle && best === 1 ? (mine.length > 1 ? 'P' + (mine.find((x) => x.place === 1).pi + 1) + ' WINS!' : 'YOU WIN!')
-      : best <= 3 ? ORD[best - 1] + ' PLACE!' : r.battle ? 'GOOD POPPING!' : 'NICE DRIVING!';
+      : best <= 3 ? ORD[best - 1] + ' PLACE!' : r.coinMode ? 'GOOD STACKING!' : r.battle ? 'GOOD POPPING!' : 'NICE DRIVING!';
     text(title, W / 2, 26, 18, '#ffe14f', 'center');
     r.results.forEach((x, i) => {
       const y = 50 + i * 20;
@@ -3756,12 +3993,13 @@
       if (isGp) {
         text('+' + x.pts, 318, y, 10, '#8fe36b', 'right');
         text(String(gp.points[x.ri] || 0), 366, y, 10, '#5ff3ff', 'right');
-      } else if (r.battle) text(x.score + (x.score === 1 ? ' POP' : ' POPS'), 366, y, 10, '#ff9ad6', 'right');
+      } else if (r.coinMode) text(x.score + (x.score === 1 ? ' COIN' : ' COINS'), 366, y, 10, '#ffd23f', 'right');
+      else if (r.battle) text(x.score + (x.score === 1 ? ' POP' : ' POPS'), 366, y, 10, '#ff9ad6', 'right');
       else text(x.time ? fmtTime(x.time) : '', 366, y, 10, '#5ff3ff', 'right');
     });
     if (isGp) text('POINTS  TOTAL', 366, 38, 7, '#ffffff', 'right');
     let y = 176;
-    if (r.battle) { text('+1 COIN FOR EVERY POP', W / 2, y, 8, '#ffffff', 'center'); y += 12; }
+    if (r.battle) { text(r.coinMode ? 'YOU KEEP EVERY COIN IN YOUR STACK!' : '+1 COIN FOR EVERY POP', W / 2, y, 8, '#ffffff', 'center'); y += 12; }
     if (r.newBest) { text('NEW BEST TIME!', W / 2, y, 10, '#8fe36b', 'center'); y += 14; }
     if (r.coinsWon) {
       coinIcon(W / 2 - 52, y, 5);
