@@ -736,7 +736,7 @@
       if (gameFrame) return;
       gameFrame = document.createElement('iframe');
       gameFrame.className = 'game-frame';
-      gameFrame.allow = 'fullscreen; gamepad; autoplay';
+      gameFrame.allow = 'fullscreen; gamepad; autoplay; camera; microphone';
       gameFrame.setAttribute('allowfullscreen', '');
       gameFrame.title = 'Game';
       gameFrame.src = url;
