@@ -643,6 +643,23 @@
 
   // ---------------------------------------------------------------- video elements (one per clip)
   var els = new Map();   // clip id -> { el, media, loaded, tex, node, gain, used }
+  // While a video plays, currentTime runs ahead of the frame actually on show (the decoder works
+  // ahead -- by 0.1 s or more on phones). The picture we draw is the frame on show, so anything
+  // matched to it (the cut-out masks) must use that frame's own time, which
+  // requestVideoFrameCallback reports.
+  function watchFrames(e) {
+    if (!e.el.requestVideoFrameCallback) return;
+    var cb = function (now, meta) {
+      e.frameTime = meta.mediaTime; e.frameAt = performance.now();
+      e.el.requestVideoFrameCallback(cb);
+    };
+    e.el.requestVideoFrameCallback(cb);
+  }
+  function shownTime(e) {
+    var el = e.el;
+    if (playing && !el.paused && e.frameTime != null && performance.now() - e.frameAt < 300) return e.frameTime;
+    return el.currentTime;
+  }
   function getEl(clip) {
     var e = els.get(clip.id);
     if (!e) {
@@ -654,6 +671,7 @@
       el.addEventListener('loadeddata', function () { dirty = true; });
       els.set(clip.id, e);
       connectAudio(e);
+      watchFrames(e);
     }
     if (!e.loaded && rt[clip.media]) { e.el.src = rt[clip.media].url; e.loaded = true; e.hasFrame = false; }
     e.used = performance.now();
@@ -707,7 +725,12 @@
       setVol(e, a.clip.vol == null ? 1 : a.clip.vol);
       if (el.readyState < 1) continue;
       if (playing) {
-        if (!el.seeking && Math.abs(el.currentTime - a.src) > 0.3) el.currentTime = a.src;
+        // pull a drifting clip back into line -- but at most once a second: on a slow phone,
+        // correcting again before the last seek settled made a stutter loop
+        var nowMs = performance.now();
+        if (!el.seeking && Math.abs(el.currentTime - a.src) > 0.35 && nowMs - (e.lastSeek || 0) > 1000) {
+          el.currentTime = a.src; e.lastSeek = nowMs;
+        }
         if (el.paused) { var p = el.play(); if (p && p.catch) p.catch(function () {}); }
       } else {
         if (!el.paused) el.pause();
@@ -1033,7 +1056,7 @@
   function maskFor(a, src) {
     if (!seg.tool) return null;
     var e = a.e;
-    var frameKey = e ? e.el.currentTime.toFixed(3) : 'still';
+    var frameKey = e ? shownTime(e).toFixed(3) : 'still';
     var mc = segCache.get(a.clip.id);
     if (!mc) { mc = { key: '', tex: newTex(), data: null, w: 0, h: 0 }; segCache.set(a.clip.id, mc); }
     if (mc.key === frameKey) return mc;
@@ -1041,7 +1064,7 @@
     if (e) {
       var store = prepCutOut(mediaById(a.clip.media));
       if (store && store.masks.length) {
-        var mi = nearestMask(store, e.el.currentTime);
+        var mi = nearestMask(store, shownTime(e));
         if (mi >= 0) {
           if (mc.bufIdx !== mi || mc.w !== store.w) {
             gl.bindTexture(gl.TEXTURE_2D, mc.tex);
@@ -2072,16 +2095,34 @@
 
   // ---------------------------------------------------------------- transport
   var lastNow = 0, stallFor = 0;
-  function togglePlay() { if (playing) stopPlay(); else startPlay(); }
+  function togglePlay() { if (playing || cutWait) stopPlay(); else startPlay(); }
   function startPlay() {
     var T = total();
     if (T <= 0) { toast('ADD SOMETHING TO PLAY'); return; }
     ensureAudio();
     if (playT >= T - 0.05) playT = 0;
+    // a cut-out still buffering would stutter: wait for it, like a video site does
+    if (!exporting && cutPending() != null) { waitForCut(); return; }
     playing = true; lastNow = performance.now(); stallFor = 0;
     updateButtons();
   }
+  var cutWait = 0;
+  function waitForCut() {
+    clearInterval(cutWait);
+    $('#playLbl').textContent = 'WAIT';
+    cutWait = setInterval(function () {
+      var p = cutPending();
+      if (p == null) {
+        clearInterval(cutWait); cutWait = 0;
+        toast('READY!', 1200);
+        startPlay();
+        return;
+      }
+      toast('GETTING CUT OUT READY... ' + Math.round(p * 100) + '%', 2000);
+    }, 250);
+  }
   function stopPlay() {
+    if (cutWait) { clearInterval(cutWait); cutWait = 0; toast('STOPPED', 1000); }
     playing = false;
     els.forEach(function (e) { if (!e.el.paused) e.el.pause(); });
     dirty = true; tlDirty = true;
@@ -2092,6 +2133,11 @@
     // the MOVIE video under the playhead is the clock; photos and gaps use the wall clock
     var act = activeAt(playT), mainA = null;
     for (var i = 0; i < act.length; i++) if (act[i].layer === 'main') mainA = act[i];
+    // no video in the MOVIE row (a photo or fun background)? then a video ON TOP is the clock, so
+    // it plays straight through instead of being pulled back into line by the wall clock
+    if (!mainA || !isVideoClip(mainA.clip)) {
+      for (var j = 0; j < act.length; j++) if (act[j].layer === 'top' && isVideoClip(act[j].clip)) { mainA = act[j]; break; }
+    }
     var advanced = false;
     if (mainA && isVideoClip(mainA.clip)) {
       var e = els.get(mainA.clip.id);
@@ -2118,7 +2164,7 @@
 
   function updateButtons() {
     var it = findItem(sel);
-    $('#playLbl').textContent = playing ? 'PAUSE' : 'PLAY';
+    $('#playLbl').textContent = playing ? 'PAUSE' : cutWait ? 'WAIT' : 'PLAY';
     $('#playIcon').innerHTML = playing ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M7 4l14 8-14 8z"/>';
     $('#delBtn').disabled = !it;
     $('#undoBtn').disabled = !undoStack.length;
@@ -2538,6 +2584,7 @@
     split: splitAtPlayhead, addText: addText, play: startPlay, stop: stopPlay, total: total,
     exportMovie: startExport, els: els, gl: !!gl,
     render: function (t) { renderFrame(t == null ? playT : t, false); },
-    cutStore: function (mediaId) { return maskStore[mediaId]; }, pickKeyAt: pickKeyAt, toOut: toOut, lastBoxes: function () { return lastBoxes; }
+    cutStore: function (mediaId) { return maskStore[mediaId]; },
+    tick: function (dt) { if (playing) step(dt); renderFrame(playT, false); },   // when the page isn't painting pickKeyAt: pickKeyAt, toOut: toOut, lastBoxes: function () { return lastBoxes; }
   };
 })();
