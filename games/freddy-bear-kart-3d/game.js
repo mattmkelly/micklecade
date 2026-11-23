@@ -123,6 +123,9 @@
   const sfxSpin   = () => { sweep(600, 200, 0.4, 'triangle', 0.1); sweep(650, 240, 0.4, 'triangle', 0.06, 0.08); };
   const sfxCount  = (go) => beep(go ? 880 : 440, go ? 0.4 : 0.15, 'square', 0.1);
   const sfxRocket = () => { sweep(300, 1600, 0.5, 'sawtooth', 0.07); beep(1047, 0.2, 'square', 0.06, 0.1); };
+  const sfxBounce = () => { sweep(180, 900, 0.32, 'sine', 0.14); sweep(360, 1400, 0.25, 'triangle', 0.05, 0.05); };
+  const sfxPortal = () => { sweep(1500, 200, 0.35, 'sine', 0.1); sweep(200, 1500, 0.35, 'sine', 0.08, 0.2); };
+  const sfxCannon = () => { sweep(160, 35, 0.55, 'sawtooth', 0.16); sweep(900, 300, 0.4, 'triangle', 0.05, 0.1); };
   const sfxLap    = () => { beep(784, 0.1, 'square', 0.08); beep(1047, 0.16, 'square', 0.08, 0.1); };
   const sfxFinish = () => [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.18, 'square', 0.09, i * 0.11));
   const sfxUnlock = () => [659, 784, 988, 1319, 1568].forEach((f, i) => beep(f, 0.14, 'triangle', 0.1, i * 0.09));
@@ -313,6 +316,44 @@
       g.moveTo(i * 16, h); g.lineTo(i * 16 + 8, h); g.lineTo(i * 16 + 24, 0); g.lineTo(i * 16 + 16, 0);
       g.fill();
     }
+  });
+  // bounce pad: a pink trampoline with yellow spots
+  const bounceTex = canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = '#ff5ca8'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#fff36b';
+    [[16, 16], [48, 16], [32, 32], [16, 48], [48, 48]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 7, 0, TAU); g.fill(); });
+    g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4);
+  }, true);
+  // a swirl for the portals (drawn white, tinted by the material)
+  const swirlTex = canvasTex(128, 128, (g, w, h) => {
+    const grad = g.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(1, 'rgba(255,255,255,0.35)');
+    g.fillStyle = grad; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 5; g.lineCap = 'round';
+    for (let arm = 0; arm < 3; arm++) {
+      g.beginPath();
+      for (let t = 0; t < 1; t += 0.02) {
+        const a = arm * TAU / 3 + t * 5, r = t * w / 2;
+        const x = w / 2 + Math.cos(a) * r, y = h / 2 + Math.sin(a) * r;
+        if (t) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.stroke();
+    }
+  });
+  // the cannon's launch pad (red with black arrows) and the landing target
+  const cannonTex = canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = '#e0453a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#1c1c22';
+    for (let y = 0; y < 2; y++) {
+      g.beginPath(); g.moveTo(10, 30 + y * 32); g.lineTo(32, 6 + y * 32); g.lineTo(54, 30 + y * 32); g.lineTo(44, 30 + y * 32);
+      g.lineTo(32, 18 + y * 32); g.lineTo(20, 30 + y * 32); g.fill();
+    }
+  }, true);
+  const targetTex = canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = '#565c68'; g.fillRect(0, 0, w, h);
+    ['#ffffff', '#e0453a', '#ffffff', '#e0453a'].forEach((c, i) => {
+      g.beginPath(); g.arc(w / 2, h / 2, 31 - i * 8, 0, TAU); g.fillStyle = c; g.fill();
+    });
   });
   const boxTex = canvasTex(64, 64, (g, w, h) => {
     const grad = g.createLinearGradient(0, 0, w, h);
@@ -757,6 +798,7 @@
   const FENCE = ROAD + 9;     // the low fence / hedge each side
   const LAPS = 3;
   const RAMP_W = 8, RAMP_L = 3.2, RAMP_H = 1.4;
+  const WALL_PHI = 1.36;      // how far an anti-gravity wall twists the road up (about 78 degrees)
   const TUNNEL_LIM = EDGE - 0.6;   // how far from the middle a kart can get inside a tunnel
 
   // a start square and a string of moves (Right / Left / Up / Down) that comes back to it
@@ -836,6 +878,14 @@
   const mudMat = new THREE.MeshLambertMaterial({ map: mudTex, side: THREE.DoubleSide });
   const iceMat = new THREE.MeshLambertMaterial({ map: iceTex, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
   const brickMat = new THREE.MeshLambertMaterial({ map: brickTex, side: THREE.DoubleSide });
+  const bounceMat = new THREE.MeshLambertMaterial({ map: bounceTex, side: THREE.DoubleSide });
+  const cannonPadMat = new THREE.MeshBasicMaterial({ map: cannonTex, side: THREE.DoubleSide });
+  const targetMat = new THREE.MeshBasicMaterial({ map: targetTex, side: THREE.DoubleSide, transparent: true });
+  swirlTex.center.set(0.5, 0.5);
+  // portals come in pairs: in through a blue one, out of the orange one after it
+  const PORTAL_COL = [0x4fb8ff, 0xff9a2e];
+  const swirlMat = PORTAL_COL.map((c) => new THREE.MeshBasicMaterial({ map: swirlTex, color: c, side: THREE.DoubleSide,
+    transparent: true, opacity: 0.75, depthWrite: false }));
   const stoneMat = lam(0x9a9aa6);
   const fenceMat = new THREE.MeshLambertMaterial({ map: fenceTex, side: THREE.DoubleSide });
   const lollyMat = new THREE.MeshLambertMaterial({ map: lollyTex });
@@ -1413,6 +1463,43 @@
       }
     });
 
+    // Anti-gravity walls: along a run of wall squares the road twists up on its side (turning
+    // about its other edge) until it is nearly upright, then twists back down at the end. Karts
+    // keep driving on the flat road "inside" it; only what you see is twisted up the wall.
+    const tilt = new Float32Array(N), tside = new Int8Array(N);
+    {
+      const keys = Object.keys(def.extras || {}).map(Number).filter((i) => /^wall[LR]$/.test(def.extras[i]) && i !== startAt && !isCross(def, i))
+        .sort((a, b) => a - b);
+      const n = def.cells.length, h = Math.round(CELL * 0.45 / SP), e = Math.round(10 / SP), Rl = Math.max(1, Math.round(26 / SP));
+      keys.forEach((i) => {
+        const kind = def.extras[i];
+        if (def.extras[mod(i - 1, n)] === kind && keys.includes(mod(i - 1, n))) return;   // not the start of a run
+        let last = i;
+        while (def.extras[(last + 1) % n] === kind && keys.includes((last + 1) % n) && (last + 1) % n !== i) last = (last + 1) % n;
+        const sA = spotOf(def.cells[i]), span = mod(spotOf(def.cells[last]) - sA, N);
+        const from = sA - h - e, count = span + 2 * (h + e), w = kind === 'wallL' ? -1 : 1;
+        for (let o = 0; o <= count; o++) {
+          const j = mod(from + o, N);
+          const f = WALL_PHI * smooth(Math.min(o, count - o) / Rl);
+          if (f > tilt[j]) { tilt[j] = f; tside[j] = w; }
+        }
+      });
+      for (let j = 0; j < N; j++) {
+        if (!tilt[j]) continue;
+        tilt[j] *= smooth((Math.min(j, N - j) * SP - 30) / 24);     // the start line stays flat
+        bank[j] *= Math.max(0, 1 - 3 * tilt[j] / WALL_PHI);
+        if (tilt[j] > 0.05) wall[j] = Math.min(wall[j], ROAD - 1.2);
+        if (tilt[j] < 1e-3) tilt[j] = 0;
+      }
+    }
+    // where a point `lat` across the road ends up sideways once the road is twisted up a wall
+    const tiltLat = (i, lat) => {
+      const f = tilt[i];
+      if (!f) return lat;
+      const p = -tside[i] * ROAD, l = clamp(lat, -EDGE, EDGE);
+      return p + (l - p) * Math.cos(f) + (lat - l);
+    };
+
     // Height of the road surface. Banking lifts the outside of a bend (the inside edge stays
     // down on the ground); past the curbs it eases back down to the grass.
     const surf = (i, lat, ramp) => {
@@ -1421,6 +1508,7 @@
       const out = Math.abs(lat) - EDGE;
       if (out > 0 && !rail[i]) y += (hy[i] - y) * Math.min(1, out / 5);
       if (ramp && rampArr[i] && Math.abs(lat) <= RAMP_W) y += rampArr[i];
+      if (tilt[i]) y += (l + tside[i] * ROAD) * tside[i] * Math.sin(tilt[i]);
       return y;
     };
     // Height of the grass anywhere: follows the nearest road (not the bridges), and levels out far away.
@@ -1439,7 +1527,7 @@
       return sh / sw * (1 - k) + low * k - DROP;
     };
     const T = { def, sig, N, len, SP, px, pz, tx, tz, nx, nz, curv, bank, hy, rail, guard, open: !!th.space, fenceL, fenceR, surf, groundY,
-                pads: [], boxes: [], zones: [], coins: [], coinMesh: null, startAt, wall };
+                pads: [], boxes: [], zones: [], coins: [], coinMesh: null, startAt, wall, portals: [], cannons: [], tilt, tside, tiltLat };
 
     ground.position.y = low - DROP - (amp ? 1.2 : 0);
     if (amp && !th.space) {
@@ -1468,7 +1556,8 @@
       const reps = tile ? Math.max(1, Math.round(len / tile)) : 0;
       for (let i = 0; i <= count; i++) {
         const j = mod(from + i, N);
-        pos.push(px[j] + nx[j] * latA, yA(j), pz[j] + nz[j] * latA, px[j] + nx[j] * latB, yB(j), pz[j] + nz[j] * latB);
+        const la = tiltLat(j, latA), lb = tiltLat(j, latB);
+        pos.push(px[j] + nx[j] * la, yA(j), pz[j] + nz[j] * la, px[j] + nx[j] * lb, yB(j), pz[j] + nz[j] * lb);
         const v = tile ? i / N * reps : i / count;
         uv.push(0, v, 1, v);
         if (i < count) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
@@ -1517,7 +1606,7 @@
     function fence(side, lats) {
       const ok = new Uint8Array(N);
       for (let j = 0; j < N; j++) {
-        if (rail[j]) continue;
+        if (rail[j] || tilt[j]) continue;
         const x = px[j] + nx[j] * side * lats[j], z = pz[j] + nz[j] * side * lats[j];
         let free = true;
         for (let i = 0; i < N; i += 2) {
@@ -1552,7 +1641,8 @@
     if (!th.space) { fence(-1, fenceL); fence(1, fenceR); }
 
     function place(obj, i, lat, lift) {
-      obj.position.set(px[i] + nx[i] * lat, surf(i, lat) + lift, pz[i] + nz[i] * lat);
+      const tl = tiltLat(i, lat);
+      obj.position.set(px[i] + nx[i] * tl, surf(i, lat) + lift, pz[i] + nz[i] * tl);
       obj.rotation.y = headingAt(i);
       trackGroup.add(obj);
       return obj;
@@ -1617,8 +1707,51 @@
       }
     });
 
+    // bounce pads, portals and cannons
+    const archAt = (j, mat, ringCol) => {
+      const R = EDGE + 1.6;
+      const ring = place(new THREE.Mesh(new THREE.TorusGeometry(R, 1.1, 6, 18, PI), lamC(ringCol)), j, 0, -0.4);
+      ring.scale.y = 0.85;
+      const disc = place(new THREE.Mesh(new THREE.CircleGeometry(R - 0.6, 20, 0, PI), mat), j, 0, -0.4);
+      disc.scale.y = 0.85;
+    };
+    extras.forEach(({ kind, spot }) => {
+      if (kind === 'bounce') {
+        const half = 3;
+        ribbon(-ROAD + 0.5, ROAD - 0.5, at(-ROAD + 0.5, 0.25), at(ROAD - 0.5, 0.25), 0, bounceMat, spot - half, half * 2);
+        // a rim round it, and springs at the corners
+        ribbon(-ROAD, -ROAD, at(-ROAD, 0), at(-ROAD, 0.6), 0, curbMat, spot - half, half * 2);
+        ribbon(ROAD, ROAD, at(ROAD, 0), at(ROAD, 0.6), 0, curbMat, spot - half, half * 2);
+        T.pads.push({ idx: spot, kind, reach: half });
+      } else if (kind === 'cannon') {
+        const to = mod(spot + Math.round(3 * CELL / SP), N);
+        ribbon(-ROAD, ROAD, at(-ROAD, 0.1), at(ROAD, 0.1), 0, cannonPadMat, spot - 3, 6);
+        // a big black cannon beside the road, pointing up the road
+        [-1, 1].forEach((side) => {
+          const g = new THREE.Group();
+          part(g, GEO.cyl, MAT.black, 0, 4.2, 0.6, 2, 7.5, 2).rotation.x = PI / 2 - 0.6;
+          part(g, GEO.cyl, MAT.black, 0, 6.4, 3.8, 2.5, 0.8, 2.5).rotation.x = PI / 2 - 0.6;
+          part(g, GEO.box, lamC(0x8a5a3a), 0, 1.4, 0, 3.4, 2.4, 4.4);
+          [-1.9, 1.9].forEach((x) => part(g, GEO.wheel, lamC(0x6b4626), x, 1.8, 0, 5, 5, 5));
+          place(g, spot, side * (EDGE + 4.5), 0);
+        });
+        ribbon(-8, 8, at(-8, 0.12), at(8, 0.12), 0, targetMat, to - 4, 8);
+        T.cannons.push({ idx: spot, to });
+      }
+    });
+    const portalSpots = extras.filter((e) => e.kind === 'portal').map((e) => e.spot).sort((a, b) => a - b);
+    for (let p = 0; p + 1 < portalSpots.length; p += 2) {
+      const a = portalSpots[p], b = portalSpots[p + 1];
+      archAt(a, swirlMat[0], PORTAL_COL[0]);
+      archAt(b, swirlMat[1], PORTAL_COL[1]);
+      T.portals.push({ idx: a, to: b });
+    }
+
     // golden koala coins: a line every so often, plus the builder's coin squares
     const coinBlocked = (j) => j < 40 / SP || j > N - 25 / SP || ramps.some((r) => near(j, r) < 14) ||
+      tilt[j] || tilt[mod(j + 7, N)] || tilt[mod(j - 7, N)] ||
+      T.cannons.some((c) => mod(j - c.idx + 6, N) < mod(c.to - c.idx, N) + 12) ||
+      T.portals.some((p) => near(j, p.idx) < 6 || near(j, p.to) < 6) ||
       T.pads.some((p) => near(j, p.idx) < 8) || T.boxes.length && extras.some((e) => e.kind === 'items' && near(j, e.spot) < 10);
     const addLine = (j0, lat) => {
       for (let c = -2; c <= 2; c++) {
@@ -2443,11 +2576,81 @@
     if (k.rescue <= 0) { k.rescue = 0; k.ay = k.gy; k.air = false; k.safe = T.arena ? 2 : 1.2; }
   }
 
+  // Shot out of a cannon: fly in a big arc along the road (so you always land on it) and come
+  // down on the target a few squares on, with a boost.
+  const FLY_T = 1.5, FLY_H = 16;
+  function launch(k, c) {
+    const T = world;
+    k.fly = { a: k.idx, b: k.idx + mod(c.to - k.idx, T.N), t: 0, lat: k.lat, y0: k.ay };
+    k.air = true; k.airT = 0; k.vy = 0; k.drift = 0; k.hopping = false; k.spin = 0;
+    k.v = Math.max(k.v, race.top * 0.9);
+    if (nearView(k)) burst(k.x, k.ay + 1, k.z, [0x444444, 0x888888, 0xffb02e], 14, { spread: 6, up: 6, life: 0.6, size: 0.6 });
+    if (k.pi != null) { sfxCannon(); say(k, 'BOOM!', 1.2); }
+  }
+  function stepFly(k, dt) {
+    const T = world, f = k.fly, lapBefore = k.lap;
+    f.t = Math.min(1, f.t + dt / FLY_T);
+    const u = f.t, s = f.a + (f.b - f.a) * u, j = Math.floor(s), fr = s - j;
+    const i0 = mod(j, T.N), i1 = mod(j + 1, T.N), lat = f.lat * (1 - u);
+    if (i0 < k.idx - T.N / 2) k.lap++;
+    k.idx = i0; k.lat = lat;
+    k.x = T.px[i0] + (T.px[i1] - T.px[i0]) * fr + T.nx[i0] * lat;
+    k.z = T.pz[i0] + (T.pz[i1] - T.pz[i0]) * fr + T.nz[i0] * lat;
+    k.h = k.md = Math.atan2(T.tx[i0], T.tz[i0]);
+    k.gy = T.surf(i0, lat, true);
+    k.ay = f.y0 + (T.surf(mod(Math.round(f.b), T.N), 0, true) - f.y0) * u + 4 * FLY_H * u * (1 - u);
+    k.prog = k.lap * T.N + k.idx;
+    k.safe = Math.max(k.safe, 0.4);
+    k.boost = Math.max(0, k.boost - dt);
+    if (u >= 1) {
+      k.fly = null;
+      locate(k);
+      k.ay = k.gy; k.air = false; k.vy = 0; k.airT = 0;
+      k.boost = Math.max(k.boost, 0.9);
+      if (k.pi != null) { queued[k.pi].hop = false; sfxMini(true); }
+      if (nearView(k)) burst(k.x, k.ay + 0.3, k.z, (THEMES[T.def.theme] || THEMES.meadow).dust, 12, { spread: 6, up: 3, life: 0.5, size: 0.5 });
+    }
+    lapAndFinish(k, lapBefore);
+  }
+  // portals: in through the blue one, out of the orange one (always further on round the loop)
+  function warp(k, p) {
+    const T = world, rel = wrapAngle(k.h - Math.atan2(T.tx[k.idx], T.tz[k.idx]));
+    if (nearView(k)) burst(k.x, k.ay + 2, k.z, [0x4fb8ff, 0xffffff], 12, { spread: 4, up: 4, life: 0.5, size: 0.4 });
+    const j = mod(p.to + 2, T.N), oldH = k.h;
+    if (j < k.idx) k.lap++;
+    const lift = k.ay - k.gy;
+    k.idx = j;
+    k.x = T.px[j] + T.nx[j] * k.lat; k.z = T.pz[j] + T.nz[j] * k.lat;
+    k.h = Math.atan2(T.tx[j], T.tz[j]) + rel;
+    k.md += k.h - oldH;
+    k.cam.h += k.h - oldH;
+    locate(k);
+    k.ay = k.gy + Math.max(0, lift);
+    k.warpT = 0.6;
+    if (nearView(k)) burst(k.x, k.ay + 2, k.z, [0xff9a2e, 0xffffff], 12, { spread: 4, up: 4, life: 0.5, size: 0.4 });
+    if (k.pi != null) { sfxPortal(); say(k, 'WHOOSH!', 1); }
+  }
+  function lapAndFinish(k, lapBefore) {
+    const r = race;
+    if (k.pi != null && !k.finished && r.state === 'go' && k.lap > lapBefore && k.lap >= 2 && k.lap <= LAPS) {
+      sfxLap();
+      say(k, k.lap === LAPS ? 'LAST LAP!' : 'LAP ' + k.lap, 1.8);
+    }
+    if (!k.finished && !r.demo && k.lap > LAPS) {
+      k.finished = true;
+      k.finishT = r.t;
+      k.place = ++r.finishCount;
+      k.drift = 0;
+      if (k.pi != null) humanFinished(k);
+    }
+  }
+
   function stepKart(k, dt) {
     const T = world, r = race;
     const human = k.pi != null && !k.finished;
     if (k.outT > 0) { k.outT -= dt; if (k.outT <= 0) startRescue(k); }   // out of balloons: Puff is coming
     if (k.rescue > 0) { stepRescue(k, dt); return; }
+    if (k.fly) { stepFly(k, dt); return; }
     let inp;
     if (r.state === 'count') {
       inp = { steer: 0, brake: true };
@@ -2525,6 +2728,14 @@
     k.safe = Math.max(0, k.safe - dt);
     k.shield = Math.max(0, k.shield - dt);
     k.tiny = Math.max(0, k.tiny - dt);
+    k.warpT = Math.max(0, (k.warpT || 0) - dt);
+    if (k.air && k.bounced && !T.arena) {
+      // up off a bounce pad: the road's bend turns you with it and you drift back toward the middle
+      k.h += T.curv[k.idx] * k.v * dt;
+      k.md += T.curv[k.idx] * k.v * dt;
+      const pull = clamp(k.lat, -6, 6) * 1.2 * dt;
+      k.x -= T.nx[k.idx] * pull; k.z -= T.nz[k.idx] * pull;
+    }
 
     const lapBefore = k.lap;
     locate(k);
@@ -2541,7 +2752,7 @@
     // up and down: follow the road, fly off the end of a ramp, land again
     if (!k.air) {
       const pred = k.ay + k.vy * dt;
-      if (k.vy > 2.5 && pred > k.gy + 0.12 && !T.arena) { k.air = true; k.ay = pred; k.airT = 0; }   // (arena ramps lead onto decks, not into the sky)
+      if (k.vy > 2.5 && pred > k.gy + 0.12 && !T.arena && !(T.tilt && (T.tilt[k.idx] || T.tilt[mod(k.idx - 3, T.N)]))) { k.air = true; k.ay = pred; k.airT = 0; }   // (arena ramps lead onto decks, not into the sky)
       else { k.vy = clamp((k.gy - k.ay) / dt, -30, 30); k.ay = k.gy; }
     }
     if (k.air) {
@@ -2550,7 +2761,7 @@
       k.ay += k.vy * dt;
       if (k.ay <= k.gy) {
         const big = k.airT > 0.45, hard = k.vy < -7;
-        k.ay = k.gy; k.air = false; k.vy = 0; k.airT = 0;
+        k.ay = k.gy; k.air = false; k.vy = 0; k.airT = 0; k.bounced = false;
         if (hard && nearView(k)) burst(k.x, k.ay + 0.3, k.z, (THEMES[T.def.theme] || THEMES.meadow).dust, 10, { spread: 5, up: 3, life: 0.5, size: 0.4 });
         if (big && !k.hopping) { k.boost = Math.max(k.boost, 0.5); if (k.pi != null) sfxMini(false); }   // a little reward for big air
       }
@@ -2559,9 +2770,31 @@
     if (r.state !== 'count' && !k.air) {
       // boost pads
       for (const p of T.pads) {
-        if (Math.abs(mod(k.idx - p.idx + T.N / 2, T.N) - T.N / 2) > p.reach || Math.abs(k.lat) > 8.2) continue;
+        if (Math.abs(mod(k.idx - p.idx + T.N / 2, T.N) - T.N / 2) > p.reach) continue;
+        if (p.kind === 'bounce') {
+          // a trampoline: up you go (and the road's bends carry you round while you're up there)
+          if (Math.abs(k.lat) > ROAD || k.air) continue;
+          k.air = true; k.airT = 0; k.vy = 13; k.bounced = true; k.hopping = false; k.drift = 0;
+          if (k.pi != null) sfxBounce();
+          if (nearView(k)) burst(k.x, k.ay + 0.4, k.z, [0xff5ca8, 0xfff36b], 8, { spread: 4, up: 3, life: 0.4, size: 0.35 });
+          continue;
+        }
+        if (Math.abs(k.lat) > 8.2) continue;
         if (k.boost < 0.8 && k.pi != null) sfxBoost();
         k.boost = Math.max(k.boost, 1.2);
+      }
+      // cannons
+      for (const c of T.cannons || []) {
+        if (Math.abs(mod(k.idx - c.idx + T.N / 2, T.N) - T.N / 2) > 2 || Math.abs(k.lat) > ROAD + 0.5) continue;
+        launch(k, c);
+        return;
+      }
+    }
+    if (r.state !== 'count' && !(k.warpT > 0)) {
+      for (const p of T.portals || []) {
+        if (Math.abs(mod(k.idx - p.idx + T.N / 2, T.N) - T.N / 2) > 1 || Math.abs(k.lat) > EDGE + 1) continue;
+        warp(k, p);
+        break;
       }
     }
     if (r.state !== 'count') {
@@ -2601,18 +2834,8 @@
         k.offT = !k.air && Math.abs(k.lat) > ROAD + 4 ? k.offT + dt : 0;
         if (k.wrongT > 3.5 || k.offT > 5) startRescue(k);
       }
-      if (k.lap > lapBefore && k.lap >= 2 && k.lap <= LAPS) {
-        sfxLap();
-        say(k, k.lap === LAPS ? 'LAST LAP!' : 'LAP ' + k.lap, 1.8);
-      }
     }
-    if (!k.finished && !r.demo && k.lap > LAPS) {
-      k.finished = true;
-      k.finishT = r.t;
-      k.place = ++r.finishCount;
-      k.drift = 0;
-      if (k.pi != null) humanFinished(k);
-    }
+    lapAndFinish(k, lapBefore);
 
     k.pt += dt;
     if (k.pt > (FAST ? 0.07 : 0.035)) { k.pt = 0; if (nearView(k)) trail(k); }
@@ -2627,7 +2850,8 @@
   function trail(k) {
     const th = THEMES[world.def.theme] || THEMES.meadow;
     const fx = Math.sin(k.h), fz = Math.cos(k.h), rx = -fz, rz = fx;
-    const bx = k.x - fx * 1.6, bz = k.z - fz * 1.6, y = k.ay + 0.3;
+    const wd = k.wd || [0, 0, 0];
+    const bx = k.x - fx * 1.6 + wd[0], bz = k.z - fz * 1.6 + wd[2], y = k.ay + 0.3 + wd[1];
     if (!k.air && k.v > 8) {
       if (Math.abs(k.lat) > ROAD + 1.2) emit(bx, y, bz, th.dust[Math.random() < 0.5 ? 0 : 1], { spread: 1.5, up: 3, life: 0.5, size: 0.45 });
       if (k.zone === 'mud') emit(bx, y, bz, Math.random() < 0.5 ? 0x6b4626 : 0x835a33, { spread: 2.5, up: 5, life: 0.5, size: 0.4 });
@@ -2788,15 +3012,30 @@
       b.mesh.rotation.x += dt * 0.9;
     }
     boostTex.offset.y = (boostTex.offset.y + dt * 1.5) % 1;
+    swirlTex.rotation = (swirlTex.rotation - dt * 2.5) % TAU;
   }
 
+  // On an anti-gravity wall: where the kart (on the flat road inside the game) shows up on the
+  // twisted-up road, `up` above the surface. Fills k.wd = [dx, dy, dz] (shown minus real) and
+  // returns the road's sideways tilt there (0 off the walls).
+  function wallShift(k, up) {
+    const T = world, i = k.idx, f = T.tilt ? T.tilt[i] : 0;
+    if (!f) { k.wd[0] = k.wd[1] = k.wd[2] = 0; return 0; }
+    const w = T.tside[i], side = T.tiltLat(i, k.lat) - k.lat - w * Math.sin(f) * up;
+    k.wd[0] = T.nx[i] * side; k.wd[2] = T.nz[i] * side;
+    k.wd[1] = (Math.cos(f) - 1) * up;
+    return f;
+  }
   function showKart(k, dt) {
     const m = k.model, T = world, i = k.idx;
+    if (!k.wd) k.wd = [0, 0, 0];
+    const wf = T.arena || k.gy < -500 ? 0 : wallShift(k, Math.max(0, k.ay - k.gy));
     // lean with the hill and the banking (only while pointing along the road)
     const along = Math.sin(k.h) * T.tx[i] + Math.cos(k.h) * T.tz[i];
     const on = k.air ? 0.3 : clamp((ROAD + 6 - Math.abs(k.lat)) / 5, 0, 1);
     let pitch = Math.atan((T.hy[(i + 2) % T.N] - T.hy[mod(i - 2, T.N)]) / (4 * T.SP)) * along;
     let roll = T.bank[i] * along * on;
+    if (wf) roll += -T.tside[i] * wf * clamp(along * 2, -1, 1);
     if (T.arena && !k.air) {
       const A = T.arena, Hf = (x, z) => arenaFloor(A, x, z, k.ay + 0.5), fx = Math.sin(k.h), fz = Math.cos(k.h);
       pitch = Math.atan((Hf(k.x + fx * 1.5, k.z + fz * 1.5) - Hf(k.x - fx * 1.5, k.z - fz * 1.5)) / 3);
@@ -2804,7 +3043,7 @@
     }
     k.dv += ((k.drift ? -k.drift * 0.38 : 0) - k.dv) * Math.min(1, dt * 8);
     k.tinyS += ((k.tiny > 0 ? 0.55 : 1) - k.tinyS) * Math.min(1, dt * 6);
-    m.g.position.set(k.x, k.ay, k.z);
+    m.g.position.set(k.x + k.wd[0], k.ay + k.wd[1], k.z + k.wd[2]);
     m.g.rotation.y = k.h + k.dv + (k.spin > 0 ? (1 - k.spin / SPIN_T) * TAU * 2 : 0);
     m.g.scale.setScalar(k.tinyS);
     m.tilt.rotation.z = k.steer * 0.09 + roll;
@@ -2814,9 +3053,12 @@
     m.flame.visible = k.boost > 0;
     if (m.flame.visible) m.flame.scale.y = 1.1 + Math.random() * 0.8;
     m.bubble.visible = k.shield > 0 && (k.shield > 2 || Math.floor(k.shield * 8) % 2 === 0);
-    m.g.visible = k.rescue > 0 || !(k.safe > 0 && k.spin <= 0 && Math.floor(k.safe * 10) % 2 === 0);
-    m.shadow.position.set(k.x, k.gy + 0.14, k.z);
-    m.shadow.visible = k.gy > -500;
+    m.g.visible = k.rescue > 0 || !!k.fly || !(k.safe > 0 && k.spin <= 0 && Math.floor(k.safe * 10) % 2 === 0);
+    if (wf) {
+      const sl = T.tiltLat(i, k.lat) - k.lat;
+      m.shadow.position.set(k.x + T.nx[i] * sl, k.gy + 0.14, k.z + T.nz[i] * sl);
+    } else m.shadow.position.set(k.x, k.gy + 0.14, k.z);
+    m.shadow.visible = k.gy > -500 && !(wf && k.ay - k.gy > 6);
     m.shadow.rotation.set(-pitch, k.h, roll);
     m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy) * 0.25));
     showPuff(k);
@@ -2833,7 +3075,7 @@
     const back = r.demo ? 11 : 8.5;
     const gy = k.gy < -500 ? Math.min(k.roadY, k.ay + 6) : k.gy;      // falling: follow the kart down a little
     let cx = k.x - fx * back, cz = k.z - fz * back;
-    const ky = k.rescue > 0 ? k.ay - 1 : gy + (k.ay - gy) * 0.5, T = world;   // lifted by Puff: follow up
+    const ky = k.rescue > 0 || k.fly ? k.ay - 1 : gy + (k.ay - gy) * 0.5, T = world;   // lifted by Puff: follow up
     if (T.arena) {
       const A = T.arena, lim = A.R - 3;
       if (A.shape === 'square') { cx = clamp(cx, -lim, lim); cz = clamp(cz, -lim, lim); }
@@ -2852,9 +3094,26 @@
       const lat = (cx - T.px[ci]) * T.nx[ci] + (cz - T.pz[ci]) * T.nz[ci], lim = EDGE - 1.5;
       if (Math.abs(lat) > lim) { const o = lat - Math.sign(lat) * lim; cx -= T.nx[ci] * o; cz -= T.nz[ci] * o; }
     }
-    c.y += (Math.max(ky + 4.4 + (r.demo ? 1.5 : 0), world.groundY(cx, cz) + 2.5) - c.y) * Math.min(1, dt * 8);
+    let camY = Math.max(ky + 4.4 + (r.demo ? 1.5 : 0), world.groundY(cx, cz) + 2.5), upL = 0;
+    let lx = k.x + fx * 5, ly = ky + 1.5, lz = k.z + fz * 5;
+    if (!T.arena && (T.tilt[ci] || T.tilt[k.idx])) {
+      // on an anti-gravity wall the camera twists over with the road
+      const f = T.tilt[ci], w = T.tside[ci] || T.tside[k.idx];
+      const latc = (cx - T.px[ci]) * T.nx[ci] + (cz - T.pz[ci]) * T.nz[ci], nl = -w * Math.sin(f), ny = Math.cos(f);
+      const side = T.tiltLat(ci, latc) - latc + nl * 4.4;
+      cx += T.nx[ci] * side; cz += T.nz[ci] * side;
+      camY = T.surf(ci, latc) + ny * (4.4 + Math.max(0, ky - k.gy));
+      upL = nl;
+      const kf = T.tilt[k.idx], kw = T.tside[k.idx] || w, kl = T.tiltLat(k.idx, k.lat) - k.lat - kw * Math.sin(kf) * 1.5;
+      lx = k.x + fx * 5 + T.nx[k.idx] * kl; lz = k.z + fz * 5 + T.nz[k.idx] * kl;
+      ly = T.surf(k.idx, k.lat) + Math.cos(kf) * 1.5 + Math.max(0, ky - k.gy);
+    }
+    c.y += (camY - c.y) * Math.min(1, dt * 8);
+    c.up = (c.up || 0) + (upL - (c.up || 0)) * Math.min(1, dt * 6);
+    if (Math.abs(c.up) < 1e-3) cam.up.set(0, 1, 0);
+    else cam.up.set(T.nx[k.idx] * c.up, Math.sqrt(Math.max(0, 1 - c.up * c.up)), T.nz[k.idx] * c.up);
     cam.position.set(cx, c.y, cz);
-    cam.lookAt(k.x + fx * 5, ky + 1.5, k.z + fz * 5);
+    cam.lookAt(lx, ly, lz);
     const fov = (k.boost > 0 ? 74 : 62) + (r.view.length > 1 ? 6 : 0);
     if (Math.abs(c.fov - fov) > 0.05) c.fov += (fov - c.fov) * Math.min(1, dt * 4);
     if (Math.abs(cam.fov - c.fov) > 0.01) { cam.fov = c.fov; cam.updateProjectionMatrix(); }
@@ -3168,10 +3427,11 @@
   // ones. A little 3D view of the finished loop turns beside the grid.
   const GX = 12, GY = 30, GS = 21;                  // the grid's corner and square size on the HUD
   const PV = { x: 276, y: 30, w: 194, h: 110 };     // the 3D view
-  const BRUSHES = ['road', 'boost', 'jump', 'items', 'coins', 'mud', 'ice', 'tunnel', 'props', 'erase'];
+  const BRUSHES = ['road', 'boost', 'jump', 'items', 'coins', 'mud', 'ice', 'tunnel', 'bounce', 'portal', 'cannon', 'wall', 'props', 'erase'];
   const BRUSH_NAME = { road: 'ROAD', boost: 'BOOST PAD', jump: 'JUMP', items: 'ITEM BOXES', coins: 'COINS', mud: 'MUD',
-                       ice: 'ICE', tunnel: 'TUNNEL', props: 'BIG THINGS', erase: 'RUB OUT' };
-  const ed = { slot: 0, brush: 'road', cx: 2, cy: 6, drag: null, moved: false, downCell: null, last: '', dirty: 0, prop: 'carrot' };
+                       ice: 'ICE', tunnel: 'TUNNEL', bounce: 'BOUNCE PAD', portal: 'PORTAL', cannon: 'CANNON', wall: 'ANTI-GRAVITY WALL',
+                       props: 'BIG THINGS', erase: 'RUB OUT' };
+  const ed = { slot: 0, brush: 'road', cx: 2, cy: 6, drag: null, moved: false, downCell: null, last: '', dirty: 0, prop: 'carrot', wall: 'wallL' };
   const edTrack = () => save.my[ed.slot];
 
   function toBuild() {
@@ -3256,6 +3516,14 @@
         if (next >= PROPS.length) delete t.props[key]; else t.props[key] = ed.prop = PROPS[next];
       }
       sfxOk();
+    } else if (b === 'wall') {
+      // a tap: left wall, then right wall, then gone; a drag keeps painting the same side
+      if (i < 0 || isCross(t, i)) { if (tap) sfxNope(); return; }
+      const cur = t.extras[i];
+      if (!tap) { if (cur === ed.wall) return; t.extras[i] = ed.wall; sfxOk(); }
+      else if (cur === 'wallL') { t.extras[i] = ed.wall = 'wallR'; sfxOk(); }
+      else if (cur === 'wallR') { delete t.extras[i]; ed.wall = 'wallL'; sfxUndo(); }
+      else { t.extras[i] = ed.wall; sfxOk(); }
     } else {
       if (i < 0 || isCross(t, i)) { if (tap) sfxNope(); return; }
       if (t.extras[i] === b) { if (!tap) return; delete t.extras[i]; sfxUndo(); }
@@ -3512,7 +3780,7 @@
       else if (c === 'KeyN') edSlot();
       else if (c === 'Tab' || c === 'KeyE') edBrush(e.shiftKey ? -1 : 1);
       else if (c === 'KeyQ') edBrush(-1);
-      else if (/^Digit\d$/.test(c)) { const n = +c.slice(5); ed.brush = BRUSHES[(n + 9) % 10]; sfxSelect(); }
+      else if (/^Digit\d$/.test(c)) { const n = +c.slice(5); ed.brush = n ? BRUSHES[n - 1] : 'erase'; sfxSelect(); }
     }
   });
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -3522,13 +3790,19 @@
     const r = hud.getBoundingClientRect();
     return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
   }
-  let hudButtons = [];
+  let hudButtons = [], upBtn = null;
   stage.addEventListener('pointerdown', (e) => {
     unlockAudio();
     if (e.target === nameBox) return;
     const p = hudPoint(e);
     const btn = hudButtons.find((b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-    if (btn) { btn.fn(); e.preventDefault(); return; }
+    if (btn) {
+      e.preventDefault();
+      // a button that opens the keyboard waits for the finger to lift: Android only lets a
+      // text box bring up the keyboard from the lift of a touch, not from its press
+      if (btn.onUp) upBtn = { id: e.pointerId, btn }; else btn.fn();
+      return;
+    }
     if (mode === 'build') {
       const c = gridCell(p);
       if (!c) return;
@@ -3553,6 +3827,12 @@
     }
   });
   const endPointer = (e) => {
+    if (upBtn && upBtn.id === e.pointerId) {
+      const b = upBtn.btn, p = hudPoint(e);
+      upBtn = null;
+      if (e.type === 'pointerup' && p.x >= b.x - 6 && p.x <= b.x + b.w + 6 && p.y >= b.y - 6 && p.y <= b.y + b.h + 6) b.fn();
+      return;
+    }
     delete steerTouches[e.pointerId];
     if (e.pointerId !== ed.drag) return;
     ed.drag = null;
@@ -3624,7 +3904,7 @@
     hctx.fillStyle = o.sel ? color : 'rgba(12,10,40,0.85)'; hctx.fill();
     hctx.lineWidth = 2; hctx.strokeStyle = color; hctx.stroke();
     text(label, x + w / 2, y + h / 2 + 0.5, o.px || 10, o.sel ? '#120b28' : color, 'center');
-    hudButtons.push({ x, y, w, h, fn });
+    hudButtons.push({ x, y, w, h, fn, onUp: o.onUp });
   }
   // The "let's go" button on every screen: bright green with a dark edge, a white rim, a shadow
   // and a gentle pulse, so it stands out on any background (the yellow stage, sand, snow, sky).
@@ -4134,6 +4414,29 @@
     ice: (x, y) => { hctx.beginPath(); hctx.ellipse(x, y, 7, 4.5, 0, 0, TAU); hctx.fillStyle = '#bfeaff'; hctx.fill(); hctx.fillStyle = '#ffffff'; hctx.fillRect(x - 3, y - 1, 4, 1.4); },
     tunnel: (x, y) => { hctx.beginPath(); hctx.arc(x, y + 4, 7, PI, 0); hctx.fillStyle = '#8a5a3a'; hctx.fill(); hctx.beginPath(); hctx.arc(x, y + 4, 4, PI, 0); hctx.fillStyle = '#120b28'; hctx.fill(); },
     props: (x, y) => { hctx.fillStyle = '#ff8a1e'; hctx.beginPath(); hctx.moveTo(x - 4, y - 4); hctx.lineTo(x + 4, y - 4); hctx.lineTo(x, y + 7); hctx.fill(); hctx.fillStyle = '#3fae5a'; hctx.fillRect(x - 2, y - 8, 4, 4); },
+    bounce: (x, y) => {
+      hctx.fillStyle = '#ff5ca8'; hctx.beginPath(); hctx.ellipse(x, y + 1, 7, 3.5, 0, 0, TAU); hctx.fill();
+      hctx.strokeStyle = '#fff36b'; hctx.lineWidth = 1.5; hctx.beginPath();
+      hctx.moveTo(x - 3, y - 2); hctx.lineTo(x, y - 7); hctx.lineTo(x + 3, y - 2); hctx.stroke();
+    },
+    portal: (x, y, col = '#4fb8ff', num) => {
+      hctx.beginPath(); hctx.arc(x, y, 6.5, 0, TAU); hctx.fillStyle = col; hctx.fill();
+      hctx.beginPath(); hctx.arc(x, y, 3.5, 0, TAU); hctx.fillStyle = '#120b28'; hctx.fill();
+      if (num) text(String(num), x, y + 0.5, 6, '#ffffff', 'center');
+      else if (!num && col === '#4fb8ff') { hctx.beginPath(); hctx.arc(x + 3, y + 3, 3, 0, TAU); hctx.fillStyle = '#ff9a2e'; hctx.fill(); }
+    },
+    cannon: (x, y) => {
+      hctx.save(); hctx.translate(x, y); hctx.rotate(-0.6);
+      hctx.fillStyle = '#2a2a33'; hctx.fillRect(-2, -3, 10, 6); hctx.fillRect(6, -4, 2.5, 8);
+      hctx.restore();
+      hctx.beginPath(); hctx.arc(x - 2, y + 3, 3.2, 0, TAU); hctx.fillStyle = '#8a5a3a'; hctx.fill();
+    },
+    wall: (x, y) => {
+      hctx.fillStyle = '#565c68'; hctx.fillRect(x - 7, y + 2, 14, 4);
+      hctx.strokeStyle = '#c26bff'; hctx.lineWidth = 3.5; hctx.beginPath(); hctx.arc(x + 7, y - 5, 10, PI * 0.5, PI); hctx.stroke();
+      hctx.fillStyle = '#ffffff'; hctx.fillRect(x - 1, y - 6, 2, 5);
+      hctx.beginPath(); hctx.moveTo(x - 3, y - 5); hctx.lineTo(x, y - 9); hctx.lineTo(x + 3, y - 5); hctx.fill();
+    },
     erase: (x, y) => { hctx.strokeStyle = '#ff7a6b'; hctx.lineWidth = 2.5; hctx.beginPath(); hctx.moveTo(x - 5, y - 5); hctx.lineTo(x + 5, y + 5); hctx.moveTo(x + 5, y - 5); hctx.lineTo(x - 5, y + 5); hctx.stroke(); },
   };
   const PROP_ICON = { carrot: '#ff8a1e', snowman: '#ffffff', umbrella: '#ff5c5c', lolly: '#ff7ac0', house: '#e0453a' };
@@ -4175,9 +4478,43 @@
     });
     hctx.lineCap = 'butt';
     // things on the road
+    const s0 = startCell(t), portals = [];
     Object.keys(t.extras).forEach((key) => {
-      const c = t.cells[+key];
-      if (c && brushIcon[t.extras[key]]) brushIcon[t.extras[key]](cx(c), cy(c));
+      const i = +key, c = t.cells[i], kind = t.extras[key];
+      if (!c) return;
+      if (kind === 'wallL' || kind === 'wallR') {
+        // a purple wall along that side of the road, sloping in at the entrance and out at the exit
+        const a = t.cells[mod(i - 1, n)], b = t.cells[(i + 1) % n];
+        let dx = b[0] - a[0], dy = b[1] - a[1];
+        const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+        const w = kind === 'wallL' ? -1 : 1, sx = -dy * w, sy = dx * w;      // toward the wall's side
+        const first = t.extras[mod(i - 1, n)] !== kind, lastC = t.extras[(i + 1) % n] !== kind;
+        const hx = dx * GS / 2, hy2 = dy * GS / 2, o1 = first ? 2 : 8.5, o2 = lastC ? 2 : 8.5, X = cx(c), Y = cy(c);
+        hctx.beginPath();
+        hctx.moveTo(X - hx + sx * 2, Y - hy2 + sy * 2); hctx.lineTo(X + hx + sx * 2, Y + hy2 + sy * 2);
+        hctx.lineTo(X + hx + sx * o2, Y + hy2 + sy * o2); hctx.lineTo(X - hx + sx * o1, Y - hy2 + sy * o1);
+        hctx.closePath();
+        hctx.fillStyle = '#c26bff'; hctx.fill();
+        hctx.lineWidth = 1; hctx.strokeStyle = '#ffffff'; hctx.stroke();
+        return;
+      }
+      if (!brushIcon[kind]) return;
+      if (kind === 'portal') { portals.push(i); return; }
+      if (kind === 'cannon' && t.closed && n > 4) {
+        // a dotted arc to where it lands, three squares on
+        const d = t.cells[(i + 3) % n], mx = (cx(c) + cx(d)) / 2, my = (cy(c) + cy(d)) / 2 - 16;
+        hctx.setLineDash([3, 3]); hctx.lineWidth = 1.5; hctx.strokeStyle = '#ffe14f';
+        hctx.beginPath(); hctx.moveTo(cx(c), cy(c)); hctx.quadraticCurveTo(mx, my, cx(d), cy(d)); hctx.stroke();
+        hctx.setLineDash([]);
+        hctx.beginPath(); hctx.arc(cx(d), cy(d), 4, 0, TAU); hctx.strokeStyle = '#ff5c5c'; hctx.stroke();
+      }
+      brushIcon[kind](cx(c), cy(c));
+    });
+    // portals pair up in order round the loop: blue 1 takes you to orange 1, and so on
+    portals.sort((a, b) => mod(a - s0, n) - mod(b - s0, n));
+    portals.forEach((i, j) => {
+      const c = t.cells[i], paired = j + 1 < portals.length || j % 2 === 1;
+      brushIcon.portal(cx(c), cy(c), !paired ? '#7a7f96' : j % 2 ? '#ff9a2e' : '#4fb8ff', (j >> 1) + 1);
     });
     // start flag (where the karts will line up)
     const s = t.cells[startCell(t)];
@@ -4195,18 +4532,24 @@
 
     // brushes
     BRUSHES.forEach((b, i) => {
-      const x = GX + i * 25.2, y = 204, sel = ed.brush === b;
-      rr(x, y, 23, 22, 5);
+      const x = GX + i * 18, y = 204, sel = ed.brush === b;
+      rr(x, y, 17, 22, 4);
       hctx.fillStyle = sel ? 'rgba(255,225,79,0.35)' : 'rgba(255,255,255,0.08)'; hctx.fill();
       hctx.lineWidth = sel ? 2 : 1; hctx.strokeStyle = sel ? '#ffe14f' : 'rgba(255,255,255,0.3)'; hctx.stroke();
-      brushIcon[b](x + 11.5, y + 11);
-      hudButtons.push({ x, y, w: 23, h: 22, fn: () => { ed.brush = b; sfxSelect(); } });
+      hctx.save(); hctx.translate(x + 8.5, y + 11); hctx.scale(0.8, 0.8);
+      brushIcon[b](0, 0);
+      hctx.restore();
+      hudButtons.push({ x, y, w: 17, h: 22, fn: () => { ed.brush = b; sfxSelect(); } });
     });
     const tips = {
       road: t.closed ? ['THE LOOP IS DONE! PICK A BRUSH TO DECORATE', 'UNDO OPENS IT AGAIN'] : n < 4 ? ['DRAG FROM THE FLAG TO DRAW YOUR ROAD', 'GO STRAIGHT OVER THE ROAD TO MAKE A BRIDGE'] :
         ['BRING THE ROAD BACK TO THE FLAG', 'DRAG BACK OVER IT TO RUB IT OUT'],
       props: ['BIG THINGS: TAP AN EMPTY SQUARE', 'TAP AGAIN FOR A DIFFERENT ONE'],
       erase: ['RUB OUT: TAP ANYTHING TO TAKE IT AWAY', ''],
+      bounce: ['BOUNCE PAD: TAP OR DRAG ON THE ROAD', 'KARTS BOING UP HIGH!'],
+      portal: ['PORTALS: PUT TWO ON THE ROAD', 'IN THE BLUE ONE, OUT THE ORANGE ONE!'],
+      cannon: ['CANNON: TAP THE ROAD', 'BOOM! IT SHOOTS YOU 3 SQUARES ON'],
+      wall: ['ANTI-GRAVITY WALL: DRAG ALONG THE ROAD', 'TAP A WALL TO SWAP SIDES (' + (ed.wall === 'wallL' ? 'NOW: LEFT' : 'NOW: RIGHT') + ')'],
     };
     const tip = tips[ed.brush] || [BRUSH_NAME[ed.brush] + ': TAP OR DRAG ON THE ROAD', 'TAP IT AGAIN TO TAKE IT OFF'];
     text(tip[0], GX, 238, 8.5, '#5ff3ff');
@@ -4225,7 +4568,7 @@
     // the buttons under it
     const bx = PV.x, bw = 95;
     button('TRACK ' + (ed.slot + 1) + ' OF 3', bx, 146, bw, 22, edSlot, { px: 9 });
-    button('NAME IT', bx + 99, 146, bw, 22, editName, { px: 9, color: '#ff9ad6' });
+    button('NAME IT', bx + 99, 146, bw, 22, editName, { px: 9, color: '#ff9ad6', onUp: true });
     button(th.name.length > 6 ? th.name.split(' ')[1] || th.name : th.name, bx, 172, bw, 22, edTheme, { px: 9, color: '#8fe36b' });
     button('HILLS: ' + ['FLAT', 'SOFT', 'BIG'][t.hills == null ? 1 : t.hills], bx + 99, 172, bw, 22, edHills, { px: 9, color: '#8fe36b' });
     button('UNDO', bx, 198, bw, 22, edUndo, { px: 10 });
