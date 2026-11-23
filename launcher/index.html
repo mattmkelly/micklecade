@@ -1013,6 +1013,15 @@
     let asked = false;
     try { asked = !!sessionStorage.getItem(ASKED_KEY); } catch (e) {}
     if (!asked && !MickleScores.players().length) openPicker();
+
+    // Grown-up shortcut: tap the MICKLECADE title 5 times fast to open the save check page
+    // (check/), which shows whether this browser keeps names and unlocks between visits.
+    let titleTaps = 0, titleTapTimer = 0;
+    document.querySelector('.marquee h1').addEventListener('click', () => {
+      clearTimeout(titleTapTimer);
+      titleTapTimer = setTimeout(() => { titleTaps = 0; }, 1500);
+      if (++titleTaps >= 5) location.href = '../check/index.html';
+    });
   })();
 </script>
 </body>

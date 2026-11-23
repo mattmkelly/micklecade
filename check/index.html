@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MickleCade Save Check</title>
+<link rel="icon" type="image/png" sizes="48x48" href="../assets/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../assets/icon-192.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#120b28">
+<!--
+  Grown-up page: checks whether this browser keeps MickleCade's saves (player names, unlocks)
+  from one visit to the next. Reached by tapping the MICKLECADE title on the launcher 5 times,
+  or at check/ directly. Every visit bumps a counter in localStorage, a cookie and IndexedDB;
+  close the browser, come back, and see which ones remembered.
+-->
+<style>
+  :root { --bg: #120b28; --card: #1d1440; --ink: #f3eefe; --dim: #a99bd0; --ok: #5be37d; --bad: #ff5f7a; --warn: #ffd34f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, sans-serif; padding: 16px; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 22px 0 8px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .verdict { padding: 14px 16px; border-radius: 10px; font-size: 1.1rem; font-weight: 600; margin: 14px 0; }
+  .verdict.ok { background: #143d24; border: 2px solid var(--ok); }
+  .verdict.bad { background: #43142a; border: 2px solid var(--bad); }
+  .verdict.warn { background: #3f3510; border: 2px solid var(--warn); }
+  .verdict small { display: block; font-weight: 400; font-size: .95rem; margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; }
+  td { padding: 8px 10px; border-top: 1px solid #2c2158; vertical-align: top; word-break: break-word; }
+  tr:first-child td { border-top: 0; }
+  td:first-child { color: var(--dim); width: 38%; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .verdict.ok, .verdict.bad, .verdict.warn { color: var(--ink); }
+  ol { padding-left: 22px; margin: 6px 0; }
+  button, a.btn { font: inherit; background: #3a2a7a; color: var(--ink); border: 0; border-radius: 8px; padding: 10px 14px; margin: 4px 6px 4px 0; cursor: pointer; text-decoration: none; display: inline-block; }
+  button:active { background: #4c3a9a; }
+  code { font-size: .9em; color: var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <h1>MickleCade save check</h1>
+  <div id="verdict" class="verdict warn">Checking&hellip;</div>
+
+  <h2>How to test</h2>
+  <ol>
+    <li>Open this page once (you just did).</li>
+    <li>Close the browser completely, so it's not just in the background, then reopen it.</li>
+    <li>Come back here (tap MICKLECADE on the arcade title 5 times). If <b>Visit</b> goes up to 2,
+        saves survive. If it says <b>first visit</b> again, the browser wiped them.</li>
+  </ol>
+
+  <h2>Remembered from last visit?</h2>
+  <table id="memory"></table>
+
+  <h2>Can this browser save right now?</h2>
+  <table id="now"></table>
+
+  <h2>MickleCade saves on this device</h2>
+  <table id="saves"></table>
+
+  <h2>About this browser</h2>
+  <table id="about"></table>
+
+  <p>
+    <button id="persist" type="button">Ask browser to keep saves</button>
+    <button id="reset" type="button">Reset this test's counter</button>
+    <a class="btn" href="../launcher/index.html">&larr; Back to MickleCade</a>
+  </p>
+  <p><code>Only this test's own counter is touched. Player names and unlocks are never changed here.</code></p>
+</main>
+
+<script>
+(function () {
+  var KEY = 'micklecade.saveCheck';
+  var DB = 'micklecadeSaveCheck';
+  var now = Date.now();
+
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function row(table, label, html) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(label) + '</td><td>' + html + '</td>';
+    document.getElementById(table).appendChild(tr);
+  }
+  function yes(t) { return '<span class="ok">&#10004; ' + esc(t) + '</span>'; }
+  function no(t) { return '<span class="bad">&#10008; ' + esc(t) + '</span>'; }
+  function meh(t) { return '<span class="warn">' + esc(t) + '</span>'; }
+  function ago(ms) {
+    var s = Math.round(ms / 1000);
+    if (s < 90) return s + ' sec ago';
+    if (s < 5400) return Math.round(s / 60) + ' min ago';
+    if (s < 129600) return Math.round(s / 3600) + ' hr ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function describe(prev) {
+    if (!prev) return no('first visit (nothing remembered)');
+    return yes('visit ' + (prev.visits + 1) + ', last one ' + ago(now - prev.last));
+  }
+  function next(prev) { return { visits: prev ? prev.visits + 1 : 1, first: prev ? prev.first : now, last: now }; }
+  function errText(e) { return (e && (e.name || e.message)) || String(e); }
+
+  // Results that feed the verdict.
+  var R = { lsWorks: false, lsPrev: null, ckWorks: false, ckPrev: null, idbWorks: false, idbPrev: null };
+
+  // ---- localStorage ----
+  var ls = null, lsErr = '';
+  try { ls = window.localStorage; ls.setItem(KEY + '.probe', '1'); R.lsWorks = ls.getItem(KEY + '.probe') === '1'; ls.removeItem(KEY + '.probe'); }
+  catch (e) { lsErr = errText(e); }
+  if (R.lsWorks) {
+    try { R.lsPrev = JSON.parse(ls.getItem(KEY) || 'null'); } catch (e) { R.lsPrev = null; }
+    try { ls.setItem(KEY, JSON.stringify(next(R.lsPrev))); } catch (e) { /* counted above */ }
+  }
+
+  // ---- cookie ----
+  function readCookie() {
+    var m = document.cookie.match(/(?:^|; )micklecade\.saveCheck=([^;]*)/);
+    try { return m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { return null; }
+  }
+  function writeCookie(v) {
+    document.cookie = KEY + '=' + encodeURIComponent(JSON.stringify(v)) + '; max-age=31536000; path=/; SameSite=Lax';
+  }
+  try {
+    R.ckPrev = readCookie();
+    writeCookie(next(R.ckPrev));
+    R.ckWorks = !!readCookie();
+  } catch (e) { R.ckWorks = false; }
+
+  // ---- table: right now ----
+  row('now', 'localStorage (what the games use)', R.lsWorks ? yes('works') : no('blocked' + (lsErr ? ': ' + lsErr : '')));
+  row('now', 'Cookies', R.ckWorks ? yes('works') : no('blocked'));
+  row('now', 'navigator.cookieEnabled', navigator.cookieEnabled ? yes('true') : no('false'));
+  var ss = false; try { sessionStorage.setItem(KEY, '1'); ss = sessionStorage.getItem(KEY) === '1'; } catch (e) {}
+  row('now', 'sessionStorage', ss ? yes('works') : no('blocked'));
+
+  // ---- table: memory ----
+  row('memory', 'localStorage', R.lsWorks ? describe(R.lsPrev) : no('can\'t save at all'));
+  row('memory', 'Cookie', R.ckWorks ? describe(R.ckPrev) : no('can\'t save at all'));
+  row('memory', 'IndexedDB', '<span id="idbcell">checking&hellip;</span>');
+
+  // ---- table: saves ----
+  var keys = [];
+  if (R.lsWorks) { try { for (var i = 0; i < ls.length; i++) keys.push(ls.key(i)); } catch (e) {} }
+  keys = keys.filter(function (k) { return k.indexOf(KEY) !== 0; }).sort();
+  var players = null;
+  try { players = JSON.parse(ls.getItem('micklecade.players') || 'null'); } catch (e) {}
+  row('saves', 'Players', players && players.names && players.names.length
+    ? yes(players.names.length + ' saved') + ' <code>(current: ' + esc(players.current || 'none') + ')</code>'
+    : meh('none saved'));
+  row('saves', 'Players cookie backup', /(?:^|; )micklecade\.players=/.test(document.cookie) ? yes('present') : meh('missing'));
+  if (!keys.length) row('saves', 'Saved items', R.lsWorks ? meh('none') : no('can\'t read'));
+  else {
+    var total = 0, list = keys.map(function (k) { var n = (ls.getItem(k) || '').length; total += n; return esc(k) + ' <code>' + Math.ceil(n / 1024) + ' KB</code>'; });
+    row('saves', keys.length + ' saved items (' + Math.ceil(total / 1024) + ' KB)', list.join('<br>'));
+  }
+
+  // ---- table: about ----
+  var ua = navigator.userAgent;
+  var kind = /Silk/.test(ua) ? 'Silk browser' : /; wv\)/.test(ua) ? 'an app\'s built-in web view (likely Amazon Kids)' : /Chrome/.test(ua) ? 'Chrome-based browser' : 'unknown';
+  row('about', 'Looks like', esc(kind));
+  row('about', 'Address', esc(location.href));
+  row('about', 'Opened as', (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ? 'home-screen app' : 'browser tab');
+  row('about', 'User agent', '<code>' + esc(ua) + '</code>');
+  row('about', 'Storage kept for good?', '<span id="persisted">checking&hellip;</span>');
+  row('about', 'Storage space', '<span id="quota">checking&hellip;</span>');
+
+  function setCell(id, html) { var el = document.getElementById(id); if (el) el.innerHTML = html; }
+  function checkPersisted() {
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(function (p) { setCell('persisted', p ? yes('yes') : meh('no (browser may clear it when space runs low)')); },
+        function () { setCell('persisted', meh('unknown')); });
+    } else setCell('persisted', meh('not supported'));
+  }
+  checkPersisted();
+  if (navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(function (q) {
+      setCell('quota', Math.round((q.usage || 0) / 1024) + ' KB used of ' + Math.round((q.quota || 0) / 1048576) + ' MB allowed');
+    }, function () { setCell('quota', meh('unknown')); });
+  } else setCell('quota', meh('not supported'));
+
+  // ---- IndexedDB (async), then the verdict ----
+  function idbDone(works, prev, err) {
+    R.idbWorks = works; R.idbPrev = prev;
+    setCell('idbcell', works ? describe(prev) : no('can\'t save at all' + (err ? ': ' + err : '')));
+    verdict();
+  }
+  try {
+    var req = indexedDB.open(DB, 1);
+    req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+    req.onerror = function () { idbDone(false, null, errText(req.error)); };
+    req.onsuccess = function () {
+      try {
+        var db = req.result, tx = db.transaction('kv', 'readwrite'), st = tx.objectStore('kv'), g = st.get('visit');
+        g.onsuccess = function () {
+          var prev = g.result || null;
+          st.put(next(prev), 'visit');
+          tx.oncomplete = function () { idbDone(true, prev); };
+          tx.onerror = function () { idbDone(false, null, errText(tx.error)); };
+        };
+      } catch (e) { idbDone(false, null, errText(e)); }
+    };
+  } catch (e) { idbDone(false, null, errText(e)); }
+
+  function verdict() {
+    var v = document.getElementById('verdict');
+    var remembered = R.lsPrev || R.ckPrev || R.idbPrev;
+    if (!R.lsWorks) {
+      v.className = 'verdict bad';
+      v.innerHTML = 'This browser blocks saving. Player names and unlocks can\'t be kept.' +
+        '<small>Usually means cookies / site data are blocked. In Amazon Kids, check the web browser settings in the Parent Dashboard and allow cookies, then reload this page.</small>';
+    } else if (R.lsPrev) {
+      v.className = 'verdict ok';
+      v.innerHTML = 'Saves are surviving. This is visit ' + (R.lsPrev.visits + 1) + '.' +
+        '<small>If this is the first look after closing the browser, saves should stick now.</small>';
+    } else if (remembered) {
+      v.className = 'verdict warn';
+      v.innerHTML = 'Mixed: some storage remembered the last visit, but localStorage (what the games use) didn\'t.' +
+        '<small>See the table below for which kinds survived.</small>';
+    } else {
+      v.className = 'verdict warn';
+      v.innerHTML = 'Saving works right now. First visit seen.' +
+        '<small>Now close the browser completely, reopen it and come back. If this still says "first visit", the browser is wiping saves when it closes.</small>';
+    }
+  }
+
+  document.getElementById('persist').onclick = function () {
+    if (!(navigator.storage && navigator.storage.persist)) { alert('This browser doesn\'t support that.'); return; }
+    navigator.storage.persist().then(function (ok) { alert(ok ? 'Browser agreed to keep saves.' : 'Browser said no.'); checkPersisted(); });
+  };
+  document.getElementById('reset').onclick = function () {
+    try { ls.removeItem(KEY); } catch (e) {}
+    document.cookie = KEY + '=; max-age=0; path=/';
+    try { indexedDB.deleteDatabase(DB); } catch (e) {}
+    location.reload();
+  };
+})();
+</script>
+</body>
+</html>
