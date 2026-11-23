@@ -343,22 +343,27 @@
     ensureAudio();
     pickLeft = false;
     clearTimeout(pickWatch);
-    if (!matchMedia('(pointer: coarse)').matches) return;
+    // iPhones and iPads always have a picker, but it starts as a small menu over the page (Photo
+    // Library / Take Photo / Choose File) that doesn't hide it -- the check would fire wrongly there
+    if (!matchMedia('(pointer: coarse)').matches || IOS) return;
     pickWatch = setTimeout(function () {
       if (!pickLeft) noPicker();
     }, 2500);
   });
   $('#file').addEventListener('change', function (e) {
     clearTimeout(pickWatch);
+    if (noPickerUp) { noPickerUp = false; hideSheet(); }   // files did come after all
     importFiles(e.target.files);
     e.target.value = '';
   });
+  var noPickerUp = false;
   function noPicker() {
+    noPickerUp = true;
     showSheet([
       el('h2', null, 'NO PICTURES CAME UP'),
       el('p', null, "This browser didn't open the videos and photos on this device. Some kids' browsers don't allow it."),
       el('p', null, 'Ask a grown-up to try it in the normal web browser, or on a computer.'),
-      btnRow([button('OK', 'gold', hideSheet)])
+      btnRow([button('OK', 'gold', function () { noPickerUp = false; hideSheet(); })])
     ]);
   }
   // drag and drop files onto the page (desktop)
@@ -1247,7 +1252,7 @@
     x.restore();
   }
   function roundRect(x, l, t, w, h, r) {
-    r = Math.min(r, w / 2, h / 2);
+    r = Math.max(0, Math.min(r, w / 2, h / 2));   // a squashed timeline can make it negative, which throws
     x.beginPath();
     x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r);
     x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath();
@@ -1879,6 +1884,15 @@
       x.fillText('YOUR CLIPS SHOW UP HERE', tlW / 2, L.main.y + L.main.h / 2);
     }
 
+    // snap guide: a dashed gold line across all rows where the dragged edge clicked on
+    if (drag && drag.snapAt != null && (drag.mode === 'trim' || drag.mode === 'move')) {
+      var gx = Math.round(xAt(drag.snapAt)) + 0.5;
+      x.save();
+      x.strokeStyle = '#ffe08a'; x.lineWidth = 2; x.setLineDash([6, 5]);
+      x.shadowColor = '#ffcf5a'; x.shadowBlur = 6;
+      x.beginPath(); x.moveTo(gx, L.ruler); x.lineTo(gx, tlH); x.stroke();
+      x.restore();
+    }
     // playhead
     var cx = Math.round(tlW / 2);
     x.fillStyle = '#ff4fd8';
@@ -2026,16 +2040,27 @@
     drag.item = it;
     if (drag.layer === 'main') drag.startX = xAt(mainStart(it));
   }
-  function snapT(t, ignoreId) {
-    // snap to the playhead, the start, and clip edges within ~10px
-    var best = t, bd = 10 / pps;
+  var SNAP_PX = 14, snapAt = null;   // where the edge being dragged last snapped (drawn as a guide)
+  function snapT(t, ignoreId, noMain) {
+    // pull gently to the playhead, the start, and the edges of the other clips within ~14px
+    var best = t, bd = SNAP_PX / pps;
     var cands = [playT, 0], s = 0;
-    project.main.forEach(function (c) { cands.push(s); s += clipLen(c); });
-    cands.push(s);
+    // a MOVIE clip being trimmed shifts every MOVIE edge after it, so those aren't targets then
+    if (!noMain) {
+      project.main.forEach(function (c) { cands.push(s); s += clipLen(c); });
+      cands.push(s);
+    }
     project.top.forEach(function (c) { if (c.id !== ignoreId) { cands.push(c.start); cands.push(c.start + clipLen(c)); } });
     project.text.forEach(function (c) { if (c.id !== ignoreId) { cands.push(c.start); cands.push(c.start + c.dur); } });
     cands.forEach(function (c) { if (Math.abs(c - t) < bd) { bd = Math.abs(c - t); best = c; } });
+    snapAt = best !== t ? best : null;
     return best;
+  }
+  // after a drag step: a soft tick when the edge clicks onto something new
+  function snapFeedback() {
+    if (snapAt != null && (drag.lastSnap == null || Math.abs(drag.lastSnap - snapAt) > 1e-6)) beep(1320, 0.03);
+    drag.lastSnap = snapAt;
+    drag.snapAt = snapAt;
   }
   function doTrim(d) {
     var it = drag.item, o = drag.orig, layer = drag.layer, m = layer !== 'text' ? mediaById(it.media) : null;
@@ -2057,13 +2082,15 @@
         var ne2 = snapT(o.start + (o.out - o.in) + d, it.id);
         it.out = clamp(o.in + (ne2 - o.start), o.in + MIN_LEN, maxOut);
       }
-    } else {   // main: ripple
+    } else {   // main: ripple -- either handle moves the clip's end, so that end is what snaps
       delete it.autoLen;   // the kid is choosing its length now
-      if (drag.side === 'l') {
-        if (isStill(m)) it.out = clamp(o.out - d, MIN_LEN, PHOTO_MAX);
-        else it.in = clamp(o.in + d, 0, o.out - MIN_LEN);
-      } else it.out = clamp(o.out + d, it.in + MIN_LEN, maxOut);
+      var st = mainStart(it), grow = drag.side === 'l' ? -d : d;
+      var e0 = st + (o.out - o.in) + grow, e1 = snapT(e0, it.id, true);
+      grow += e1 - e0;
+      if (drag.side === 'l' && !isStill(m)) it.in = clamp(o.in - grow, 0, o.out - MIN_LEN);
+      else it.out = clamp(o.out + grow, it.in + MIN_LEN, drag.side === 'l' ? PHOTO_MAX : maxOut);
     }
+    snapFeedback();
     dirty = true; tlDirty = true;
     // show the frame at the edge being dragged
     if (layer !== 'main') playT = clamp(drag.side === 'l' ? itemStart(layer, it) + 0.01 : itemStart(layer, it) + itemLen(layer, it) - 0.01, 0, Math.max(0, total()));
@@ -2092,8 +2119,11 @@
     }
     var len = itemLen(drag.layer, it);
     var ns = o.start + d;
-    var sA = snapT(ns, it.id), sB = snapT(ns + len, it.id) - len;
-    ns = Math.abs(sA - ns) <= Math.abs(sB - ns) ? sA : sB;
+    var sA = snapT(ns, it.id), hitA = snapAt, sB = snapT(ns + len, it.id) - len, hitB = snapAt;
+    var useA = Math.abs(sA - ns) <= Math.abs(sB - ns);
+    ns = useA ? sA : sB;
+    snapAt = useA ? hitA : hitB;
+    snapFeedback();
     it.start = Math.max(0, ns);
     dirty = true; tlDirty = true;
   }
@@ -2567,8 +2597,8 @@
     // upright screen: the picture gets just the height its shape needs, the panels get the rest
     if (tall) {
       var sh = SHAPES[project.aspect] || SHAPES.wide;
-      var ph = clamp((r.width - 2 * fs) * sh.h / sh.w, r.height * 0.2, r.height * 0.42);
-      ui.style.gridTemplateRows = Math.round(ph) + 'px minmax(0, 1fr) auto 30em';
+      var ph = clamp((r.width - 2 * fs) * sh.h / sh.w, r.height * 0.2, r.height * 0.34);
+      ui.style.gridTemplateRows = Math.round(ph) + 'px 21em minmax(0, 1fr) auto 24em';
     } else ui.style.gridTemplateRows = '';
     laidOut = true;
     $('#sheet').style.fontSize = fs + 'px';
