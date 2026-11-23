@@ -79,6 +79,7 @@
   #bin { grid-area: bin; display: flex; flex-direction: column; padding: 1.4em; gap: 1.2em; }
   #bin .head { padding-left: 5.4em; line-height: 1.9em; font-size: 1.9em; } /* room for the menu button */
   #addBtn {
+    position: relative; overflow: hidden; display: block; text-align: center; cursor: pointer;
     font-size: 2.6em; font-weight: bold; letter-spacing: 0.1em; padding: 0.55em 0; border-radius: 0.6em;
     background: linear-gradient(#ff7ad9, #d63fb0); color: #fff !important;
     box-shadow: 0 0.18em 0 #8a1f6f, 0 0.3em 0.6em rgba(0, 0, 0, 0.5);
@@ -174,7 +175,9 @@
 
   #media { position: fixed; left: 0; top: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0; pointer-events: none; }
   #media video { width: 2px; height: 2px; }
-  #file { display: none; }
+  /* the real file input lies over the ADD button so the tap lands on it directly -- some tablet
+     browsers ignore a file picker opened from code */
+  #file { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 100px; }
 </style>
 </head>
 <body>
@@ -186,7 +189,7 @@
       <div id="ui">
         <div id="bin" class="panel">
           <div class="head">MY STUFF</div>
-          <button id="addBtn">+ ADD</button>
+          <label id="addBtn">+ ADD<input type="file" id="file" accept="video/*,image/*" multiple></label>
           <div id="binList"></div>
         </div>
         <div id="prev">
@@ -223,7 +226,6 @@
     </div>
   </div>
   <div id="media"></div>
-  <input type="file" id="file" accept="video/*,image/*" multiple>
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/menu.js" data-at="0,0" data-portrait="fill"></script>

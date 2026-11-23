@@ -309,11 +309,35 @@
     };
   }
 
-  $('#addBtn').addEventListener('click', function () { $('#file').click(); });
+  // On a tablet, opening the picker hides the page (the picker is its own screen). If the page
+  // never hides and no files arrive, this browser has no file picker (the Amazon Kids browser
+  // may not have one), so say so instead of doing nothing.
+  var pickWatch = 0, pickLeft = false;
+  function pageLeft() { pickLeft = true; }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pageLeft(); });
+  window.addEventListener('blur', pageLeft);
+  $('#file').addEventListener('click', function () {
+    ensureAudio();
+    pickLeft = false;
+    clearTimeout(pickWatch);
+    if (!matchMedia('(pointer: coarse)').matches) return;
+    pickWatch = setTimeout(function () {
+      if (!pickLeft) noPicker();
+    }, 2500);
+  });
   $('#file').addEventListener('change', function (e) {
+    clearTimeout(pickWatch);
     importFiles(e.target.files);
     e.target.value = '';
   });
+  function noPicker() {
+    showSheet([
+      el('h2', null, 'NO PICTURES CAME UP'),
+      el('p', null, "This browser didn't open the videos and photos on this device. Some kids' browsers don't allow it."),
+      el('p', null, 'Ask a grown-up to try it in the normal web browser, or on a computer.'),
+      btnRow([button('OK', 'gold', hideSheet)])
+    ]);
+  }
   // drag and drop files onto the page (desktop)
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) {
