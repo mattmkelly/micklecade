@@ -6,7 +6,7 @@
 // Plain <script src="../../shared/touchpad.js"> before game.js -- no modules, works from file://.
 //   const pad = MickleTouch.create({
 //     toggleParent: document.getElementById('topbar'),   // where the ON/OFF toggle goes
-//     buttons: [{ id: 'hop', label: 'HOP' }],            // bottom-right, first one lowest
+//     buttons: [{ id: 'hop', label: 'HOP' }],            // bottom-right, first one lowest (or { row, col })
 //     onPress(id) {}, onRelease(id) {},                  // a button went down / up
 //     onStep(dx) {},                                     // the stick was nudged left/right (-1 / 1), for menus
 //     defaultOn: true,                                   // start ON when nobody has picked yet (a tablet)
@@ -120,7 +120,10 @@
       var el = document.createElement('div');
       el.className = 'mt-btn';
       el.textContent = b.label;
-      el.style.bottom = 'calc(max(22px, env(safe-area-inset-bottom)) + ' + (i * 108) + 'px)';
+      // stacked by default; a button can name its own row (up from the bottom) and col (in from the right)
+      var row = b.row != null ? b.row : i, col = b.col || 0;
+      el.style.bottom = 'calc(max(22px, env(safe-area-inset-bottom)) + ' + (row * 108) + 'px)';
+      if (col) el.style.right = 'calc(max(18px, env(safe-area-inset-right)) + ' + (col * 108) + 'px)';
       var pid = null;
       el.addEventListener('pointerdown', function (e) {
         e.preventDefault();

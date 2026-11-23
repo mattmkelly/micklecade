@@ -2251,7 +2251,7 @@
     pads.forEach((p) => { s += p.axis(0) || p.dx(); });
     if (pi === 0) s += touch.ax() * 1.3;
     s += clamp(tapSteer(pi), -1, 1);
-    const brake = held(pi, 'brake') || pads.some((p) => p.down(B.B) || p.down(B.LT)) || (pi === 0 && touch.ay() > 0.75);
+    const brake = held(pi, 'brake') || pads.some((p) => p.down(B.B) || p.down(B.LT)) || (pi === 0 && touch.down('brake'));
     const hop = held(pi, 'hop') || pads.some((p) => p.down(B.A) || p.down(B.RB) || p.down(B.LB)) || (pi === 0 && touch.down('hop'));
     const hopPressed = queued[pi].hop || pads.some((p) => p.pressed(B.A) || p.pressed(B.RB) || p.pressed(B.LB));
     const itemPressed = queued[pi].item || pads.some((p) => p.pressed(B.X) || p.pressed(B.Y) || p.pressed(B.RT));
@@ -3372,10 +3372,11 @@
   const touch = MickleTouch.create({
     defaultOn: looksLikeTablet,   // a tablet starts with the stick and buttons showing
     toggleParent: document.getElementById('topbar'),
-    buttons: [{ id: 'hop', label: 'HOP' }, { id: 'item', label: 'ITEM' }],
+    // HOP lowest on the right with ITEM above it; BRAKE (hold it to stop, keep holding to back up) beside HOP
+    buttons: [{ id: 'hop', label: 'HOP' }, { id: 'item', label: 'ITEM' }, { id: 'brake', label: 'BRAKE', row: 0, col: 1 }],
     onPress(id) {
       unlockAudio();
-      if (mode !== 'race' || !race || race.results) return;
+      if (mode !== 'race' || !race || race.results || id === 'brake') return;
       queued[0][id] = true;
     },
     onStep(dx) { if (mode !== 'race') nav(dx, 0); },
@@ -3846,27 +3847,24 @@
     const r = race, small = h < H, s = small ? 0.62 : 1;
     if (k.boost > 0 && r.state === 'go') speedLines(x0, y0, w, h);
     const lx = x0 + (i === 0 ? 34 : 10) * (small && i ? 1 : 1);
-    if (small) text('P' + (k.pi + 1), lx, y0 + 12, 9, k.pi ? '#8fe36b' : '#ffe14f', 'left', '#120b28');
-    const px = small ? lx + 20 : lx;
-    text(ORD[k.place - 1], px, y0 + 18 * s + (small ? 0 : 2), 26 * s, k.place === 1 ? '#ffe14f' : '#ffffff', 'left', '#120b28');
-    if (k.crowned) crownIcon(px + 66 * s, y0 + 16 * s + (small ? 0 : 2), 1.3 * s);
-    if (r.coinMode) {
-      // the coins in your stack
-      const by = y0 + (small ? 32 : 48);
-      for (let c = 0; c < 3; c++) coinIcon(lx + 6, by + 4 - c * 3 * s, 6 * s + 1);
-      text('x ' + k.score, lx + 16 * s + 4, by, 15 * s + 2, '#ffe14f', 'left', '#120b28');
-    } else if (r.battle) {
-      // the balloons you have left, and how many you've popped
-      const by = y0 + (small ? 30 : 44), col = hex(kartColor(k.model));
-      for (let b = 0; b < 3; b++) {
-        const bx = lx + 4 + b * 10 * s + (small ? 0 : 1);
-        hctx.beginPath(); hctx.ellipse(bx, by - 1, 4 * s + 0.6, 5 * s + 0.6, 0, 0, TAU);
-        hctx.fillStyle = b < k.balloons ? col : 'rgba(255,255,255,0.15)'; hctx.fill();
-        hctx.lineWidth = 1; hctx.strokeStyle = '#120b28'; hctx.stroke();
+    if (r.battle) {
+      // a battle: the scoreboard is the top-left corner (your row says YOU, or P1 / P2)
+      const bottom = standings(k, lx - 4, y0 + 4, s);
+      if (!r.coinMode) {
+        // and under it, the balloons you have left
+        const by = bottom + 8 * s + 1, col = hex(kartColor(k.model));
+        for (let b = 0; b < 3; b++) {
+          const bx = lx + 4 + b * 10 * s + (small ? 0 : 1);
+          hctx.beginPath(); hctx.ellipse(bx, by, 4 * s + 0.6, 5 * s + 0.6, 0, 0, TAU);
+          hctx.fillStyle = b < k.balloons ? col : 'rgba(255,255,255,0.15)'; hctx.fill();
+          hctx.lineWidth = 1; hctx.strokeStyle = '#120b28'; hctx.stroke();
+        }
       }
-      text('POPS ' + k.score, lx + 36 * s + 2, by, 10 * s + 1, '#ff9ad6', 'left', '#120b28');
-    } else text('LAP ' + clamp(k.lap, 1, LAPS) + '/' + LAPS, lx, y0 + (small ? 30 : 44), 11 * s + (small ? 1 : 0), '#5ff3ff', 'left', '#120b28');
-    if (!r.coinMode) {
+    } else {
+      if (small) text('P' + (k.pi + 1), lx, y0 + 12, 9, k.pi ? '#8fe36b' : '#ffe14f', 'left', '#120b28');
+      const px = small ? lx + 20 : lx;
+      text(ORD[k.place - 1], px, y0 + 18 * s + (small ? 0 : 2), 26 * s, k.place === 1 ? '#ffe14f' : '#ffffff', 'left', '#120b28');
+      text('LAP ' + clamp(k.lap, 1, LAPS) + '/' + LAPS, lx, y0 + (small ? 30 : 44), 11 * s + (small ? 1 : 0), '#5ff3ff', 'left', '#120b28');
       coinIcon(lx + 4, y0 + (small ? 43 : 60), 5 * s + 1);
       text(String(k.coins), lx + 12, y0 + (small ? 43.5 : 60.5), 11 * s + 1, '#ffe14f', 'left', '#120b28');
     }
@@ -3900,6 +3898,32 @@
     if (k.drift && k.charge > 0.7) {
       text(k.charge > 1.5 ? 'SUPER SPARKS!' : 'SPARKS!', x0 + w / 2, y0 + h - 14 * s, 10 * s + 2, k.charge > 1.5 ? '#ff9a2e' : '#4fc8ff', 'center', '#120b28');
     }
+  }
+
+  // Battle scoreboard, top left: the leader, then the kart just ahead of you, you, and the
+  // kart just behind (1st sees 1st-2nd-3rd). Returns where it ends, going down.
+  function standings(k, bx, by, s) {
+    const r = race, order = r.karts.slice().sort((a, b) => a.place - b.place || b.score - a.score);
+    const me = order.indexOf(k), n = order.length;
+    const pick = [...new Set([0, me - 1, me, me + 1, me === 0 ? 2 : -1].filter((i) => i >= 0 && i < n))].sort((a, b) => a - b).slice(0, 4);
+    const rowH = 11 * s + 1.5, bw = 128 * s + 6, px = 8 * s + 1.5;
+    const gap = pick.length > 1 && pick[1] > 1;          // places skipped between the leader and the rest
+    const bh = pick.length * rowH + (gap ? rowH * 0.6 : 0) + 6;
+    panel(bx, by, bw, bh, 'rgba(12,10,40,0.72)', r.coinMode ? '#ffd23f' : '#ff7ab8');
+    let y = by + 3 + rowH / 2;
+    pick.forEach((i, j) => {
+      if (j === 1 && gap) { text('· · ·', bx + bw / 2, y - rowH * 0.15, px, '#ffffff', 'center'); y += rowH * 0.6; }
+      const o = order[i], mine = o === k;
+      if (mine) { rr(bx + 2, y - rowH / 2, bw - 4, rowH, 3); hctx.fillStyle = 'rgba(255,225,79,0.28)'; hctx.fill(); }
+      text(ORD[o.place - 1], bx + 5, y, px, o.place === 1 ? '#ffe14f' : '#ffffff');
+      if (o.crowned) crownIcon(bx + 26 * s + 3, y - 1, 0.42 * s + 0.1);      // the leader's crown takes the place of the dot
+      else { hctx.beginPath(); hctx.arc(bx + 26 * s + 3, y - 0.5, 3 * s + 0.8, 0, TAU); hctx.fillStyle = hex(kartColor(o.model)); hctx.fill(); }
+      const tag = mine ? (r.view.length > 1 ? 'P' + (o.pi + 1) : 'YOU') : o.pi != null ? 'P' + (o.pi + 1) : o.def.name;
+      text(tag, bx + 32 * s + 4, y, px, mine ? '#ffe14f' : '#ffffff');
+      text(String(o.score), bx + bw - 5, y, px, r.coinMode ? '#ffd23f' : '#ff9ad6', 'right');
+      y += rowH;
+    });
+    return by + bh;
   }
 
   // a U-turn arrow that ends pointing down on the side to turn toward (dir -1 = left)
