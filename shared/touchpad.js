@@ -6,7 +6,8 @@
 // Plain <script src="../../shared/touchpad.js"> before game.js -- no modules, works from file://.
 //   const pad = MickleTouch.create({
 //     toggleParent: document.getElementById('topbar'),   // where the ON/OFF toggle goes
-//     buttons: [{ id: 'hop', label: 'HOP' }],            // bottom-right, first one lowest (or { row, col })
+//     buttons: [{ id: 'hop', label: 'HOP' }],            // bottom-right, first one lowest (or { row, col });
+//                                                         // icon: '<svg ...>' shows a picture (no word), color: '#rrggbb' tints it
 //     onPress(id) {}, onRelease(id) {},                  // a button went down / up
 //     onStep(dx) {},                                     // the stick was nudged left/right (-1 / 1), for menus
 //     defaultOn: true,                                   // start ON when nobody has picked yet (a tablet)
@@ -15,6 +16,8 @@
 //   pad.dy()          // -1 / 0 / 1 while the stick is held up / centre / down
 //   pad.ax(), pad.ay() // analog -1..1 stick position, for rolling in any direction
 //   pad.down('hop')   // is that button held?
+//   pad.setIcon('item', svg)  // change a picture button's picture
+//   pad.lit('item', false)  // dim a button (nothing to use), lit(id, true) to light it again
 //   pad.show(false)   // hide the controls on screens that don't use them (Kart's menus); show(true) again
 // Touches on the controls never reach the page, so "tap anywhere" game handlers are safe.
 (function (global) {
@@ -41,6 +44,11 @@
     '  font: bold 1rem "Courier New", Courier, monospace; letter-spacing: 1px; display: flex; align-items: center; justify-content: center;',
     '  text-shadow: 0 0 8px #ffe14f; }',
     '.mt-btn.down { background: rgba(255,225,79,.45); transform: scale(.94); }',
+    // a button with a picture instead of a word (for kids who can't read yet)
+    '.mt-btn.mt-icon { text-shadow: none; }',
+    '.mt-btn.mt-icon svg { width: 66px; height: 66px; display: block; pointer-events: none; }',
+    '.mt-btn.dim { opacity: .4; }',
+    '.mt-btn.mt-icon.down { filter: brightness(1.35); }',
   ].join('\n');
 
   function injectCss() {
@@ -116,10 +124,22 @@
     });
 
     // ---- buttons (first one lowest, the rest stacked above it) ----
+    var btnEls = {};
     (opts.buttons || []).forEach(function (b, i) {
       var el = document.createElement('div');
       el.className = 'mt-btn';
-      el.textContent = b.label;
+      if (b.icon) {
+        el.classList.add('mt-icon');
+        el.innerHTML = b.icon;
+        el.setAttribute('aria-label', b.label);
+        el.title = b.label;
+      } else el.textContent = b.label;
+      // its own colour (border, tint and word), so buttons are easy to tell apart
+      if (b.color) {
+        el.style.borderColor = b.color; el.style.color = b.color;
+        el.style.background = b.color + '2e';
+      }
+      btnEls[b.id] = el;
       // stacked by default; a button can name its own row (up from the bottom) and col (in from the right)
       var row = b.row != null ? b.row : i, col = b.col || 0;
       el.style.bottom = 'calc(max(22px, env(safe-area-inset-bottom)) + ' + (row * 108) + 'px)';
@@ -189,6 +209,10 @@
       ay: function () { return on ? stickAY : 0; },
       down: function (id) { return on && !!held[id]; },
       enabled: function () { return on; },
+      // dim a button that has nothing to do just now (ITEM with no item), light it again
+      // swap a picture button's picture (Kart's ITEM button shows the item you're holding)
+      setIcon: function (id, svg) { var el = btnEls[id]; if (el && el._icon !== svg) { el._icon = svg; el.innerHTML = svg; } },
+      lit: function (id, v) { var el = btnEls[id]; if (el && el.classList.contains('dim') === !!v) el.classList.toggle('dim', !v); },
       show: function (v) {
         shown = !!v;
         layer.hidden = !on || !shown;

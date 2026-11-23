@@ -1744,9 +1744,9 @@
     scene.add(g);
     return g;
   }
-  // the battle leader's crown and golden glow (made when first needed, one per kart)
+  // the battle leader's crown and beam of light (made when first needed, one per kart; no glow
+  // bubble round the kart -- that looked like a shield)
   const crownMat = new THREE.MeshLambertMaterial({ color: 0xffd23f, emissive: 0x9a6a00, side: THREE.DoubleSide });
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.35, depthWrite: false });
   const beamMat = new THREE.MeshBasicMaterial({ color: 0xffe14f, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
   const beamGeo = new THREE.CylinderGeometry(1.1, 2.2, 22, 12, 1, true).translate(0, 11, 0);
   const crownBand = new THREE.CylinderGeometry(0.8, 0.7, 0.5, 14, 1, true), crownSpike = new THREE.ConeGeometry(0.2, 0.55, 6);
@@ -1761,8 +1761,6 @@
     }
     c.scale.setScalar(1.5);
     g.add(c);
-    const glow = part(g, GEO.sphere, glowMat, 0, 1.1, 0, 2.6, 1.7, 3.1);
-    glow.renderOrder = 2;
     // a tall soft beam of light, so you can spot the leader from across the arena
     part(g, beamGeo, beamMat, 0, 0, 0).renderOrder = 2;
     g.userData.crown = c;
@@ -1780,7 +1778,6 @@
     g.userData.crown.rotation.y = t * 1.5;
     // up above the balloons (or the top of the coin stack)
     g.userData.crown.position.y = (race.coinMode ? Math.max(3.2, 2.4 + Math.min(k.score, STACK_TALL) * 0.2) : 6.9) + Math.sin(t * 4) * 0.15;
-    glowMat.opacity = 0.3 + Math.sin(t * 6) * 0.1;
     beamMat.opacity = 0.16 + Math.sin(t * 3) * 0.06;
   }
 
@@ -2095,7 +2092,7 @@
         ri, def: RACERS[ri], model: models[ri], pi: pi >= 0 ? pi : null,
         idx, lap: 0, lat, x, z, balloons: 3, score: 0, outT: 0, goal: null, bal: null,
         h, md: h, v: 0, ay: 0, vy: 0, gy: 0, air: false, airT: 0, steer: 0,
-        fell: false, fallT: 0, roadY: 0, offT: 0, rescue: 0, moved: false, boost: 0, spin: 0, safe: 0, shield: 0, tiny: 0, tinyS: 1, item: null, uses: 0, itemWait: 0, wrongT: 0,
+        fell: false, fallT: 0, roadY: 0, offT: 0, rescue: 0, moved: false, boost: 0, spin: 0, safe: 0, shield: 0, tiny: 0, tinyS: 1, item: null, item2: null, uses: 0, itemWait: 0, wrongT: 0,
         drift: 0, charge: 0, hopping: false, dv: 0, rocketAt: null, rocketed: false, aiRocket: Math.random() < 0.4,
         finished: false, finishT: 0, place: i + 1, prog: 0, pt: 0, coins: 0, zone: null, msg: '', msgT: 0,
         skill: pi >= 0 ? 0.95 : speed.ai[0] + (speed.ai[1] - speed.ai[0]) * (aiN++ / 4),
@@ -2573,10 +2570,14 @@
         if (b.t > 0 || (k.x - b.x) ** 2 + (k.z - b.z) ** 2 > 6.8 || Math.abs(k.ay + 1 - b.y) > 3) continue;
         b.t = 3; b.mesh.visible = false;
         if (nearView(k)) burst(b.x, b.y, b.z, [0xff5c8f, 0xffd83d, 0x4ff0ff, 0xb48cff], 10, { size: 0.35 });
+        // you can carry two: the second waits its turn and comes up when the first is used up
         if (!k.item) {
           k.item = rollItem(k);
           k.uses = k.item === 'carrot3' ? 3 : 1;
           k.itemWait = rand(1, 4);
+          if (k.pi != null) sfxItem();
+        } else if (!k.item2) {
+          k.item2 = rollItem(k);
           if (k.pi != null) sfxItem();
         }
       }
@@ -2663,6 +2664,7 @@
     if (!k.item || k.spin > 0 || k.tiny > 0 || race.state !== 'go') return;
     const it = k.item;
     if (it === 'carrot3') { k.uses--; if (k.uses <= 0) k.item = null; } else k.item = null;
+    if (!k.item && k.item2) { k.item = k.item2; k.item2 = null; k.uses = k.item === 'carrot3' ? 3 : 1; }   // the next one moves up
     if (it === 'carrot' || it === 'carrot3') {
       k.boost = Math.max(k.boost, 1.6);
       if (k.pi != null) sfxBoost();
@@ -3369,11 +3371,40 @@
   nameBox.addEventListener('pointerdown', (e) => e.stopPropagation());
 
   // ---------- Input ----------
+  // touch button pictures, for kids who can't read the words yet: each its own shape and colour
+  const ICON = {
+    // a big green arrow jumping up off the ground
+    hop: '<svg viewBox="0 0 100 100"><path d="M50 6 L84 44 H63 V70 H37 V44 H16 Z" fill="#5cf07a" stroke="#0d4a1e" stroke-width="5" stroke-linejoin="round"/>' +
+      '<path d="M20 90 Q50 74 80 90" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/></svg>',
+    // the rainbow item box from the track, with its question mark
+    item: '<svg viewBox="0 0 100 100"><defs><linearGradient id="mtItemG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5c8f"/>' +
+      '<stop offset=".35" stop-color="#ffd83d"/><stop offset=".7" stop-color="#4ff0ff"/><stop offset="1" stop-color="#b48cff"/></linearGradient></defs>' +
+      '<rect x="13" y="13" width="74" height="74" rx="12" fill="url(#mtItemG)" stroke="#ffffff" stroke-width="6"/>' +
+      '<text x="50" y="73" text-anchor="middle" font-size="60" font-weight="900" font-family="Arial Black, Arial, sans-serif" fill="#ffffff" stroke="#120b28" stroke-width="5" paint-order="stroke">?</text></svg>',
+    // a red stop sign
+    brake: '<svg viewBox="0 0 100 100"><polygon points="32,5 68,5 95,32 95,68 68,95 32,95 5,68 5,32" fill="#ff3b4f" stroke="#ffffff" stroke-width="6" stroke-linejoin="round"/>' +
+      '<rect x="22" y="41" width="56" height="18" rx="5" fill="#ffffff"/></svg>',
+  };
+  // the ITEM button shows the item you're holding (same shapes as the HUD's drawItemIcon)
+  const svgCarrot = (x, y, k) => `<g transform="translate(${x} ${y}) scale(${k})"><polygon points="-7,-4 5,-7 -2,9" fill="#ff8a1e" stroke="#120b28" stroke-width="1.2" stroke-linejoin="round"/>` +
+    '<rect x="-3" y="-11" width="3" height="6" fill="#3fae5a"/><rect x="1" y="-12" width="3" height="6" fill="#3fae5a"/></g>';
+  const starPts = Array.from({ length: 10 }, (_, i) => { const r = i % 2 ? 4.5 : 11, a = i / 10 * TAU - PI / 2; return (Math.cos(a) * r).toFixed(2) + ',' + (Math.sin(a) * r).toFixed(2); }).join(' ');
+  function itemSvg(it, uses) {
+    let g = '';
+    if (it === 'carrot') g = svgCarrot(0, 1, 1.15);
+    else if (it === 'carrot3') g = [[-7, 4], [0, -2], [7, 4]].slice(0, uses).map(([x, y]) => svgCarrot(x, y, 0.68)).join('');   // one carrot per go left
+    else if (it === 'snowball') g = '<circle r="10" fill="#ffffff" stroke="#120b28" stroke-width="1.2"/><circle cx="2.5" cy="2.5" r="6" fill="#dbe9f6"/>';
+    else if (it === 'honey') g = '<ellipse cy="3" rx="12" ry="6.5" fill="#ffb81e" stroke="#120b28" stroke-width="1.2"/><ellipse cx="-2.5" cy="1.5" rx="6" ry="2.5" fill="#ffe14f"/>';
+    else if (it === 'shield') g = '<circle r="11" fill="rgba(127,232,255,0.45)" stroke="#7fe8ff" stroke-width="2.4"/><circle cx="-4" cy="-4" r="3" fill="#ffffff"/>';
+    else if (it === 'shrink') g = `<polygon points="${starPts}" fill="#ffe14f" stroke="#120b28" stroke-width="1.2" stroke-linejoin="round"/>`;
+    return '<svg viewBox="-14 -14 28 28">' + g + '</svg>';
+  }
   const touch = MickleTouch.create({
     defaultOn: looksLikeTablet,   // a tablet starts with the stick and buttons showing
     toggleParent: document.getElementById('topbar'),
     // HOP lowest on the right with ITEM above it; BRAKE (hold it to stop, keep holding to back up) beside HOP
-    buttons: [{ id: 'hop', label: 'HOP' }, { id: 'item', label: 'ITEM' }, { id: 'brake', label: 'BRAKE', row: 0, col: 1 }],
+    buttons: [{ id: 'hop', label: 'HOP', icon: ICON.hop, color: '#5cf07a' }, { id: 'item', label: 'ITEM', icon: ICON.item, color: '#ffd83d' },
+      { id: 'brake', label: 'BRAKE', icon: ICON.brake, color: '#ff5c5c', row: 0, col: 1 }],
     onPress(id) {
       unlockAudio();
       if (mode !== 'race' || !race || race.results || id === 'brake') return;
@@ -3871,9 +3902,15 @@
     // item box -- tap it to use the item
     const bs = 34 * s + (small ? 4 : 0), bx = x0 + w / 2 - bs / 2, by = y0 + 5;
     panel(bx, by, bs, bs, 'rgba(12,10,40,0.7)', k.item ? '#ffe14f' : '#5ff3ff');
+    if (k.item2) {
+      // the next item, waiting in a small box beside it
+      const bs2 = bs * 0.6, bx2 = bx + bs + 4 * s, by2 = by + bs - bs2;
+      panel(bx2, by2, bs2, bs2, 'rgba(12,10,40,0.6)', 'rgba(255,225,79,0.6)');
+      drawItemIcon(k.item2, bx2 + bs2 / 2, by2 + bs2 / 2, bs2 / 34);
+    }
     if (k.item) {
       drawItemIcon(k.item, x0 + w / 2, by + bs / 2, bs / 34);
-      if (k.item === 'carrot3') text('x' + k.uses, bx + bs + 2, by + bs - 4, 8, '#ffffff', 'left', '#120b28');
+      if (k.item === 'carrot3') text('x' + k.uses, bx + bs - 2, by + bs - 5, 8 * s + 1, '#ffffff', 'right', '#120b28');
       text(ITEM_NAME[k.item], x0 + w / 2, by + bs + 7, 8 * s + 1, '#ffe14f', 'center', '#120b28');
       const pi = k.pi;
       hudButtons.push({ x: bx - 10, y: by - 5, w: bs + 20, h: bs + 20, fn: () => { queued[pi].item = true; } });
@@ -3906,22 +3943,28 @@
     const r = race, order = r.karts.slice().sort((a, b) => a.place - b.place || b.score - a.score);
     const me = order.indexOf(k), n = order.length;
     const pick = [...new Set([0, me - 1, me, me + 1, me === 0 ? 2 : -1].filter((i) => i >= 0 && i < n))].sort((a, b) => a - b).slice(0, 4);
-    const rowH = 11 * s + 1.5, bw = 128 * s + 6, px = 8 * s + 1.5;
+    const rowH = 11 * s + 1.5, bw = 134 * s + 6, px = 8 * s + 1.5;
+    const BIG = 1.45;                                    // your own row: bigger, so you find yourself at a glance
     const gap = pick.length > 1 && pick[1] > 1;          // places skipped between the leader and the rest
-    const bh = pick.length * rowH + (gap ? rowH * 0.6 : 0) + 6;
+    const bh = (pick.length - 1 + BIG) * rowH + (gap ? rowH * 0.6 : 0) + 6;
     panel(bx, by, bw, bh, 'rgba(12,10,40,0.72)', r.coinMode ? '#ffd23f' : '#ff7ab8');
     let y = by + 3 + rowH / 2;
     pick.forEach((i, j) => {
       if (j === 1 && gap) { text('· · ·', bx + bw / 2, y - rowH * 0.15, px, '#ffffff', 'center'); y += rowH * 0.6; }
-      const o = order[i], mine = o === k;
-      if (mine) { rr(bx + 2, y - rowH / 2, bw - 4, rowH, 3); hctx.fillStyle = 'rgba(255,225,79,0.28)'; hctx.fill(); }
-      text(ORD[o.place - 1], bx + 5, y, px, o.place === 1 ? '#ffe14f' : '#ffffff');
-      if (o.crowned) crownIcon(bx + 26 * s + 3, y - 1, 0.42 * s + 0.1);      // the leader's crown takes the place of the dot
-      else { hctx.beginPath(); hctx.arc(bx + 26 * s + 3, y - 0.5, 3 * s + 0.8, 0, TAU); hctx.fillStyle = hex(kartColor(o.model)); hctx.fill(); }
+      const o = order[i], mine = o === k, rh = mine ? rowH * BIG : rowH, fp = mine ? px * BIG : px;
+      if (mine) {
+        y += (rh - rowH) / 2;
+        rr(bx + 2, y - rh / 2, bw - 4, rh, 4); hctx.fillStyle = 'rgba(255,225,79,0.3)'; hctx.fill();
+        hctx.lineWidth = 1.2; hctx.strokeStyle = '#ffe14f'; hctx.stroke();
+      }
+      text(ORD[o.place - 1], bx + 5, y, fp, o.place === 1 || mine ? '#ffe14f' : '#ffffff', 'left', mine ? '#120b28' : undefined);
+      const dx = bx + (mine ? 39 : 26) * s + 3;
+      if (o.crowned) crownIcon(dx, y - 1, (0.42 * s + 0.1) * (mine ? 1.3 : 1));      // the leader's crown takes the place of the dot
+      else { hctx.beginPath(); hctx.arc(dx, y - 0.5, (3 * s + 0.8) * (mine ? 1.3 : 1), 0, TAU); hctx.fillStyle = hex(kartColor(o.model)); hctx.fill(); }
       const tag = mine ? (r.view.length > 1 ? 'P' + (o.pi + 1) : 'YOU') : o.pi != null ? 'P' + (o.pi + 1) : o.def.name;
-      text(tag, bx + 32 * s + 4, y, px, mine ? '#ffe14f' : '#ffffff');
-      text(String(o.score), bx + bw - 5, y, px, r.coinMode ? '#ffd23f' : '#ff9ad6', 'right');
-      y += rowH;
+      text(tag, dx + 6 * s + (mine ? 3 : 1), y, fp, mine ? '#ffe14f' : '#ffffff', 'left', mine ? '#120b28' : undefined);
+      text(String(o.score), bx + bw - 5, y, fp, r.coinMode ? '#ffd23f' : '#ff9ad6', 'right', mine ? '#120b28' : undefined);
+      y += mine ? rh - (rh - rowH) / 2 : rowH;
     });
     return by + bh;
   }
@@ -3967,6 +4010,10 @@
 
   function drawRace() {
     const r = race;
+    // the ITEM button shows what you're holding, and is the dim item box while you've nothing
+    const k0 = r.view[0];
+    touch.setIcon('item', k0.item ? itemSvg(k0.item, k0.uses) : ICON.item);
+    touch.lit('item', !!k0.item || !!r.results);
     if (r.results) return drawResults();
     if (r.view.length > 1) {
       drawView(r.view[0], 0, 0, W, H / 2, 0);
@@ -3981,7 +4028,7 @@
     }
     drawConfetti(r.confetti);
     if (r.demo) return;
-    if (!paused) { button('II', 362, 4, 24, 19, () => setPaused(true), { px: 11, color: '#ffffff' }); return; }
+    if (!paused) { pauseButton(360, 3, 28, 22); return; }
     // paused: only the pause panel's buttons take taps
     hudButtons = [];
     hctx.fillStyle = 'rgba(8,6,28,0.62)'; hctx.fillRect(0, 0, W, H);
@@ -3990,6 +4037,17 @@
     goBtn(PAUSE_ITEMS[0], () => pauseChoose(0), { go: pauseSel === 0, color: '#5ff3ff' });
     button(PAUSE_ITEMS[1], 172, 138, 136, 30, () => pauseChoose(1), { go: pauseSel === 1, px: 12, color: '#5ff3ff' });
     backBtn(PAUSE_ITEMS[2], () => pauseChoose(2), { go: pauseSel === 2, color: '#ff9a8a', px: 9 });
+  }
+  // the pause button: two solid white bars in a dark rounded square, like on a remote
+  function pauseButton(x, y, w, h) {
+    rr(x, y, w, h, 6);
+    hctx.fillStyle = 'rgba(12,10,40,0.8)'; hctx.fill();
+    hctx.lineWidth = 2; hctx.strokeStyle = '#ffffff'; hctx.stroke();
+    const bw = w * 0.17, bh = h * 0.56, gap = w * 0.13, cx = x + w / 2, cy = y + h / 2;
+    hctx.fillStyle = '#ffffff';
+    rr(cx - gap / 2 - bw, cy - bh / 2, bw, bh, 1.2); hctx.fill();
+    rr(cx + gap / 2, cy - bh / 2, bw, bh, 1.2); hctx.fill();
+    hudButtons.push({ x: x - 4, y: y - 3, w: w + 8, h: h + 6, fn: () => setPaused(true) });
   }
   function drawConfetti(list) {
     for (const c of list) {
