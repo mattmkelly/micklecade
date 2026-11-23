@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0" stop-color="#4a2a7a"/><stop offset="1" stop-color="#120a26"/>
+    </radialGradient>
+    <linearGradient id="scr" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3aa0ff"/><stop offset="0.62" stop-color="#ffd27a"/><stop offset="0.62" stop-color="#1b6fd0"/><stop offset="1" stop-color="#1557a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <!-- film strip -->
+  <g transform="rotate(-8 200 230)">
+    <rect x="-20" y="208" width="440" height="52" fill="#1a1a1a"/>
+    <g fill="#f4f0e0">
+      <rect x="0" y="213" width="14" height="9" rx="2"/><rect x="34" y="213" width="14" height="9" rx="2"/><rect x="68" y="213" width="14" height="9" rx="2"/>
+      <rect x="102" y="213" width="14" height="9" rx="2"/><rect x="136" y="213" width="14" height="9" rx="2"/><rect x="170" y="213" width="14" height="9" rx="2"/>
+      <rect x="204" y="213" width="14" height="9" rx="2"/><rect x="238" y="213" width="14" height="9" rx="2"/><rect x="272" y="213" width="14" height="9" rx="2"/>
+      <rect x="306" y="213" width="14" height="9" rx="2"/><rect x="340" y="213" width="14" height="9" rx="2"/><rect x="374" y="213" width="14" height="9" rx="2"/>
+      <rect x="0" y="246" width="14" height="9" rx="2"/><rect x="34" y="246" width="14" height="9" rx="2"/><rect x="68" y="246" width="14" height="9" rx="2"/>
+      <rect x="102" y="246" width="14" height="9" rx="2"/><rect x="136" y="246" width="14" height="9" rx="2"/><rect x="170" y="246" width="14" height="9" rx="2"/>
+      <rect x="204" y="246" width="14" height="9" rx="2"/><rect x="238" y="246" width="14" height="9" rx="2"/><rect x="272" y="246" width="14" height="9" rx="2"/>
+      <rect x="306" y="246" width="14" height="9" rx="2"/><rect x="340" y="246" width="14" height="9" rx="2"/><rect x="374" y="246" width="14" height="9" rx="2"/>
+    </g>
+    <rect x="20" y="225" width="70" height="18" fill="#2fbf4a"/><rect x="110" y="225" width="70" height="18" fill="#ff4fd8"/>
+    <rect x="200" y="225" width="70" height="18" fill="#ffe14f"/><rect x="290" y="225" width="70" height="18" fill="#4ff0ff"/>
+  </g>
+  <!-- the screen -->
+  <rect x="88" y="34" width="224" height="140" rx="12" fill="#0c0818" stroke="#ff4fd8" stroke-width="5"/>
+  <rect x="98" y="44" width="204" height="120" rx="6" fill="url(#scr)"/>
+  <circle cx="140" cy="76" r="18" fill="#ffef5a"/>
+  <!-- the green-screen kid on the beach -->
+  <circle cx="214" cy="92" r="17" fill="#e8b090"/>
+  <path d="M194 112 h40 v52 h-40z" fill="#d0305a"/>
+  <circle cx="208" cy="90" r="2.4" fill="#222"/><circle cx="220" cy="90" r="2.4" fill="#222"/>
+  <path d="M207 98 q7 6 14 0" stroke="#222" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <text x="200" y="66" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="22"
+        fill="#ffe14f" stroke="#111" stroke-width="4" paint-order="stroke" letter-spacing="1">ACTION!</text>
+  <!-- clapper -->
+  <g transform="translate(286 128) rotate(12)">
+    <rect x="0" y="16" width="78" height="54" rx="5" fill="#222" stroke="#f4f0e0" stroke-width="3"/>
+    <g transform="rotate(-18 0 14)">
+      <rect x="0" y="0" width="78" height="16" rx="3" fill="#f4f0e0"/>
+      <path d="M8 0 l12 16 M30 0 l12 16 M52 0 l12 16" stroke="#222" stroke-width="7"/>
+    </g>
+    <path d="M10 34 h58 M10 46 h40 M10 58 h50" stroke="#f4f0e0" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  <!-- scissors -->
+  <g transform="translate(70 150) rotate(-30)" stroke="#4ff0ff" stroke-width="6" fill="none" stroke-linecap="round">
+    <circle cx="0" cy="0" r="11"/><circle cx="0" cy="34" r="11"/>
+    <path d="M8 8 L46 30 M8 26 L46 4"/>
+  </g>
+</svg>

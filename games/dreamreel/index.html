@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DreamReel</title>
+<link rel="icon" type="image/png" sizes="48x48" href="../../assets/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../../assets/icon-192.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="manifest" href="../../manifest.webmanifest">
+<meta name="theme-color" content="#14151a">
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #0e0c16;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  body { width: 100%; }
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+  textarea { -webkit-user-select: text; user-select: text; }
+
+  #wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px;
+    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
+    min-width: min(100%, 300px);
+  }
+  #topbar { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #back { color: #ffd98a; text-decoration: none; font-size: 0.8rem; letter-spacing: 1px; }
+  #hint { color: #ffd98a; font-size: 0.72rem; letter-spacing: 1px; text-align: center; }
+
+  #stage {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    border: 4px solid #2c2838; border-radius: 10px;
+    box-shadow: 0 0 0 1px #5d5672, 0 0 26px rgba(0, 0, 0, 0.8);
+    background: #17141f; overflow: hidden; touch-action: none;
+  }
+  @media (orientation: portrait) {
+    #wrap { width: 100%; height: 100vh; height: 100dvh; }
+    #stage { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
+  }
+
+  /* everything is sized in em; game.js sets the font size from the stage size */
+  #ui {
+    position: absolute; inset: 0; font-size: 5px; color: #ece8f6;
+    display: grid; gap: 1em; padding: 1em;
+    grid-template-columns: 36em 1fr 44em;
+    grid-template-rows: minmax(0, 1fr) 11em 30em;
+    grid-template-areas: "bin prev insp" "bar bar bar" "tl tl tl";
+  }
+  #ui.tall {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) auto 30em;
+    grid-template-areas: "prev prev" "bin insp" "bar bar" "tl tl";
+  }
+  #ui button { font-family: inherit; color: inherit; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; }
+  /* buttons and inputs get the browser's own font size otherwise, and every em below would be off */
+  :where(#ui, #sheet) button, :where(#ui, #sheet) input { font-size: inherit; }
+  .panel {
+    background: linear-gradient(170deg, #2a2537, #1d1a27); border-radius: 2em;
+    box-shadow: inset 0 0.2em 0 rgba(255, 255, 255, 0.08), 0 0.4em 1em rgba(0, 0, 0, 0.5);
+    min-height: 0; min-width: 0;
+  }
+  .head { font-size: 2.7em; font-weight: bold; letter-spacing: 0.12em; color: #ffcf5a; }
+
+  /* media bin */
+  #bin { grid-area: bin; display: flex; flex-direction: column; padding: 1.4em; gap: 1.2em; }
+  #bin .head { padding-left: 5.4em; line-height: 1.9em; font-size: 1.9em; } /* room for the menu button */
+  #addBtn {
+    font-size: 2.6em; font-weight: bold; letter-spacing: 0.1em; padding: 0.55em 0; border-radius: 0.6em;
+    background: linear-gradient(#ff7ad9, #d63fb0); color: #fff !important;
+    box-shadow: 0 0.18em 0 #8a1f6f, 0 0.3em 0.6em rgba(0, 0, 0, 0.5);
+  }
+  #addBtn:active { transform: translateY(0.12em); box-shadow: 0 0.06em 0 #8a1f6f; }
+  #binList { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1em; align-content: start; grid-auto-rows: 10em; touch-action: pan-y; }
+  .bItem { position: relative; border-radius: 1em; overflow: hidden; background: #000; height: 10em; box-shadow: 0 0.2em 0.5em rgba(0,0,0,0.5); cursor: pointer; }
+  .bItem canvas { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .bItem .dur { position: absolute; left: 0.5em; bottom: 0.4em; font-size: 1.9em; font-weight: bold; text-shadow: 0 0 0.3em #000, 0 0 0.3em #000; }
+  .bItem .top { position: absolute; right: 0.4em; top: 0.4em; font-size: 1.7em; font-weight: bold; padding: 0.2em 0.45em; border-radius: 0.5em;
+    background: rgba(40, 210, 120, 0.92); color: #06301a !important; letter-spacing: 0.05em; }
+  .bItem .add { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 5em; font-weight: bold;
+    color: #fff; opacity: 0; transition: opacity 0.15s; text-shadow: 0 0 0.2em #000; background: rgba(255, 79, 216, 0.25); }
+  .bItem:active .add { opacity: 1; }
+  .binEmpty { grid-column: 1 / -1; font-size: 2.1em; line-height: 1.5; color: #a59fba; text-align: center; padding: 1em 0.5em; }
+
+  /* preview */
+  #prev { grid-area: prev; position: relative; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 1.4em; overflow: hidden; min-height: 0; }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; touch-action: none; }
+  #prevMsg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2em;
+    font-size: 2.6em; line-height: 1.5; color: #c9c2de; pointer-events: none; }
+  #pickNote { position: absolute; left: 50%; top: 1em; transform: translateX(-50%); font-size: 2em; font-weight: bold; padding: 0.35em 0.9em; border-radius: 2em;
+    background: rgba(40, 210, 120, 0.95); color: #06301a; white-space: nowrap; pointer-events: none; }
+  #pickNote[hidden] { display: none; }
+
+  /* inspector */
+  #insp { grid-area: insp; padding: 1.4em 1.6em; overflow-y: auto; touch-action: pan-y; display: flex; flex-direction: column; gap: 1.3em; }
+  .row { display: flex; flex-direction: column; gap: 0.6em; }
+  .lbl { font-size: 2.1em; font-weight: bold; letter-spacing: 0.12em; color: #b7b0cc; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.7em; }
+  .chip { font-size: 2.3em; font-weight: bold; letter-spacing: 0.05em; padding: 0.5em 0.8em; border-radius: 0.6em; background: #51486a; box-shadow: 0 0.14em 0 #15121c; }
+  .chip.on { background: #ffcf5a; color: #3a2600 !important; box-shadow: 0 0 0.6em rgba(255, 207, 90, 0.6); }
+  .big { font-size: 2.8em; font-weight: bold; letter-spacing: 0.08em; padding: 0.55em 0.8em; border-radius: 0.6em; background: #4a4260; box-shadow: 0 0.15em 0 #15121c; }
+  .big.green { background: linear-gradient(#4fe39a, #22b26b); color: #04301a !important; }
+  .big.red { background: linear-gradient(#ff7e7e, #d84444); color: #fff !important; }
+  .big.gold { background: linear-gradient(#ffe08a, #f0a92e); color: #3a2600 !important; }
+  .big:active, .chip:active { transform: translateY(0.1em); }
+  .btnRow { display: flex; flex-wrap: wrap; gap: 0.8em; }
+  .sw { width: 5.2em; height: 5.2em; border-radius: 50%; box-shadow: 0 0 0 0.25em #15121c, 0 0.2em 0.3em rgba(0, 0, 0, 0.6); }
+  .sw.on { box-shadow: 0 0 0 0.3em #fff, 0 0 0 0.6em #ffcf5a; }
+  .note { font-size: 2.1em; line-height: 1.45; color: #a59fba; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4.2em; background: transparent; touch-action: none; margin: 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 1.4em; border-radius: 1em; background: #0f0d15; box-shadow: inset 0 0.2em 0.3em #000; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 4em; height: 4em; margin-top: -1.3em; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, #ffcf5a 45%, #d48a1a); box-shadow: 0 0.2em 0.4em rgba(0, 0, 0, 0.7); }
+  input[type=range]::-moz-range-track { height: 1.4em; border-radius: 1em; background: #0f0d15; }
+  input[type=range]::-moz-range-thumb { width: 4em; height: 4em; border: 0; border-radius: 50%; background: #ffcf5a; }
+  textarea { width: 100%; font: bold 2.3em 'Trebuchet MS', sans-serif; padding: 0.4em 0.5em; border-radius: 0.5em; border: 0.12em solid #5d5672;
+    background: #0f0d15; color: #fff; resize: none; touch-action: manipulation; }
+  textarea:focus { outline: none; border-color: #ffcf5a; }
+  .keySw { display: inline-block; width: 1.1em; height: 1.1em; border-radius: 0.25em; vertical-align: middle; box-shadow: 0 0 0 0.2em #fff; margin-left: 0.6em; }
+
+  /* button bar */
+  #bar { grid-area: bar; display: flex; align-items: center; gap: 1em; padding: 0 1em; }
+  #bar .tb { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2em; min-width: 9em; height: 9.4em; padding: 0 0.6em;
+    border-radius: 1.4em; background: #2f2a3d; box-shadow: 0 0.25em 0 #121018, 0 0.4em 0.6em rgba(0,0,0,0.4); }
+  #bar .tb:active { transform: translateY(0.2em); box-shadow: 0 0.05em 0 #121018; }
+  #bar .tb svg { width: 4.2em; height: 4.2em; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  #bar .tb span { font-size: 1.8em; font-weight: bold; letter-spacing: 0.1em; }
+  #bar .tb:disabled { opacity: 0.35; }
+  #playBtn { min-width: 12em !important; background: linear-gradient(#ffe08a, #f0a92e) !important; color: #3a2600 !important; }
+  #playBtn svg { fill: currentColor; stroke: none; }
+  #time { font-size: 2.6em; font-weight: bold; letter-spacing: 0.05em; color: #ffcf5a; min-width: 7.6em; text-align: center; font-variant-numeric: tabular-nums;
+    background: #0f0d15; padding: 0.25em 0.4em; border-radius: 0.5em; box-shadow: inset 0 0.12em 0.25em #000; }
+  #time small { color: #8d86a6; font-size: 0.7em; }
+  .grow { flex: 1; }
+  #exportBtn { min-width: 15em !important; background: linear-gradient(#ff7ad9, #d63fb0) !important; color: #fff !important; }
+  #ui.tall #bar { flex-wrap: wrap; justify-content: center; padding: 0.6em 0; gap: 0.8em; }
+  #ui.tall #bar .grow { display: none; }
+  #ui.tall #bar .tb { min-width: 8em; height: 8.4em; }
+
+  /* timeline */
+  #tlBox { grid-area: tl; position: relative; border-radius: 1.4em; overflow: hidden; background: #110f18; box-shadow: inset 0 0.3em 0.8em #000; }
+  #tl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  #toast { position: absolute; left: 50%; top: 3em; transform: translateX(-50%); padding: 0.5em 1.2em; border-radius: 2em; font-size: 2.3em; font-weight: bold;
+    letter-spacing: 0.06em; color: #ffe7a3; background: rgba(16, 14, 24, 0.92); border: 0.1em solid #c79a3c; opacity: 0; transition: opacity 0.3s;
+    white-space: nowrap; pointer-events: none; z-index: 20; }
+  #toast.show { opacity: 1; }
+
+  /* sheets: making the movie, done, start over */
+  #sheet { position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(8, 6, 14, 0.82); font-size: 5px; }
+  #sheet[hidden] { display: none; }
+  #sheetBox { width: min(96%, 110em); max-height: 96%; overflow: auto; background: linear-gradient(170deg, #2e2840, #1b1825); border-radius: 2.4em;
+    border: 0.4em solid #ff4fd8; box-shadow: 0 0 3em rgba(255, 79, 216, 0.45); padding: 3em; display: flex; flex-direction: column; align-items: center; gap: 2.2em; text-align: center; color: #ece8f6; }
+  #sheetBox h2 { margin: 0; font-size: 4em; letter-spacing: 0.1em; color: #ffcf5a; }
+  #sheetBox p { margin: 0; font-size: 2.2em; line-height: 1.5; color: #c9c2de; }
+  #sheetBox video { max-width: 100%; max-height: 50em; border-radius: 1.2em; background: #000; }
+  .bar2 { width: 80em; max-width: 100%; height: 3.4em; border-radius: 2em; background: #0f0d15; overflow: hidden; box-shadow: inset 0 0.2em 0.4em #000; }
+  .bar2 b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff7ad9, #ffcf5a); border-radius: 2em; }
+  #sheetBox .btnRow { justify-content: center; }
+  #sheetBox .big { font-size: 2.8em; }
+
+  #media { position: fixed; left: 0; top: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0; pointer-events: none; }
+  #media video { width: 2px; height: 2px; }
+  #file { display: none; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="topbar">
+      <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+    </div>
+    <div id="stage">
+      <div id="ui">
+        <div id="bin" class="panel">
+          <div class="head">MY STUFF</div>
+          <button id="addBtn">+ ADD</button>
+          <div id="binList"></div>
+        </div>
+        <div id="prev">
+          <canvas id="view"></canvas>
+          <div id="prevMsg"></div>
+          <div id="pickNote" hidden>TAP THE GREEN!</div>
+        </div>
+        <div id="insp" class="panel"></div>
+        <div id="bar">
+          <button class="tb" id="undoBtn" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span>UNDO</span></button>
+          <button class="tb" id="homeBtn" aria-label="Go to start"><svg viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5l-9 7 9 7z"/></svg><span>START</span></button>
+          <button class="tb" id="playBtn" aria-label="Play"><svg viewBox="0 0 24 24" id="playIcon"><path d="M7 4l14 8-14 8z"/></svg><span id="playLbl">PLAY</span></button>
+          <div id="time">0:00.0</div>
+          <div class="grow"></div>
+          <button class="tb" id="splitBtn" aria-label="Snip"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/></svg><span>SNIP</span></button>
+          <button class="tb" id="textBtn" aria-label="Add words"><svg viewBox="0 0 24 24"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg><span>WORDS</span></button>
+          <button class="tb" id="delBtn" aria-label="Delete"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg><span>DELETE</span></button>
+          <div class="grow"></div>
+          <button class="tb" id="exportBtn" aria-label="Make my movie"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg><span>MAKE MOVIE</span></button>
+        </div>
+        <div id="tlBox"><canvas id="tl"></canvas></div>
+        <div id="toast"></div>
+      </div>
+      <div id="sheet" hidden><div id="sheetBox"></div></div>
+    </div>
+    <div id="hint">
+      <span>+ ADD brings in videos and photos -- they line up in the MOVIE row.</span>
+      <span>Swipe the timeline to move through your movie. Tap a clip to pick it.</span>
+      <span>Drag a picked clip's yellow ends to make it shorter. Drag a picked clip to move it.</span>
+      <span>SNIP cuts a clip in two at the line. WORDS adds a title you can drag around the picture.</span>
+      <span>GREEN SCREEN: put a clip ON TOP, switch GREEN SCREEN on, then tap the green in the picture.</span>
+      <span>MAKE MOVIE plays it through once and saves it as a video file.</span>
+      <span>Keys: Space play, S snip, T words, Delete, Ctrl+Z undo, arrows step.</span>
+    </div>
+  </div>
+  <div id="media"></div>
+  <input type="file" id="file" accept="video/*,image/*" multiple>
+  <script src="../../shared/fullscreen.js"></script>
+  <script src="../../shared/gamepad.js"></script>
+  <script src="../../shared/menu.js" data-at="0,0" data-portrait="fill"></script>
+  <script src="game.js"></script>
+</body>
+</html>
