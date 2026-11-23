@@ -215,6 +215,13 @@
   /* timeline */
   #tlBox { grid-area: tl; position: relative; border-radius: 1.4em; overflow: hidden; background: #110f18; box-shadow: inset 0 0.3em 0.8em #000; }
   #tl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  /* SNAP switch, top-left corner of the timeline */
+  #snapBtn { position: absolute; left: 0.8em; top: 0.5em; display: flex; align-items: center; gap: 0.4em; padding: 0.3em 0.9em 0.3em 0.6em;
+    border-radius: 2em; background: #2f2a3d; color: #8d86a6; box-shadow: 0 0.2em 0 #121018; }
+  #snapBtn svg { width: 2.6em; height: 2.6em; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; transform: rotate(180deg); }
+  #snapBtn span { font-size: 1.6em; font-weight: bold; letter-spacing: 0.1em; }
+  #snapBtn.on { background: linear-gradient(#ffe08a, #f0a92e); color: #3a2600; }
+  #snapBtn:active { transform: translateY(0.1em); }
 
   #toast { position: absolute; left: 50%; top: 3em; transform: translateX(-50%); padding: 0.5em 1.2em; border-radius: 2em; font-size: 2.3em; font-weight: bold;
     letter-spacing: 0.06em; color: #ffe7a3; background: rgba(16, 14, 24, 0.92); border: 0.1em solid #c79a3c; opacity: 0; transition: opacity 0.3s;
@@ -274,7 +281,9 @@
           <div class="grow"></div>
           <button class="tb" id="exportBtn" aria-label="Make my movie"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg><span>MAKE MOVIE</span></button>
         </div>
-        <div id="tlBox"><canvas id="tl"></canvas></div>
+        <div id="tlBox"><canvas id="tl"></canvas>
+          <button id="snapBtn" class="on" aria-label="Snapping" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0 0 12 0V3h-4v8a2 2 0 0 1-4 0V3z"/><path d="M6 7h4M14 7h4"/></svg><span>SNAP</span></button>
+        </div>
         <div id="toast"></div>
       </div>
       <div id="sheet" hidden><div id="sheetBox"></div></div>
@@ -312,7 +321,7 @@
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/menu.js" data-at="0,0" data-portrait="fill"></script>
-  <script src="backgrounds.js?v=8"></script>
-  <script src="game.js?v=8"></script>
+  <script src="backgrounds.js?v=10"></script>
+  <script src="game.js?v=10"></script>
 </body>
 </html>

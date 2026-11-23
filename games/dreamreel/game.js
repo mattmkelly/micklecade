@@ -56,7 +56,32 @@
   var BGS = window.DreamReelBackgrounds || [];
   var BG_DUR = 5, BG_LOOP = 8;   // a new background clip's length; the timeline strip shows its first 8 s
   function bgDef(id) { for (var i = 0; i < BGS.length; i++) if (BGS[i].id === id) return BGS[i]; return BGS[0]; }
-  function mainTotal() { var s = 0; for (var i = 0; i < project.main.length; i++) s += clipLen(project.main[i]); return s; }
+  // MOVIE clips sit end to end, except that a clip with `xfade` (seconds) slides back over the end of
+  // the one before it and the two blend for that long.
+  function xfadeOf(list, i) { return i > 0 && list[i].xfade ? list[i].xfade : 0; }
+  function startsOf(list) {
+    var out = [], s = 0;
+    for (var i = 0; i < list.length; i++) {
+      if (i > 0) s += clipLen(list[i - 1]) - xfadeOf(list, i);
+      out.push(s);
+    }
+    return out;
+  }
+  function mainStarts() { return startsOf(project.main); }
+  function mainTotal() {
+    var n = project.main.length;
+    return n ? mainStarts()[n - 1] + clipLen(project.main[n - 1]) : 0;
+  }
+  // blends can never be longer than half of either clip
+  function maxXfade(list, i) { return i > 0 ? Math.min(clipLen(list[i - 1]), clipLen(list[i])) * 0.5 : 0; }
+  function tidyBlends() {
+    var L = project.main;
+    for (var i = 0; i < L.length; i++) {
+      if (!L[i].xfade) continue;
+      var x = Math.min(L[i].xfade, maxXfade(L, i));
+      if (i === 0 || x < 0.1) delete L[i].xfade; else L[i].xfade = x;
+    }
+  }
   function total() {
     var t = mainTotal(), i;
     for (i = 0; i < project.top.length; i++) t = Math.max(t, project.top[i].start + clipLen(project.top[i]));
@@ -64,9 +89,8 @@
     return t;
   }
   function mainStart(c) {
-    var s = 0;
-    for (var i = 0; i < project.main.length; i++) { if (project.main[i] === c) return s; s += clipLen(project.main[i]); }
-    return 0;
+    var i = project.main.indexOf(c);
+    return i > 0 ? mainStarts()[i] : 0;
   }
   function itemList(layer) { return layer === 'main' ? project.main : layer === 'top' ? project.top : project.text; }
   function findItem(s) {
@@ -135,6 +159,7 @@
   function changed(keepInspector) {
     dirty = true; tlDirty = true;
     if (!findItem(sel)) sel = null;
+    tidyBlends();
     fitAutoBackground();
     var T = total();
     if (playT > T) playT = T;
@@ -503,11 +528,10 @@
   function addMainAtPlayhead(m) {
     pushUndo();
     var c = newMainClip(m);
-    var idx = project.main.length, s = 0;
+    var idx = project.main.length, st = mainStarts();
     for (var i = 0; i < project.main.length; i++) {
       var L = clipLen(project.main[i]);
-      if (playT < s + L) { idx = playT < s + L / 2 ? i : i + 1; break; }
-      s += L;
+      if (playT < st[i] + L) { idx = playT < st[i] + L / 2 ? i : i + 1; break; }
     }
     project.main.splice(idx, 0, c);
     sel = { layer: 'main', id: c.id };
@@ -718,17 +742,52 @@
   setInterval(gcEls, 3000);
 
   function activeAt(t) {
-    var out = [], s = 0, i;
+    var out = [], i, st = mainStarts();
     for (i = 0; i < project.main.length; i++) {
-      var c = project.main[i], L = clipLen(c);
-      if (t >= s && t < s + L) { out.push({ clip: c, layer: 'main', local: t - s, src: c.in + (t - s), start: s }); break; }
-      s += L;
+      var c = project.main[i], s = st[i], L = clipLen(c);
+      if (s > t) break;
+      if (t < s + L) {
+        var a = { clip: c, layer: 'main', local: t - s, src: c.in + (t - s), start: s, mix: 1, fadeIn: 1 };
+        // the clip coming in fades up over the one going out (which is drawn first, underneath)
+        var x = xfadeOf(project.main, i);
+        if (x && t - s < x) {
+          var k = clamp((t - s) / x, 0, 1);
+          a.fadeIn = k; a.mix = k;
+          if (out.length) out[out.length - 1].mix = 1 - k;
+        }
+        out.push(a);
+      }
     }
+    var tops = [];
     for (i = 0; i < project.top.length; i++) {
       var d = project.top[i];
-      if (t >= d.start && t < d.start + clipLen(d)) out.push({ clip: d, layer: 'top', local: t - d.start, src: d.in + (t - d.start), start: d.start });
+      if (t >= d.start && t < d.start + clipLen(d)) tops.push({ clip: d, layer: 'top', local: t - d.start, src: d.in + (t - d.start), start: d.start, mix: 1, fadeIn: 1, idx: i });
     }
-    return out;
+    // ON TOP blends: a clip with `blend` mixes with the ON TOP clip it starts over
+    tops.forEach(function (b) {
+      if (!b.clip.blend) return;
+      var p = blendPartner(b.clip);
+      if (!p) return;
+      var ov = Math.min(p.start + clipLen(p), b.clip.start + clipLen(b.clip)) - b.clip.start;
+      if (ov <= 0 || b.local >= ov) return;
+      var k = clamp(b.local / ov, 0, 1);
+      var pa = null;
+      tops.forEach(function (q) { if (q.clip === p) pa = q; });
+      if (!pa) return;
+      b.mix = k; pa.mix = 1 - k;
+      // whichever is drawn on top does the fading, so it's a true mix either way
+      if (b.idx > pa.idx) b.fadeIn = k; else pa.fadeIn = 1 - k;
+    });
+    return out.concat(tops);
+  }
+  // The ON TOP clip that `c` starts over (the latest one still running when c starts), if any.
+  function blendPartner(c) {
+    var best = null;
+    project.top.forEach(function (p) {
+      if (p === c) return;
+      if (p.start <= c.start && p.start + clipLen(p) > c.start + 0.05 && (!best || p.start > best.start)) best = p;
+    });
+    return best;
   }
   function isVideoClip(c) { var m = mediaById(c.media); return m && m.kind === 'video'; }
 
@@ -741,7 +800,7 @@
       var e = getEl(a.clip), el = e.el;
       want[a.clip.id] = 1;
       a.e = e;
-      setVol(e, a.clip.vol == null ? 1 : a.clip.vol);
+      setVol(e, (a.clip.vol == null ? 1 : a.clip.vol) * (a.mix == null ? 1 : a.mix));
       if (el.readyState < 1) continue;
       if (playing) {
         // pull a drifting clip back into line -- but at most once a second: on a slow phone,
@@ -757,12 +816,10 @@
       }
     }
     // get the next clips ready before the playhead reaches them
-    var ahead = playing ? 1.5 : 0.6, s = 0;
+    var ahead = playing ? 1.5 : 0.6, st = mainStarts();
     for (i = 0; i < project.main.length; i++) {
-      var c = project.main[i], L = clipLen(c);
-      if (s > t && s <= t + ahead) prerollClip(c, want);
-      s += L;
-      if (s > t + ahead) break;
+      if (st[i] > t + ahead) break;
+      if (st[i] > t) prerollClip(project.main[i], want);
     }
     for (i = 0; i < project.top.length; i++) {
       var d = project.top[i];
@@ -810,9 +867,10 @@
     return { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
   }
   function clipAlpha(a) {
-    if (a.layer !== 'main' || !a.clip.fade) return 1;
+    var k = a.fadeIn == null ? 1 : a.fadeIn;
+    if (a.layer !== 'main' || !a.clip.fade) return k;
     var L = clipLen(a.clip), f = 0.45;
-    return clamp(Math.min(a.local / f, (L - a.local) / f), 0, 1);
+    return k * clamp(Math.min(a.local / f, (L - a.local) / f), 0, 1);
   }
   function sourceFor(a) {
     var m = mediaById(a.clip.media);
@@ -1492,6 +1550,19 @@
     var r3 = row('FADE IN AND OUT');
     r3.appendChild(chips([{ id: false, label: 'NO' }, { id: true, label: 'YES' }], !!c.fade, function (v) { pushUndo(); c.fade = v; changed(); }));
     box.appendChild(r3);
+    var mi = project.main.indexOf(c);
+    if (mi > 0) {
+      var rb = row('BLEND FROM THE CLIP BEFORE');
+      rb.appendChild(chips([{ id: false, label: 'NO' }, { id: true, label: 'YES' }], !!c.xfade, function (v) {
+        pushUndo();
+        if (v) c.xfade = Math.min(1, maxXfade(project.main, mi)); else delete c.xfade;
+        changed();
+        if (v) playT = mainStart(c);
+      }));
+      box.appendChild(rb);
+      if (c.xfade) box.appendChild(slider('BLEND LENGTH', 0.1, Math.max(0.15, maxXfade(project.main, mi)), 0.05,
+        function () { return c.xfade; }, function (v) { c.xfade = v; }));
+    }
     var b = el('div', 'btnRow');
     b.appendChild(button('PUT ON TOP', 'green', function () { moveMainToTop(c); }));
     box.appendChild(b);
@@ -1540,6 +1611,14 @@
     }
     box.appendChild(slider('SIZE', 0.1, 3, 0.01, function () { return c.scale; }, function (v) { c.scale = v; }));
     if (m.kind === 'video') box.appendChild(slider('SOUND', 0, 1.5, 0.05, function () { return c.vol; }, function (v) { c.vol = v; }));
+    // only offered while it overlaps another ON TOP clip
+    if (blendPartner(c)) {
+      var rb = row('BLEND WITH THE CLIP UNDER IT');
+      rb.appendChild(chips([{ id: false, label: 'NO' }, { id: true, label: 'YES' }], !!c.blend, function (v) {
+        pushUndo(); if (v) c.blend = true; else delete c.blend; changed();
+      }));
+      box.appendChild(rb);
+    }
     var b = el('div', 'btnRow');
     b.appendChild(button('MIDDLE', '', function () { pushUndo(); c.x = 0.5; c.y = 0.5; c.scale = 1; changed(); }));
     b.appendChild(button('BACK IN MOVIE', '', function () { moveTopToMain(c); }));
@@ -1585,11 +1664,9 @@
     // split the picked thing if the line is over it, else the movie clip under the line
     if (!it || t <= itemStart(layer, it) + MIN_LEN / 2 || t >= itemStart(layer, it) + itemLen(layer, it) - MIN_LEN / 2) {
       layer = 'main'; it = null;
-      var s = 0;
-      for (var i = 0; i < project.main.length; i++) {
-        var L = clipLen(project.main[i]);
-        if (t > s && t < s + L) { it = project.main[i]; break; }
-        s += L;
+      var ms = mainStarts();
+      for (var i = project.main.length - 1; i >= 0; i--) {
+        if (t > ms[i] && t < ms[i] + clipLen(project.main[i])) { it = project.main[i]; break; }
       }
     }
     if (!it) { toast('MOVE THE LINE OVER A CLIP TO SNIP IT'); return; }
@@ -1598,6 +1675,7 @@
     pushUndo();
     var b = JSON.parse(JSON.stringify(it));
     b.id = uid();
+    delete b.xfade; delete b.blend;   // a snip is a plain cut
     if (layer === 'text') { b.start = t; b.dur = it.dur - k; it.dur = k; }
     else {
       var cut = it.in + k;
@@ -1636,6 +1714,7 @@
     pushUndo();
     var s = mainStart(c);
     project.main.splice(project.main.indexOf(c), 1);
+    delete c.xfade;
     var t = newTopClip(mediaById(c.media), s);
     t.in = c.in; t.out = c.out; t.vol = c.vol; t.id = c.id;
     // it was the movie, so it starts where it sat -- clamp so it still lines up with what's left
@@ -1651,11 +1730,9 @@
     project.top.splice(project.top.indexOf(c), 1);
     var mc = newMainClip(mediaById(c.media));
     mc.in = c.in; mc.out = c.out; mc.vol = c.vol; mc.id = c.id;
-    var idx = project.main.length, s = 0;
+    var idx = project.main.length, st = mainStarts();
     for (var i = 0; i < project.main.length; i++) {
-      var L = clipLen(project.main[i]);
-      if (c.start < s + L / 2) { idx = i; break; }
-      s += L;
+      if (c.start < st[i] + clipLen(project.main[i]) / 2) { idx = i; break; }
     }
     project.main.splice(idx, 0, mc);
     sel = { layer: 'main', id: mc.id };
@@ -1826,16 +1903,23 @@
     }
 
     // MOVIE row
-    var s = 0, dropX = null;
-    project.main.forEach(function (c) {
-      var len = clipLen(c);
+    var dropX = null, mst = mainStarts();
+    project.main.forEach(function (c, i) {
       var moving = drag && drag.mode === 'move' && drag.layer === 'main' && drag.id === c.id;
-      if (!moving) drawClipBlock(x, c, xAt(s), L.main, len, 'main');
-      s += len;
+      if (!moving) drawClipBlock(x, c, xAt(mst[i]), L.main, clipLen(c), 'main');
+    });
+    project.main.forEach(function (c, i) {
+      var xf = xfadeOf(project.main, i);
+      if (xf) drawBlendMark(x, xAt(mst[i]), xf * pps, L.main);
     });
     // TOP row
     project.top.forEach(function (c) {
       drawClipBlock(x, c, xAt(c.start), L.top, clipLen(c), 'top');
+    });
+    project.top.forEach(function (c) {
+      if (!c.blend) return;
+      var p = blendPartner(c);
+      if (p) drawBlendMark(x, xAt(c.start), (Math.min(p.start + clipLen(p), c.start + clipLen(c)) - c.start) * pps, L.top);
     });
     // WORDS row
     project.text.forEach(function (it) {
@@ -1863,6 +1947,9 @@
         dropX = dropMarkerX(drag.dropIdx, c);
         x.fillStyle = '#ffcf5a';
         x.fillRect(dropX - 3, L.main.y - 4, 6, L.main.h + 8);
+        // show the blend it will make
+        var bw = (drag.blendPrev || drag.blendNext) * pps;
+        if (bw) drawBlendMark(x, drag.blendPrev ? dropX - bw : dropX + clipLen(c) * pps - bw, bw, L.main);
       }
     }
 
@@ -1948,6 +2035,23 @@
     roundRect(x, x0 + 1, g.y, Math.max(3, w - 2), g.h, Math.min(10, g.h * 0.18)); x.stroke();
     if (on) drawHandles(x, x0, w, g);
   }
+  // the overlap of two blending clips: a see-through gold wash with a little bow-tie in the middle
+  function drawBlendMark(x, x0, w, g) {
+    if (w < 2 || x0 > tlW || x0 + w < 0) return;
+    x.save();
+    var gr = x.createLinearGradient(x0, 0, x0 + w, 0);
+    gr.addColorStop(0, 'rgba(255,207,90,0.05)'); gr.addColorStop(0.5, 'rgba(255,207,90,0.45)'); gr.addColorStop(1, 'rgba(255,207,90,0.05)');
+    x.fillStyle = gr; x.fillRect(x0, g.y, w, g.h);
+    x.strokeStyle = '#ffe08a'; x.lineWidth = 1.5; x.setLineDash([3, 3]);
+    x.strokeRect(x0 + 0.5, g.y + 0.5, w - 1, g.h - 1);
+    x.setLineDash([]);
+    var cx = x0 + w / 2, cy = g.y + g.h / 2, r = Math.min(g.h * 0.22, w * 0.4);
+    if (r > 3) {
+      x.fillStyle = '#ffe08a';
+      x.beginPath(); x.moveTo(cx - r, cy - r); x.lineTo(cx + r, cy + r); x.lineTo(cx + r, cy - r); x.lineTo(cx - r, cy + r); x.closePath(); x.fill();
+    }
+    x.restore();
+  }
   function handleW(g) { return Math.max(12, Math.min(24, g.h * 0.3)); }
   function drawHandles(x, x0, w, g) {
     var hw = handleW(g);
@@ -1960,10 +2064,12 @@
       x.moveTo(hx + 2, g.y + g.h * 0.32); x.lineTo(hx + 2, g.y + g.h * 0.68); x.stroke();
     });
   }
+  // where a dragged MOVIE clip lands if dropped at idx (counted without it)
   function dropMarkerX(idx, moving) {
-    var s = 0;
-    for (var i = 0; i < idx && i < project.main.length; i++) if (project.main[i] !== moving) s += clipLen(project.main[i]);
-    return xAt(s);
+    var without = project.main.filter(function (c) { return c !== moving; });
+    if (!without.length || idx <= 0) return xAt(0);
+    var st = startsOf(without), j = Math.min(idx, without.length) - 1;
+    return xAt(st[j] + clipLen(without[j]));
   }
 
   // What's under a point on the timeline?
@@ -2041,14 +2147,16 @@
     if (drag.layer === 'main') drag.startX = xAt(mainStart(it));
   }
   var SNAP_PX = 14, snapAt = null;   // where the edge being dragged last snapped (drawn as a guide)
+  function snapOn() { return project.snap !== false; }
   function snapT(t, ignoreId, noMain) {
+    snapAt = null;
+    if (!snapOn()) return t;
     // pull gently to the playhead, the start, and the edges of the other clips within ~14px
     var best = t, bd = SNAP_PX / pps;
     var cands = [playT, 0], s = 0;
     // a MOVIE clip being trimmed shifts every MOVIE edge after it, so those aren't targets then
     if (!noMain) {
-      project.main.forEach(function (c) { cands.push(s); s += clipLen(c); });
-      cands.push(s);
+      mainStarts().forEach(function (st, i) { cands.push(st); cands.push(st + clipLen(project.main[i])); });
     }
     project.top.forEach(function (c) { if (c.id !== ignoreId) { cands.push(c.start); cands.push(c.start + clipLen(c)); } });
     project.text.forEach(function (c) { if (c.id !== ignoreId) { cands.push(c.start); cands.push(c.start + c.dur); } });
@@ -2111,16 +2219,27 @@
       // idx counts positions in the list *with* the moving clip; convert to without
       var without = project.main.filter(function (c) { return c !== it; });
       var idxW = 0, acc = 0;
-      for (var j = 0; j < without.length; j++) { if (t > acc + clipLen(without[j]) / 2) idxW = j + 1; acc += clipLen(without[j]); }
+      var wst = startsOf(without);
+      for (var j = 0; j < without.length; j++) { if (t > wst[j] + clipLen(without[j]) / 2) idxW = j + 1; }
       drag.dropIdx = idxW;
       drag.dropIdxRaw = idx;
+      // the floating clip clicks into the gap it will drop into once it gets close; pushed further
+      // into the clip before or after it, the two will blend for as long as they overlap
+      var slotX = dropMarkerX(idxW, it), dead = snapOn() ? SNAP_PX * 2 : 8, off = drag.ghostX - slotX;
+      drag.blendPrev = 0; drag.blendNext = 0;
+      if (Math.abs(off) < dead) { if (snapOn()) drag.ghostX = slotX; }
+      else if (off < 0 && idxW > 0) drag.blendPrev = Math.min(-off / pps, clipLen(without[idxW - 1]) * 0.5, clipLen(it) * 0.5);
+      else if (off > 0 && idxW < without.length) drag.blendNext = Math.min(off / pps, clipLen(without[idxW]) * 0.5, clipLen(it) * 0.5);
+      snapAt = drag.ghostX === slotX && snapOn() ? tAt(slotX) : null;
+      snapFeedback();
       tlDirty = true;
       return;
     }
     var len = itemLen(drag.layer, it);
     var ns = o.start + d;
     var sA = snapT(ns, it.id), hitA = snapAt, sB = snapT(ns + len, it.id) - len, hitB = snapAt;
-    var useA = Math.abs(sA - ns) <= Math.abs(sB - ns);
+    // whichever end actually clicked onto something wins (the closer one if both did)
+    var useA = hitA != null && (hitB == null || Math.abs(sA - ns) <= Math.abs(sB - ns));
     ns = useA ? sA : sB;
     snapAt = useA ? hitA : hitB;
     snapFeedback();
@@ -2142,12 +2261,27 @@
     } else if (drag.mode === 'move' && drag.layer === 'main') {
       var it = drag.item, list = project.main.filter(function (c) { return c !== it; });
       if (drag.dropIdx != null) {
+        // it starts fresh where it lands: its old blend belonged to its old neighbour
+        delete it.xfade;
         list.splice(drag.dropIdx, 0, it);
         project.main = list;
+        var bl = drag.blendPrev ? it : drag.blendNext ? list[drag.dropIdx + 1] : null;
+        if (bl) {
+          bl.xfade = Math.max(0.1, drag.blendPrev || drag.blendNext);
+          toast('BLENDED! CHANGE IT IN THE PANEL', 2500);
+          beep(988, 0.08);
+        }
         playT = mainStart(it) + 0.001;
       } else undoStack.pop();
       changed();
     } else if (drag.mode === 'trim' || drag.mode === 'move') {
+      if (drag.mode === 'move' && drag.layer === 'top') {
+        var tc = drag.item, was = !!tc.blend, partner = blendPartner(tc);
+        // dragged into another ON TOP clip: blend them (switch it off in the panel if not wanted)
+        tc.blend = !!partner && (was || partner.start + clipLen(partner) - tc.start > 0.15);
+        if (tc.blend && !was) { toast('BLENDED! CHANGE IT IN THE PANEL', 2500); beep(988, 0.08); }
+        if (!tc.blend) delete tc.blend;
+      }
       changed();
     }
     drag = null; tlDirty = true;
@@ -2267,6 +2401,8 @@
     $('#delBtn').disabled = !it;
     $('#undoBtn').disabled = !undoStack.length;
     $('#exportBtn').disabled = total() <= 0;
+    $('#snapBtn').classList.toggle('on', snapOn());
+    $('#snapBtn').setAttribute('aria-pressed', snapOn() ? 'true' : 'false');
   }
   $('#playBtn').addEventListener('click', function () { ensureAudio(); togglePlay(); });
   $('#homeBtn').addEventListener('click', function () { playT = 0; dirty = true; tlDirty = true; });
@@ -2275,6 +2411,11 @@
   $('#textBtn').addEventListener('click', function () { if (playing) stopPlay(); addText(); });
   $('#delBtn').addEventListener('click', deleteSelected);
   $('#exportBtn').addEventListener('click', startExport);
+  $('#snapBtn').addEventListener('click', function () {
+    project.snap = !snapOn();
+    toast(snapOn() ? 'SNAPPING ON' : 'SNAPPING OFF');
+    updateButtons(); scheduleSave();
+  });
 
   // ---------------------------------------------------------------- export
   function pickMime() {
