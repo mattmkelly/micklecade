@@ -119,7 +119,9 @@
   .camBig { font-size: 4.2em; font-weight: bold; letter-spacing: 0.08em; padding: 0.6em 1.2em; border-radius: 0.7em; }
   .camBig.gold { background: linear-gradient(#ffe08a, #f0a92e); color: #3a2600 !important; }
   .camBig.dim { background: rgba(60, 52, 80, 0.92); }
-  #binList { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1em; align-content: start; grid-auto-rows: 10em; touch-action: pan-y; }
+  #binList { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1em; align-content: start; touch-action: pan-y; }
+  .binSec { grid-column: 1 / -1; font-size: 1.7em; font-weight: bold; letter-spacing: 0.12em; color: #b7b0cc; margin-top: 0.4em; }
+  .bItem.bg .dur { font-size: 1.6em; }
   .bItem { position: relative; border-radius: 1em; overflow: hidden; background: #000; height: 10em; box-shadow: 0 0.2em 0.5em rgba(0,0,0,0.5); cursor: pointer; }
   .bItem canvas { width: 100%; height: 100%; display: block; object-fit: cover; }
   .bItem .dur { position: absolute; left: 0.5em; bottom: 0.4em; font-size: 1.9em; font-weight: bold; text-shadow: 0 0 0.3em #000, 0 0 0.3em #000; }
@@ -285,6 +287,7 @@
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/menu.js" data-at="0,0" data-portrait="fill"></script>
+  <script src="backgrounds.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

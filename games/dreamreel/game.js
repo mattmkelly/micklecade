@@ -51,6 +51,11 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function mediaById(id) { for (var i = 0; i < project.media.length; i++) if (project.media[i].id === id) return project.media[i]; return null; }
   function clipLen(c) { return c.out - c.in; }
+  // photos and fun backgrounds have no length of their own: they stretch, like a photo
+  function isStill(m) { return m.kind === 'image' || m.kind === 'bg'; }
+  var BGS = window.DreamReelBackgrounds || [];
+  var BG_DUR = 5, BG_LOOP = 8;   // a new background clip's length; the timeline strip shows its first 8 s
+  function bgDef(id) { for (var i = 0; i < BGS.length; i++) if (BGS[i].id === id) return BGS[i]; return BGS[0]; }
   function mainTotal() { var s = 0; for (var i = 0; i < project.main.length; i++) s += clipLen(project.main[i]); return s; }
   function total() {
     var t = mainTotal(), i;
@@ -203,12 +208,23 @@
   function makeStrip(m) {
     var r = rt[m.id];
     var th = 64, tw = Math.round(clamp(th * m.w / m.h, 28, 160));
-    var N = m.kind === 'image' ? 1 : clamp(Math.ceil(m.dur / 1.5), 3, 24);
+    var N = m.kind === 'image' ? 1 : m.kind === 'bg' ? 6 : clamp(Math.ceil(m.dur / 1.5), 3, 24);
     var c = document.createElement('canvas');
     c.width = tw * N; c.height = th;
     var x = c.getContext('2d');
     x.fillStyle = '#222'; x.fillRect(0, 0, c.width, c.height);
     r.strip = c; r.stripN = N; r.tw = tw; r.th = th;
+    if (m.kind === 'bg') {
+      var def = bgDef(m.gen);
+      for (var bi = 0; bi < N; bi++) {
+        x.save(); x.translate(bi * tw, 0);
+        x.beginPath(); x.rect(0, 0, tw, th); x.clip();
+        def.draw(x, tw, th, bi / N * BG_LOOP + 0.5);
+        x.restore();
+      }
+      r.ready = true; tlDirty = true;
+      return Promise.resolve();
+    }
     if (m.kind === 'image') {
       drawCover(x, r.img, 0, 0, tw, th, m.w, m.h);
       r.ready = true; tlDirty = true; renderBin();
@@ -300,11 +316,12 @@
     });
   }
   function newMainClip(m) {
-    return { id: uid(), media: m.id, in: 0, out: m.kind === 'image' ? PHOTO_DUR : m.dur, vol: 1, fit: 'fit', fade: false, motion: m.kind === 'image' ? 'zoomin' : 'none' };
+    return { id: uid(), media: m.id, in: 0, out: stillLen(m), vol: 1, fit: 'fit', fade: false, motion: m.kind === 'image' ? 'zoomin' : 'none' };
   }
+  function stillLen(m) { return m.kind === 'image' ? PHOTO_DUR : m.kind === 'bg' ? BG_DUR : m.dur; }
   function newTopClip(m, start) {
     return {
-      id: uid(), media: m.id, start: start, in: 0, out: m.kind === 'image' ? PHOTO_DUR : m.dur, vol: 1,
+      id: uid(), media: m.id, start: start, in: 0, out: stillLen(m), vol: 1,
       x: 0.5, y: 0.5, scale: 1, key: { on: false, color: [0.2, 0.75, 0.3], sim: 0.17, soft: 0.06, spill: 0.12 }
     };
   }
@@ -346,19 +363,38 @@
   });
 
   // ---------------------------------------------------------------- the bin
-  var binItems = {};
+  var binItems = {}, bgTiles = [];
   function renderBin() {
     var list = $('#binList');
-    var ids = project.media.map(function (m) { return m.id; }).join(',');
+    var mine = project.media.filter(function (m) { return m.kind !== 'bg'; });
+    var ids = 'v1:' + mine.map(function (m) { return m.id; }).join(',');
     if (list.dataset.ids === ids) return;
     list.dataset.ids = ids;
     list.innerHTML = '';
-    binItems = {};
-    if (!project.media.length) {
-      list.innerHTML = '<div class="binEmpty">Tap + ADD to bring in videos and photos.</div>';
+    binItems = {}; bgTiles = [];
+    // fun backgrounds first: always there, animated, tap to add one to the movie
+    if (BGS.length) {
+      list.appendChild(el('div', 'binSec', 'FUN BACKGROUNDS'));
+      BGS.forEach(function (def) {
+        var d = el('div', 'bItem bg');
+        var c = document.createElement('canvas');
+        c.width = 160; c.height = 100;
+        d.appendChild(c);
+        d.appendChild(el('div', 'dur', def.label));
+        var add = el('div', 'add', '+');
+        d.appendChild(add);
+        d.addEventListener('click', function () { addBackground(def); });
+        list.appendChild(d);
+        bgTiles.push({ c: c, def: def });
+      });
+      drawBgTiles(1.5);
+      list.appendChild(el('div', 'binSec', 'MY VIDEOS AND PHOTOS'));
+    }
+    if (!mine.length) {
+      list.appendChild(el('div', 'binEmpty', 'Tap + ADD or RECORD to bring in videos and photos.'));
       return;
     }
-    project.media.forEach(function (m) {
+    mine.forEach(function (m) {
       var d = document.createElement('div');
       d.className = 'bItem';
       var c = document.createElement('canvas');
@@ -384,6 +420,55 @@
       binItems[m.id] = c;
       renderBinThumb(m);
     });
+  }
+  function drawBgTiles(t) {
+    bgTiles.forEach(function (b) {
+      var x = b.c.getContext('2d');
+      x.save(); b.def.draw(x, b.c.width, b.c.height, t); x.restore();
+    });
+  }
+  // the tiles move gently while nothing heavy is going on
+  setInterval(function () {
+    if (exporting || playing || document.hidden || !bgTiles.length) return;
+    drawBgTiles(performance.now() / 1000);
+  }, 120);
+  // A fun background goes into the movie at the line. Into an empty movie with clips on top,
+  // it is made as long as they are, so it sits right under them.
+  function addBackground(def) {
+    var m = null;
+    for (var i = 0; i < project.media.length; i++) if (project.media[i].kind === 'bg' && project.media[i].gen === def.id) m = project.media[i];
+    if (!m) {
+      m = { id: uid(), kind: 'bg', gen: def.id, name: def.label, dur: PHOTO_MAX, w: 16, h: 9 };
+      bgRuntime(m);
+      project.media.push(m);
+    }
+    var emptyUnderTop = project.main.length === 0 && project.top.length > 0;
+    var topEnd = total();   // measured before the background goes in
+    addMainAtPlayhead(m);
+    if (emptyUnderTop) {
+      project.main[0].out = clamp(topEnd, MIN_LEN, PHOTO_MAX);
+      changed();
+    }
+  }
+  function bgRuntime(m) {
+    if (rt[m.id]) return;
+    var cv = document.createElement('canvas');
+    rt[m.id] = { url: null, bg: cv, bgCtx: cv.getContext('2d'), bgT: -1, ready: false };
+    makeStrip(m);
+  }
+  // this background's picture at time t, sized to the movie's shape
+  function bgFrame(m, t) {
+    var r = rt[m.id];
+    if (!r) { bgRuntime(m); r = rt[m.id]; }
+    var w = Math.max(16, Math.round(outW * 0.6)), h = Math.max(16, Math.round(outH * 0.6));
+    if (r.bg.width !== w || r.bg.height !== h) { r.bg.width = w; r.bg.height = h; r.bgT = -1; }
+    if (r.bgT !== t) {
+      r.bgCtx.save();
+      bgDef(m.gen).draw(r.bgCtx, w, h, t);
+      r.bgCtx.restore();
+      r.bgT = t;
+    }
+    return r.bg;
   }
   function renderBinThumb(m) {
     var c = binItems[m.id], r = rt[m.id];
@@ -659,6 +744,7 @@
   function srcSize(a) {
     var m = mediaById(a.clip.media);
     if (m.kind === 'video' && a.e && a.e.el.videoWidth) return [a.e.el.videoWidth, a.e.el.videoHeight];
+    if (m.kind === 'bg') return [outW, outH];   // backgrounds are drawn to the movie's own shape
     return [m.w, m.h];
   }
   // Where a clip lands on the output, in output pixels.
@@ -689,6 +775,7 @@
   function sourceFor(a) {
     var m = mediaById(a.clip.media);
     if (m.kind === 'image') return rt[m.id] && rt[m.id].img;
+    if (m.kind === 'bg') return bgFrame(m, a.local);
     if (a.e && a.e.el.readyState >= 2) return a.e.el;
     return null;
   }
@@ -738,7 +825,12 @@
       } else mc = segCache.get(a.clip.id) || null;
       if (mc && !mc.w) mc = null;
     }
-    if (m.kind === 'image') {
+    if (m.kind === 'bg') {
+      // animated: a fresh picture every frame
+      tex = imgTex[m.id] || (imgTex[m.id] = newTex());
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    } else if (m.kind === 'image') {
       if (!src) return;
       tex = imgTex[m.id];
       if (!tex) {
@@ -1198,12 +1290,16 @@
   }
 
   function inspectMain(box, c, m) {
-    box.appendChild(el('div', 'head', m.kind === 'image' ? 'PHOTO' : 'VIDEO CLIP'));
-    box.appendChild(el('div', 'note', fmt(clipLen(c)) + ' long. Drag its yellow ends on the timeline to make it shorter.'));
+    var isBg = m.kind === 'bg';
+    box.appendChild(el('div', 'head', isBg ? m.name : m.kind === 'image' ? 'PHOTO' : 'VIDEO CLIP'));
+    box.appendChild(el('div', 'note', fmt(clipLen(c)) + ' long. Drag its yellow ends on the timeline to make it ' + (isStill(m) ? 'longer or shorter.' : 'shorter.')));
+    if (isBg) box.appendChild(el('div', 'note', 'Put yourself ON TOP with CUT OUT PERSON or GREEN SCREEN to jump into it!'));
     if (m.kind === 'video') box.appendChild(slider('SOUND', 0, 1.5, 0.05, function () { return c.vol; }, function (v) { c.vol = v; }));
-    var r = row('PICTURE');
-    r.appendChild(chips([{ id: 'fit', label: 'SHOW IT ALL' }, { id: 'fill', label: 'FILL THE SCREEN' }], c.fit, function (id) { pushUndo(); c.fit = id; changed(); }));
-    box.appendChild(r);
+    if (!isBg) {
+      var r = row('PICTURE');
+      r.appendChild(chips([{ id: 'fit', label: 'SHOW IT ALL' }, { id: 'fill', label: 'FILL THE SCREEN' }], c.fit, function (id) { pushUndo(); c.fit = id; changed(); }));
+      box.appendChild(r);
+    }
     if (m.kind === 'image') {
       var r2 = row('MOVE');
       r2.appendChild(chips([{ id: 'none', label: 'STILL' }, { id: 'zoomin', label: 'ZOOM IN' }, { id: 'zoomout', label: 'ZOOM OUT' }], c.motion, function (id) { pushUndo(); c.motion = id; changed(); }));
@@ -1584,7 +1680,8 @@
       for (var i = startI; x0 + i * tw < Math.min(tlW, x0 + w); i++) {
         var lt = (i * tw + tw / 2) / pps;
         var srcT = m.kind === 'image' ? 0 : c.in + lt;
-        var fi = m.kind === 'image' ? 0 : clamp(Math.floor(srcT / m.dur * r.stripN), 0, r.stripN - 1);
+        var fi = m.kind === 'image' ? 0 : m.kind === 'bg' ? Math.floor((srcT % BG_LOOP) / BG_LOOP * r.stripN) % r.stripN
+          : clamp(Math.floor(srcT / m.dur * r.stripN), 0, r.stripN - 1);
         x.drawImage(r.strip, fi * r.tw, 0, r.tw, r.th, x0 + i * tw, g.y, tw + 0.5, g.h);
       }
     }
@@ -1596,7 +1693,7 @@
     var fs = Math.round(g.h * (layer === 'main' ? 0.2 : 0.3));
     x.font = 'bold ' + fs + 'px Trebuchet MS, sans-serif';
     x.textBaseline = 'top'; x.textAlign = 'left';
-    var badge = m.kind === 'image' ? 'PHOTO' : fmt(len);
+    var badge = m.kind === 'image' ? 'PHOTO' : m.kind === 'bg' ? m.name : fmt(len);
     if (layer === 'top' && c.cut && c.cut.on) badge += ' CUT OUT';
     if (layer === 'top' && c.key && c.key.on) badge += ' GREEN SCREEN';
     var bw = x.measureText(badge).width + fs * 0.6;
@@ -1717,7 +1814,7 @@
   }
   function doTrim(d) {
     var it = drag.item, o = drag.orig, layer = drag.layer, m = layer !== 'text' ? mediaById(it.media) : null;
-    var maxOut = m ? (m.kind === 'image' ? PHOTO_MAX : m.dur) : 0;
+    var maxOut = m ? (isStill(m) ? PHOTO_MAX : m.dur) : 0;
     if (layer === 'text') {
       if (drag.side === 'l') {
         var ns = clamp(snapT(o.start + d, it.id), 0, o.start + o.dur - MIN_LEN);
@@ -1729,7 +1826,7 @@
     } else if (layer === 'top') {
       if (drag.side === 'l') {
         var ns2 = snapT(o.start + d, it.id), dd = ns2 - o.start;
-        if (m.kind === 'image') { dd = clamp(dd, -o.start, o.out - MIN_LEN); it.start = o.start + dd; it.out = o.out - dd; }
+        if (isStill(m)) { dd = clamp(dd, -o.start, o.out - MIN_LEN); it.start = o.start + dd; it.out = o.out - dd; }
         else { dd = clamp(dd, Math.max(-o.in, -o.start), o.out - o.in - MIN_LEN); it.start = o.start + dd; it.in = o.in + dd; }
       } else {
         var ne2 = snapT(o.start + (o.out - o.in) + d, it.id);
@@ -1737,7 +1834,7 @@
       }
     } else {   // main: ripple
       if (drag.side === 'l') {
-        if (m.kind === 'image') it.out = clamp(o.out - d, MIN_LEN, PHOTO_MAX);
+        if (isStill(m)) it.out = clamp(o.out - d, MIN_LEN, PHOTO_MAX);
         else it.in = clamp(o.in + d, 0, o.out - MIN_LEN);
       } else it.out = clamp(o.out + d, it.in + MIN_LEN, maxOut);
     }
@@ -2241,6 +2338,8 @@
       var keep = [];
       return p.media.reduce(function (chain, rec) {
         return chain.then(function () {
+          // fun backgrounds have no file -- they're drawn in code
+          if (rec.kind === 'bg') { bgRuntime(rec); keep.push(rec); return; }
           return DB.get('media', rec.id).then(function (blob) {
             if (!blob) return;
             return loadMedia(blob, rec).then(function (m) { if (m) keep.push(m); });
