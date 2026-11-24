@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset=".6" stop-color="#6ee7b7"/>
+      <stop offset="1" stop-color="#fde047"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".3" cy=".25" r=".6">
+      <stop offset="0" stop-color="#fff" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="worm" cx=".35" cy=".3" r=".8">
+      <stop offset="0" stop-color="#d9f99d"/><stop offset=".55" stop-color="#84cc16"/><stop offset="1" stop-color="#4d7c0f"/>
+    </radialGradient>
+    <linearGradient id="b1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9a8d4"/><stop offset="1" stop-color="#db2777"/></linearGradient>
+    <linearGradient id="b2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93c5fd"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
+    <linearGradient id="b3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity=".18"/></linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <rect width="800" height="600" fill="url(#glow)"/>
+  <circle cx="690" cy="110" r="150" fill="#fff" opacity=".18"/>
+  <circle cx="90" cy="520" r="120" fill="#fff" opacity=".14"/>
+
+  <!-- letter blocks -->
+  <g font-family="system-ui, Segoe UI, Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <g transform="translate(560 70) rotate(-10)"><rect width="110" height="110" rx="22" fill="url(#b1)" stroke="#fff" stroke-width="6"/><text x="55" y="80" font-size="74" fill="#fff">A</text></g>
+    <g transform="translate(655 170) rotate(8)"><rect width="100" height="100" rx="20" fill="url(#b2)" stroke="#fff" stroke-width="6"/><text x="50" y="73" font-size="66" fill="#fff">b</text></g>
+    <g transform="translate(590 280) rotate(-4)"><rect width="96" height="96" rx="20" fill="url(#b3)" stroke="#fff" stroke-width="6"/><text x="48" y="71" font-size="64" fill="#7c2d12">c</text></g>
+  </g>
+
+  <!-- Wiggle -->
+  <g transform="translate(70 70) scale(4.2)">
+    <circle cx="16" cy="80" r="11" fill="url(#worm)"/><circle cx="32" cy="77" r="13" fill="url(#worm)"/><circle cx="50" cy="71" r="14.5" fill="url(#worm)"/>
+    <path d="M76 30 L70 12 M90 30 L98 13" stroke="#4d7c0f" stroke-width="3" stroke-linecap="round"/><circle cx="70" cy="11" r="4.5" fill="#f472b6"/><circle cx="98" cy="12" r="4.5" fill="#f472b6"/>
+    <circle cx="82" cy="50" r="24" fill="url(#worm)"/>
+    <circle cx="66" cy="61" r="5" fill="#fda4af" opacity=".75"/><circle cx="98" cy="61" r="5" fill="#fda4af" opacity=".75"/>
+    <circle cx="73" cy="46" r="8.5" fill="#fff" stroke="#1e3a5f" stroke-width="2.6"/><circle cx="92" cy="46" r="8.5" fill="#fff" stroke="#1e3a5f" stroke-width="2.6"/>
+    <path d="M81.5 46 H83.5" stroke="#1e3a5f" stroke-width="2.6"/>
+    <circle cx="74" cy="47" r="3.6" fill="#1e293b"/><circle cx="93" cy="47" r="3.6" fill="#1e293b"/><circle cx="75.3" cy="45.6" r="1.2" fill="#fff"/><circle cx="94.3" cy="45.6" r="1.2" fill="#fff"/>
+    <path d="M75 61 Q83 68 91 61" stroke="#1e3a5f" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <path d="M54 84 L72 79 L90 84 L90 96 L72 91 L54 96 Z" fill="#fff" stroke="#e11d48" stroke-width="2.4" stroke-linejoin="round"/><path d="M72 79 V91" stroke="#e11d48" stroke-width="2"/>
+    <path d="M58 86 L68 83 M58 90 L68 87 M76 83 L86 86 M76 87 L86 90" stroke="#94a3b8" stroke-width="1.4"/>
+  </g>
+
+  <!-- glass title plate -->
+  <rect x="60" y="420" width="680" height="150" rx="36" fill="url(#glass)" stroke="#fff" stroke-opacity=".7" stroke-width="3"/>
+  <g font-family="system-ui, Segoe UI, Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <text x="400" y="512" font-size="92" fill="#0e7490" opacity=".35" transform="translate(0 6)">WIGGLE READS</text>
+    <text x="400" y="512" font-size="92" fill="#fff">WIGGLE <tspan fill="#fde047">READS</tspan></text>
+    <text x="400" y="552" font-size="28" fill="#0f4c5c" letter-spacing="2">PHONICS · SIGHT WORDS · STORIES</text>
+  </g>
+</svg>
