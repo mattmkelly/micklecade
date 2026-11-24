@@ -249,6 +249,22 @@
   .nb-detail p { margin: 0; font-weight: 700; font-size: 1.02em; line-height: 1.35; }
   .nb-detail .kind { text-align: center; font-weight: 900; font-size: .8em; color: #92400e; letter-spacing: .08em; }
 
+  /* ---- voice picker ---- */
+  .voices { position: absolute; inset: 3.4em .9em .9em; display: grid; grid-template-columns: 1fr 15em; gap: .9em; }
+  .vlist { overflow-y: auto; padding: .7em; display: grid; grid-template-columns: 1fr 1fr; gap: .5em; align-content: start; scrollbar-width: thin; }
+  .vrow { display: flex; align-items: center; gap: .55em; min-height: 3.1em; padding: .4em .7em; border-radius: .7em; background: #fef3c7; box-shadow: 0 .18em 0 rgba(120,53,15,.35); text-align: left; color: #422006; }
+  .vrow:first-child { grid-column: 1 / -1; }
+  .vrow b { flex: none; width: 1.7em; text-align: center; font-size: 1.1em; }
+  .vrow span { flex: 1; font-weight: 900; font-size: 1em; line-height: 1.15; }
+  .vrow em { display: block; font-style: normal; font-weight: 700; font-size: .75em; color: #b45309; }
+  .vrow i { font-style: normal; font-size: .7em; font-weight: 800; color: #92400e; opacity: .7; }
+  .vrow.on { background: #fde68a; box-shadow: 0 0 0 .2em #f59e0b, 0 .18em 0 rgba(120,53,15,.35); }
+  .vnone { grid-column: 1 / -1; margin: .5em; font-weight: 700; }
+  .vside { display: flex; flex-direction: column; align-items: center; gap: .6em; padding: 1em; text-align: center; }
+  .vside .finn { width: 7em; height: 8em; }
+  .vside p { margin: 0; font-weight: 700; line-height: 1.3; }
+  .vside .vnow b { color: #b45309; }
+
   /* ---- chase result ---- */
   .result { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2em; padding: 3.4em 2em 1.5em; }
   .result .card { width: 26em; padding: 1.4em 1.6em; text-align: center; display: flex; flex-direction: column; gap: .5em; align-items: center; }
@@ -292,9 +308,10 @@
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/scores.js"></script>
+  <script src="../../shared/voice.js?v=3"></script>
   <script src="../../shared/menu.js" data-frame="#stage" data-at="1,0"></script>
-  <script src="worldmap.js?v=4"></script>
-  <script src="cases.js?v=4"></script>
-  <script src="game.js?v=4"></script>
+  <script src="worldmap.js?v=5"></script>
+  <script src="cases.js?v=5"></script>
+  <script src="game.js?v=5"></script>
 </body>
 </html>

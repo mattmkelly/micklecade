@@ -121,17 +121,16 @@
     return s.replace(/___/g, ' blank ').replace(/°/g, ' degrees').replace(/\bN\b(?=[\s.,]|$)/g, 'north').replace(/Δ/g, 'delta').replace(/\s+/g, ' ').trim();
   }
   function readOn() { return save.read === null ? (cur.grade == null ? 1 : cur.grade) <= 2 : save.read; }
-  function say(html, force) {
-    if (!('speechSynthesis' in window)) return;
+  // Voices come from shared/voice.js (the device's nicest voice, or the one picked on the VOICE screen).
+  // Finn talks a touch higher and slower; Rascal is quicker and squeakier. An array is read with pauses.
+  const VOICE = { finn: { pitch: 1.05, rate: 0.94 }, rascal: { pitch: 1.35, rate: 1.04 } };
+  const MV = window.MickleVoice;
+  function say(html, force, who = 'finn', onend) {
+    if (!MV || !MV.can) return;
     if (!force && !readOn()) return;
-    try {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(sayOf(html));
-      u.rate = 0.92; u.pitch = 1.1; u.lang = 'en-US';
-      speechSynthesis.speak(u);
-    } catch (e) { /* no voice */ }
+    MV.speak([].concat(html).map(sayOf), Object.assign({ onend }, VOICE[who]));
   }
-  function hush() { try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) { /* */ } }
+  function hush() { if (MV) MV.cancel(); }
 
   // ---------- characters ----------
   function finnSVG(cls = '') {
@@ -228,9 +227,37 @@
     show(`<div class="title-scr">
       <div class="logo-row rise">${finnSVG()}<div><h1 class="logo"><small>FINN THE FOX IN</small>GLOBE<br>SLEUTHS</h1><p>Follow the clues. Find the place. Solve the case!</p></div></div>
       <div class="grades rise" style="animation-delay:.1s">${btns}</div>
-      <div class="title-row rise" style="animation-delay:.18s"><span class="rank">\u{1F50E} ${rankOf(n).toUpperCase()} · ${n} CASE FILES</span><button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button></div>
+      <div class="title-row rise" style="animation-delay:.18s"><span class="rank">\u{1F50E} ${rankOf(n).toUpperCase()} · ${n} CASE FILES</span><button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button>${MV && MV.can ? `<button class="pill nav" data-act="voices" id="voicebtn">\u{1F5E3}\uFE0F VOICE: ${esc(voiceLabel())}</button>` : ''}</div>
     </div>`);
   }
+  function voiceLabel() { const v = MV && MV.current(); return v ? v.label.toUpperCase() : 'DEVICE'; }
+
+  // ---------- VOICE picker ----------
+  const VOICE_SAMPLE = 'Hi! I’m Finn the fox. Let’s solve a mystery!';
+  function goVoices(focusName) {
+    cur = { name: 'voices', grade: cur.grade };
+    const list = MV ? MV.list().slice(0, 10) : [];
+    const picked = MV && MV.chosen(), cv = MV && MV.current();
+    const best = list[0];
+    const rows = list.map((v) => {
+      const on = picked ? v.name === picked : false;
+      return `<button class="vrow nav${on ? ' on' : ''}" data-act="pickvoice" data-name="${esc(v.name)}"${focusName === v.name ? ' data-default' : ''}><b>${on ? '✓' : '\u{1F5E3}\uFE0F'}</b><span>${esc(v.label)}${v === best ? ' <em>★ BEST</em>' : ''}</span><i>${esc(v.lang)}</i></button>`;
+    }).join('');
+    show(`${topBar('BACK', '\u{1F5E3}\uFE0F PICK A VOICE')}
+      <div class="voices">
+        <div class="vlist paper">
+          <button class="vrow nav${picked ? '' : ' on'}" data-act="pickvoice" data-name=""${!focusName ? ' data-default' : ''}><b>${picked ? '✨' : '✓'}</b><span>AUTOMATIC <em>picks the best one${best ? ': ' + esc(best.label) : ''}</em></span></button>
+          ${rows || '<p class="vnone">This device doesn’t list any extra voices, so it uses its own voice.</p>'}
+        </div>
+        <div class="vside paper">${finnSVG()}<p>Tap a voice to hear it. Your pick is saved for every MickleCade game on this device.</p>
+          <p class="vnow">Now: <b>${esc(cv ? cv.label : 'device voice')}</b></p>
+          <button class="go nav" data-act="back">DONE</button></div>
+      </div>`);
+  }
+  if (MV) MV.onChange(() => {
+    if (cur.name === 'title') { const b = document.getElementById('voicebtn'); if (b) b.textContent = '\u{1F5E3}\uFE0F VOICE: ' + voiceLabel(); }
+    else if (cur.name === 'voices') goVoices(focused && focused.dataset.name);
+  });
 
   // ---------- making cases ----------
   function pickWeighted(weights) {
@@ -442,7 +469,7 @@
   function sayCaseStart() {
     const cs = cur.cs, k = cs.kind;
     if (k.mode === 'text') say(cs.item.clues[0]);
-    else say(`${cs.story[1]} ${k.ask} Clue 1: ${cs.item.clues[0]}`);
+    else say([cs.story[1], k.ask, `Clue 1: ${cs.item.clues[0]}`]);
   }
   function refreshNotepad() {
     const np = screen.querySelector('.notepad'); if (!np) return;
@@ -752,7 +779,7 @@
     if (!ch && !moreOnBoard) card.querySelector('[data-act="back"]').setAttribute('data-default', '');
     setFocus(card.querySelector('[data-default]'));
     for (let i = 0; i < cs.stars; i++) setTimeout(() => sfx.star(i), 450 + i * 200);
-    say(`${solvedName(cs)}! ${it.fact}`);
+    say([`${solvedName(cs)}!`, it.fact]);
   }
   function nextCase() {
     const b = boardFor(cur.grade);
@@ -786,7 +813,7 @@
         </div>
       </div>`);
     sfx.fanfare(); confetti(stars * 50 + 60);
-    say('You caught Rascal! You found me! I just wanted to see the world. Here is the Golden Globe back!');
+    say('You caught Rascal!', false, 'finn', () => say(['You found me!', 'I just wanted to see the world.', 'Here is the Golden Globe back!'], false, 'rascal'));
   }
 
   // ---------- NOTEBOOK ----------
@@ -855,6 +882,8 @@
       case 'grade': cur.grade = +ds.g; save.grade = cur.grade; store(); goBoard(); break;
       case 'read': save.read = save.read === null ? !readOn() : !save.read; store(); goTitle(); setFocus(screen.querySelector('[data-act="read"]')); if (readOn()) say('I will read to you!', true); break;
       case 'case': startCase(+ds.i); break;
+      case 'voices': goVoices(); break;
+      case 'pickvoice': MV.choose(ds.name || null); goVoices(ds.name || ''); say(VOICE_SAMPLE, true); break;
       case 'newboard': newBoard(cur.grade); goBoard(); break;
       case 'chase': startChase(); break;
       case 'book': goBook(); break;
@@ -876,16 +905,16 @@
   function speakNow() {
     if (cur.name === 'case' && cur.cs) {
       const cs = cur.cs;
-      if (cs.done) { say(`${solvedName(cs)}! ${cs.item.fact}`, true); return; }
-      if (cs.kind.mode === 'text') { say([cs.item.clues[0]].concat(cs.item.clues.slice(1, cs.shown).map((h) => 'Hint: ' + h)).join(' ') + ' ' + cs.opts.map((o, i) => `${LETTERS[i]}: ${o.label}.`).join(' '), true); return; }
-      say(`${cs.kind.ask} ` + cs.item.clues.slice(0, cs.shown).map((c, i) => `Clue ${i + 1}: ${c}`).join(' ') + ' ' + cs.opts.map((o, i) => `${LETTERS[i]}: ${o.label}.`).join(' '), true);
+      if (cs.done) { say([`${solvedName(cs)}!`, cs.item.fact], true); return; }
+      if (cs.kind.mode === 'text') { say([cs.item.clues[0]].concat(cs.item.clues.slice(1, cs.shown).map((h) => 'Hint: ' + h), cs.opts.map((o, i) => `${LETTERS[i]}: ${o.label}.`)), true); return; }
+      say([cs.kind.ask].concat(cs.item.clues.slice(0, cs.shown).map((c, i) => `Clue ${i + 1}: ${c}`), cs.opts.map((o, i) => `${LETTERS[i]}: ${o.label}.`)), true);
     } else if (cur.name === 'book' && cur.sel && filed(cur.sel)) {
       const it = byId[cur.sel]; say(`${it.n}. ${it.fact}`, true);
     }
   }
   function back() {
     if (cur.name === 'title') { if (window.MickleMenu) MickleMenu.backToArcade(); return; }
-    if (cur.name === 'board') return goTitle();
+    if (cur.name === 'board' || cur.name === 'voices') return goTitle();
     if (cur.name === 'case') return goBoard(cur.chase ? 'chase' : boardFor(cur.grade).list[cur.bi]);
     if (cur.name === 'result') return goBoard('chase');
     goBoard();
