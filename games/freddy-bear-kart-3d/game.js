@@ -1,6 +1,7 @@
 // Freddy Bear Kart 3D -- a 3D kart racer for MickleCade (three.js).
 // A MICKLEKIDS GAME. The racers are the stars of the other MickleCade games: Freddy Bear the
-// koala, Snowbell the bunny and her friends, and Bowie the orange bunny. Race 3 laps against
+// koala, Snowbell the bunny, Bowie the orange bunny, Phineas the frog, Rita and Max the bears
+// and Squabble the penguin (the same gang as Freddy Bear Kart). Race 3 laps against
 // computer racers (alone or two players on a split screen), play a 3-race Grand Prix, collect
 // golden koala coins for hats and kart paint, and draw your own tracks in the track builder.
 //
@@ -477,10 +478,12 @@
     { name: 'FREDDY',       kind: 'koala', fur: 0x9b9ba3, belly: 0xc9c9d1, earIn: 0xf2f2f6, muzzle: 0xc9c9d1, nose: 0x1c1c1c, kart: 0x2f8fe0, top: 1.04, acc: 0.88, turn: 0.95 },
     { name: 'SNOWBELL',     kind: 'bunny', fur: 0xffffff, belly: 0xeef2fa, earIn: 0xffb3c8, muzzle: 0xffffff, nose: 0xff8fb0, kart: 0xff7ab8, top: 0.98, acc: 1.14, turn: 1.0 },
     { name: 'BOWIE',        kind: 'bunny', fur: 0xff8a1e, belly: 0xffd23f, earIn: 0xe8452c, muzzle: 0xffd84a, nose: 0xff7aa8, feet: 0x8a2a3a, kart: 0x35c46a, top: 1.0, acc: 1.0, turn: 1.1 },
-    { name: 'FUZZYBALL',    kind: 'bunny', fur: 0xffd9a0, belly: 0xfff0d0, earIn: 0xff9db5, muzzle: 0xfff0d0, nose: 0xff8fb0, kart: 0xffc233, top: 1.0, acc: 1.04, turn: 1.02 },
-    { name: 'BUZZYBALL',    kind: 'bunny', fur: 0x8ff2d8, belly: 0xd8fff4, earIn: 0xffe14f, muzzle: 0xd8fff4, nose: 0xff8fb0, kart: 0x8f5cff, top: 0.99, acc: 1.1, turn: 1.04 },
-    { name: 'BLACKIEBLACK', kind: 'bunny', fur: 0x4a4453, belly: 0x6a6375, earIn: 0xb57a9a, muzzle: 0x6a6375, nose: 0xff8fb0, kart: 0xe0453a, top: 1.05, acc: 0.94, turn: 0.9 },
-    { name: 'FUNNYBUNNY',   kind: 'bunny', fur: 0xffa85c, belly: 0xffd0a0, earIn: 0xffd0a0, muzzle: 0xffe4c4, nose: 0xff8fb0, kart: 0x3fd0e0, top: 0.97, acc: 1.06, turn: 1.14 },
+    // from Freddy Bear Kart (the isometric one), in the same colours: Phineas the frog, the
+    // light brown bears Rita (with her bow) and Max, and Squabble the penguin
+    { name: 'PHINEAS',      kind: 'frog', fur: 0x5cc84a, belly: 0xd8f0a0, earIn: 0x3a8a2e, muzzle: 0xd8f0a0, nose: 0x1f4f1a, kart: 0xffd23f, top: 0.97, acc: 1.12, turn: 1.08 },
+    { name: 'RITA',         kind: 'bear', fur: 0xc99a6a, belly: 0xecd2ae, earIn: 0x9a6e44, muzzle: 0xecd2ae, nose: 0x3a2418, bow: 0xff5fa8, kart: 0xa05cff, top: 1.01, acc: 1.02, turn: 1.04 },
+    { name: 'MAX',          kind: 'bear', fur: 0xc99a6a, belly: 0xecd2ae, earIn: 0x9a6e44, muzzle: 0xecd2ae, nose: 0x3a2418, kart: 0xe0453a, top: 1.06, acc: 0.9, turn: 0.92 },
+    { name: 'SQUABBLE',     kind: 'penguin', fur: 0x2a2f45, belly: 0xffffff, earIn: 0x2a2f45, muzzle: 0xffffff, nose: 0xff9f1a, feet: 0xff9f1a, kart: 0x4ff0ff, top: 1.0, acc: 1.02, turn: 1.12 },
   ];
   const HATS = [
     { id: 'none', name: 'NO HAT', coins: 0 },
@@ -675,14 +678,60 @@
     const head = new THREE.Group();
     head.position.set(0, 1.5, 0.02);
     rider.add(head);
-    part(head, GEO.sphere, fur, 0, 0, 0, 0.6, 0.56, 0.56);
-    part(head, GEO.sphere, lam(def.muzzle), 0, -0.14, 0.42, 0.3, 0.22, 0.22);
-    part(head, GEO.sphere, MAT.eye, -0.23, 0.08, 0.5, 0.08);
-    part(head, GEO.sphere, MAT.eye, 0.23, 0.08, 0.5, 0.08);
-    part(head, GEO.sphere, MAT.white, -0.21, 0.11, 0.57, 0.03);
-    part(head, GEO.sphere, MAT.white, 0.25, 0.11, 0.57, 0.03);
     const ears = [];
-    if (def.kind === 'koala') {
+    let bow = null;
+    // two shiny black eyes, `z` forward (everyone but Phineas, whose eyes sit on top)
+    const eyes = (z) => {
+      part(head, GEO.sphere, MAT.eye, -0.23, 0.08, z, 0.08);
+      part(head, GEO.sphere, MAT.eye, 0.23, 0.08, z, 0.08);
+      part(head, GEO.sphere, MAT.white, -0.21, 0.11, z + 0.07, 0.03);
+      part(head, GEO.sphere, MAT.white, 0.25, 0.11, z + 0.07, 0.03);
+    };
+    if (def.kind === 'frog') {
+      // Phineas: a wide flat head, a pale chin, a big smile and bulging eyes on top
+      part(head, GEO.sphere, fur, 0, -0.04, 0, 0.68, 0.48, 0.58);
+      part(head, GEO.sphere, belly, 0, -0.2, 0.3, 0.5, 0.24, 0.3);
+      const smile = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.028, 6, 14, PI), lam(def.nose));
+      smile.position.set(0, -0.02, 0.5);
+      smile.rotation.set(-0.35, 0, PI);
+      head.add(smile);
+      [-1, 1].forEach((s) => {
+        part(head, GEO.sphere, fur, s * 0.27, 0.36, 0.2, 0.21);
+        part(head, GEO.sphere, MAT.white, s * 0.27, 0.39, 0.33, 0.14);
+        part(head, GEO.sphere, MAT.eye, s * 0.27, 0.4, 0.44, 0.07);
+        part(head, GEO.sphere, MAT.white, s * 0.27 + 0.02, 0.43, 0.5, 0.025);
+      });
+    } else if (def.kind === 'penguin') {
+      // Squabble: a dark head with a big white face, and an orange beak
+      part(head, GEO.sphere, fur, 0, 0, 0, 0.6, 0.56, 0.56);
+      part(head, GEO.sphere, belly, 0, -0.04, 0.14, 0.48, 0.44, 0.46);
+      eyes(0.56);
+      const beak = part(head, GEO.cone, lam(def.nose), 0, -0.1, 0.7, 0.13, 0.28, 0.1);
+      beak.rotation.x = PI / 2;
+    } else {
+      part(head, GEO.sphere, fur, 0, 0, 0, 0.6, 0.56, 0.56);
+      part(head, GEO.sphere, lam(def.muzzle), 0, -0.14, 0.42, def.kind === 'bear' ? 0.34 : 0.3, def.kind === 'bear' ? 0.25 : 0.22, 0.24);
+      eyes(0.5);
+    }
+    if (def.kind === 'bear') {
+      // Rita and Max: round ears and a big dark nose (Rita wears a bow when she has no hat on)
+      part(head, GEO.sphere, lam(def.nose), 0, -0.05, 0.64, 0.12, 0.09, 0.08);
+      [-1, 1].forEach((s) => {
+        part(head, GEO.sphere, fur, s * 0.42, 0.42, -0.04, 0.2, 0.2, 0.13);
+        part(head, GEO.sphere, earIn, s * 0.42, 0.42, 0.04, 0.12, 0.12, 0.07);
+      });
+      if (def.bow != null) {
+        bow = new THREE.Group();
+        bow.position.set(0.3, 0.46, 0.12);
+        bow.rotation.z = -0.4;
+        const bm = lam(def.bow);
+        [-1, 1].forEach((s) => { const c = part(bow, GEO.cone, bm, s * 0.13, 0, 0, 0.11, 0.2, 0.08); c.rotation.z = s * PI / 2; });
+        part(bow, GEO.sphere, bm, 0, 0, 0, 0.07);
+        head.add(bow);
+      }
+    } else if (def.kind === 'frog' || def.kind === 'penguin') {
+      // (no ears to speak of)
+    } else if (def.kind === 'koala') {
       part(head, GEO.sphere, lam(def.nose), 0, -0.06, 0.6, 0.13, 0.19, 0.1);
       [-1, 1].forEach((s) => {
         part(head, GEO.sphere, fur, s * 0.6, 0.36, -0.02, 0.32, 0.32, 0.2);
@@ -708,8 +757,9 @@
     bake(tilt, [flame, rider, ...wheels], [paint]);
     wheels.forEach((w) => bake(w));
     bake(rider, [head, ...arms]);
-    bake(head, ears);
+    bake(head, bow ? [...ears, bow] : ears);
     ears.forEach((e) => bake(e));
+    if (bow) bake(bow);
 
     const shadow = new THREE.Mesh(GEO.shadow, MAT.shadow);
     shadow.rotation.order = 'YXZ';
@@ -717,7 +767,7 @@
     scene.add(shadow);
     g.visible = false;
     scene.add(g);
-    return { def, g, tilt, wheels, flame, ears, head, rider, arms, shadow, bubble, paint, hats: {}, hat: null, rainbow: false };
+    return { def, g, tilt, wheels, flame, ears, head, rider, arms, shadow, bubble, paint, bow, hats: {}, hat: null, rainbow: false };
   }
   const models = RACERS.map(makeRacer);
 
@@ -731,6 +781,7 @@
       m.hat = m.hats[hatId];
       m.hat.visible = true;
     }
+    if (m.bow) m.bow.visible = !m.hat;          // (Rita's bow comes off under a hat)
     const p = PAINTS.find((x) => x.id === (look ? look.paint : 'own')) || PAINTS[0];
     m.rainbow = p.id === 'rainbow';
     m.paint.color.setHex(p.color != null ? p.color : m.def.kart);
@@ -4768,6 +4819,7 @@
     if (m.hat && m.hat !== was.hat) m.hat.visible = false;
     m.hat = was.hat;
     if (m.hat) m.hat.visible = true;
+    if (m.bow) m.bow.visible = !m.hat;
     m.paint.color.setHex(was.col); m.paint.emissive.setHex(was.em); m.rainbow = was.rb;
     if (was.parent) was.parent.add(m.g); else thumbScene.remove(m.g);
     m.g.visible = was.vis; m.flame.visible = was.flame; m.bubble.visible = was.bubble;
