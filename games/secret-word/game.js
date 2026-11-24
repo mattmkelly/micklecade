@@ -157,7 +157,8 @@
   const AGAIN_BTN = { x: 130, y: 192, w: 130, h: 30 };
   const MENU_BTN = { x: 270, y: 192, w: 80, h: 30 };
   const CARD_W = 82, CARD_H = 80, CARD_GAP = 8, CARD_Y = 96;
-  const PLAY_BTN = { x: 165, y: 188, w: 150, h: 28 };
+  const PLAY_BTN = { x: 100, y: 188, w: 150, h: 28 };
+  const HOWTO_BTN = { x: 260, y: 188, w: 122, h: 28 };
   function cardX(i) { return (W - (LEVELS.length * CARD_W + (LEVELS.length - 1) * CARD_GAP)) / 2 + i * (CARD_W + CARD_GAP); }
   function inRect(x, y, r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
@@ -419,6 +420,27 @@
     }
   }
 
+  // ---------- How to play: its own page over the game (opened from the title or the menu) ----------
+  const howtoEl = document.getElementById('howto');
+  let howtoOpen = false;
+  function openHowto() {
+    if (window.MickleMenu) MickleMenu.close();
+    howtoOpen = true;
+    howtoEl.hidden = false;
+    // restart the tile animations each time it opens
+    howtoEl.querySelectorAll('.t').forEach((t) => { t.style.animationName = 'none'; void t.offsetWidth; t.style.animationName = ''; });
+    document.getElementById('btn-howto-close').focus({ preventScroll: true });
+    sfxMove();
+  }
+  function closeHowto() {
+    if (!howtoOpen) return;
+    howtoOpen = false;
+    howtoEl.hidden = true;
+    sfxMove();
+  }
+  document.getElementById('btn-howto').addEventListener('click', () => { ensureAudio(); openHowto(); });
+  document.getElementById('btn-howto-close').addEventListener('click', closeHowto);
+
   // ---------- Input ----------
   function pressKey(k) {
     k.pressT = 0.14;
@@ -437,6 +459,7 @@
         }
       }
       if (inRect(x, y, PLAY_BTN)) startRun(titleSel);
+      else if (inRect(x, y, HOWTO_BTN)) openHowto();
       return;
     }
     if (state === 'over') {
@@ -463,6 +486,10 @@
 
   window.addEventListener('keydown', (e) => {
     const k = e.key;
+    if (howtoOpen) {
+      if (k === 'Escape' || k === 'Enter' || k === ' ') { e.preventDefault(); closeHowto(); }
+      return;
+    }
     if (k === 'Escape') {
       e.preventDefault();
       if (state === 'title') { if (window.MickleMenu) MickleMenu.backToArcade(); } else backToTitle();
@@ -473,6 +500,7 @@
     if (state === 'title') {
       if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); moveTitle(k === 'ArrowLeft' ? -1 : 1); }
       else if (k === ' ' || k === 'Enter') { e.preventDefault(); startRun(titleSel); }
+      else if (k === 'h' || k === 'H' || k === '?') { e.preventDefault(); openHowto(); }
       return;
     }
     if (state === 'over') {
@@ -497,7 +525,7 @@
   });
 
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('a')) return;
+    if (e.target.closest && e.target.closest('a, button, #howto')) return;
     e.preventDefault();
     ensureAudio();
     const rect = canvas.getBoundingClientRect();
@@ -519,10 +547,12 @@
     const BTN = Pad360.BTN;
     const dx = Pad360.dxPressed(), dy = Pad360.dyPressed();
     const A = Pad360.pressed(BTN.A), B = Pad360.pressed(BTN.B), START = Pad360.pressed(BTN.START);
+    if (howtoOpen) { if (A || B || START) closeHowto(); return; }
     if (dx || dy || A || B || START) ensureAudio();
     if (state === 'title') {
       if (dx) moveTitle(dx);
       if (A || START) startRun(titleSel);
+      if (Pad360.pressed(BTN.Y)) openHowto();
       if (B || Pad360.pressed(BTN.BACK)) { if (window.MickleMenu) MickleMenu.backToArcade(); }
       return;
     }
@@ -920,6 +950,15 @@
     ctx.scale(pulse, pulse);
     pill({ x: -PLAY_BTN.w / 2, y: -PLAY_BTN.h / 2, w: PLAY_BTN.w, h: PLAY_BTN.h }, 'PLAY ' + L.title + '  ▶', { top: '#4ade80', bottom: '#16a34a', stroke: 'rgba(255,255,255,0.35)', size: 12 });
     ctx.restore();
+
+    pill(HOWTO_BTN, 'HOW TO PLAY', { size: 11, dx: 10, stroke: 'rgba(252,211,77,0.6)', color: '#fde68a' });
+    const qx = HOWTO_BTN.x + 16, qy = HOWTO_BTN.y + HOWTO_BTN.h / 2;
+    ctx.fillStyle = '#fcd34d';
+    ctx.beginPath(); ctx.arc(qx, qy, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#422006';
+    ctx.textAlign = 'center';
+    ctx.font = font(10, 900);
+    ctx.fillText('?', qx, qy + 1);
 
     // how it works
     const items = [['correct', 'A', 'RIGHT SPOT'], ['present', 'B', 'IN THE WORD'], ['absent', 'C', 'NOT IN IT']];

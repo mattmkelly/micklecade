@@ -64,12 +64,104 @@
     touch-action: none;
   }
 
-  #hint {
-    color: #ffd83d;
-    font-size: 0.72rem;
-    letter-spacing: 1px;
-    text-align: center;
-    text-shadow: 0 0 6px #ffd83d;
+  /* the menu moves this HOW TO PLAY button into its panel */
+  .howto-link {
+    font: 800 .8rem system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif !important;
+    letter-spacing: .5px; padding: 9px 12px; cursor: pointer;
+    border: 2px solid #fcd34d !important; border-radius: 999px; color: #fcd34d !important; background: transparent;
+  }
+
+  /* ---- HOW TO PLAY: its own page over the game ---- */
+  .howto {
+    position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+    padding: 1em; background: rgba(8, 6, 26, .74);
+    font-size: clamp(9px, min(1.45vw, 2.58vh), 20px); color: #fff;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    animation: hw-fade .2s ease-out;
+  }
+  .howto[hidden] { display: none; }
+  @keyframes hw-fade { from { opacity: 0; } }
+  @keyframes hw-rise { from { opacity: 0; transform: translateY(1.2em) scale(.97); } }
+  @keyframes hw-flip { 0% { transform: rotateX(0); filter: brightness(.6) saturate(0); } 49% { filter: brightness(.6) saturate(0); } 50% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+  @keyframes hw-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.45em); } }
+  @keyframes hw-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.25em); } }
+  .howto-panel {
+    width: min(100%, 60em); max-height: 100%; overflow: auto; padding: 1.3em 1.7em 1.4em;
+    display: flex; flex-direction: column; gap: .9em; border-radius: 1.4em;
+    background: linear-gradient(160deg, rgba(49, 46, 129, .97), rgba(22, 20, 60, .97));
+    border: 1px solid rgba(167, 139, 250, .5);
+    box-shadow: 0 1.5em 4em rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .12);
+    animation: hw-rise .35s cubic-bezier(.2, 1.3, .4, 1);
+  }
+  .hw-head { display: flex; align-items: center; justify-content: center; gap: .8em; }
+  .hw-head svg { width: 3.6em; height: 3.6em; flex: none; animation: hw-bob 2.4s ease-in-out infinite; }
+  .hw-head h1 { margin: 0; font-size: 2.3em; font-weight: 900; letter-spacing: .02em; line-height: 1; }
+  .hw-head p { margin: .25em 0 0; color: rgba(255, 255, 255, .7); font-weight: 600; font-size: 1em; }
+
+  .hw-top { display: grid; grid-template-columns: auto 1fr; gap: 1.4em; align-items: center;
+    padding: .9em 1.1em; border-radius: 1.1em; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); }
+  .hw-board { display: flex; flex-direction: column; gap: .3em; align-items: center; perspective: 20em; }
+  .hw-row { display: flex; gap: .3em; }
+  .hw-cap { margin-top: .35em; font-size: .78em; font-weight: 800; color: rgba(255, 255, 255, .65); letter-spacing: .06em; }
+  .hw-cap b { color: #4ade80; }
+  .t {
+    width: 2.5em; height: 2.5em; display: grid; place-items: center; border-radius: .45em;
+    font-weight: 900; font-size: 1.15em; color: #fff; text-shadow: 0 .08em 0 rgba(0, 0, 0, .25);
+    box-shadow: 0 .14em 0 rgba(0, 0, 0, .3), inset 0 .5em .4em -.3em rgba(255, 255, 255, .35);
+  }
+  .t.g { background: linear-gradient(#4ade80, #16a34a); }
+  .t.y { background: linear-gradient(#fcd34d, #f59e0b); }
+  .t.s { background: linear-gradient(#64748b, #3f4a5c); }
+  .t.sm { width: 1.9em; height: 1.9em; font-size: .95em; flex: none; }
+  .howto:not([hidden]) .hw-board .t { animation: hw-flip .5s ease-in-out backwards; }
+  .howto:not([hidden]) .hw-row.win .t { animation: hw-flip .5s ease-in-out backwards, hw-hop .4s ease-out 1 backwards; }
+  .hw-key { display: flex; flex-direction: column; gap: .55em; }
+  .hw-key div { display: flex; align-items: center; gap: .7em; font-weight: 700; color: rgba(255, 255, 255, .78); font-size: .95em; line-height: 1.25; }
+  .hw-key b { color: #fff; font-weight: 900; }
+  .hw-key .lead { display: block; }
+
+  .hw-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7em; }
+  .how {
+    display: flex; flex-direction: column; gap: .3em; padding: .8em .9em; border-radius: 1em;
+    background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1);
+  }
+  .how svg { width: 2.4em; height: 2.4em; }
+  .how b { font-size: 1.05em; font-weight: 900; }
+  .how p { margin: 0; color: rgba(255, 255, 255, .7); font-size: .82em; font-weight: 600; line-height: 1.3; flex: 1; }
+  .keys { display: flex; flex-wrap: wrap; gap: .3em; margin-top: .3em; }
+  .keys span { padding: .2em .5em; border-radius: .45em; background: rgba(0, 0, 0, .3); font-size: .68em; font-weight: 800;
+    color: rgba(255, 255, 255, .6); letter-spacing: .03em; }
+  .keys kbd { font: inherit; color: #fff; }
+
+  .hw-levels { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5em; }
+  .hw-levels div { padding: .45em .6em; border-radius: .8em; background: rgba(0, 0, 0, .25); border-top: .22em solid var(--c);
+    font-size: .76em; font-weight: 700; color: rgba(255, 255, 255, .65); line-height: 1.25; text-align: center; }
+  .hw-levels b { display: block; color: #fff; font-weight: 900; font-size: 1.3em; }
+  .hw-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em;
+    color: rgba(255, 255, 255, .7); font-size: .88em; font-weight: 700; }
+  .hw-go {
+    font: inherit; font-size: 1.15em; font-weight: 900; color: #fff; cursor: pointer; flex: none;
+    padding: .55em 1.8em; border: 1px solid rgba(255, 255, 255, .35); border-radius: 999px;
+    background: linear-gradient(#4ade80, #16a34a); box-shadow: 0 .2em 0 rgba(0, 0, 0, .3);
+  }
+  .hw-go:active { transform: translateY(.12em); box-shadow: 0 .08em 0 rgba(0, 0, 0, .3); }
+  .hw-go:focus { outline: none; box-shadow: 0 0 0 .18em #fff, 0 0 1.4em .3em rgba(74, 222, 128, .6); }
+  @media (max-height: 480px) {
+    .howto { padding: .5em; }
+    .howto-panel { gap: .5em; padding: .7em 1.2em .8em; }
+    .hw-head svg { width: 2.5em; height: 2.5em; }
+    .hw-head h1 { font-size: 1.8em; }
+    .hw-top, .how { padding: .55em .8em; }
+    .how svg { width: 1.7em; height: 1.7em; }
+    .t { width: 2.1em; height: 2.1em; font-size: 1.05em; }
+    .hw-levels div { padding: .3em .5em; }
+    .hw-go { padding: .4em 1.6em; }
+  }
+  @media (max-aspect-ratio: 4/3) {
+    .hw-grid { grid-template-columns: repeat(2, 1fr); }
+    .hw-levels { grid-template-columns: repeat(3, 1fr); }
+    .hw-top { grid-template-columns: 1fr; justify-items: center; }
   }
 </style>
 </head>
@@ -77,7 +169,57 @@
   <div id="wrap">
     <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
     <canvas id="game" width="480" height="270"></canvas>
-    <div id="hint">GUESS THE SECRET WORD! GREEN = RIGHT SPOT, YELLOW = IN THE WORD, GRAY = NOT IN IT. TYPE OR TAP LETTERS, ENTER TO GUESS. GET WORDS IN A ROW FOR STREAK BONUSES AND EXTRA HEARTS. CONTROLLER: D-PAD + A TYPE, B DELETE, START GUESS, Y HINT</div>
+    <div id="topbar"><button id="btn-howto" class="howto-link" type="button">HOW TO PLAY</button></div>
+  </div>
+
+  <!-- HOW TO PLAY: its own page, opened from the title screen or the menu -->
+  <div id="howto" class="howto" hidden>
+    <div class="howto-panel" role="dialog" aria-label="How to play">
+      <div class="hw-head">
+        <svg viewBox="-100 -112 200 220" aria-hidden="true"><defs><radialGradient id="hwOwl" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#c4b5fd"/><stop offset=".5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#6d28d9"/></radialGradient></defs><path d="M-66 -48 L-55 -100 L-22 -70 Z M66 -48 L55 -100 L22 -70 Z" fill="#7c3aed"/><ellipse cx="-72" cy="18" rx="22" ry="46" fill="#6d28d9" transform="rotate(-20 -72 18)"/><ellipse cx="72" cy="18" rx="22" ry="46" fill="#6d28d9" transform="rotate(20 72 18)"/><ellipse cx="0" cy="0" rx="80" ry="92" fill="url(#hwOwl)"/><ellipse cx="0" cy="38" rx="48" ry="44" fill="#ede9fe"/><circle cx="-32" cy="-26" r="30" fill="#f5f3ff"/><circle cx="32" cy="-26" r="30" fill="#f5f3ff"/><circle cx="-30" cy="-26" r="15" fill="#1e1b4b"/><circle cx="34" cy="-26" r="15" fill="#1e1b4b"/><circle cx="-35" cy="-31" r="5" fill="#fff"/><circle cx="29" cy="-31" r="5" fill="#fff"/><path d="M-11 -7 L11 -7 L0 12 Z" fill="#fbbf24"/><ellipse cx="-26" cy="90" rx="15" ry="7" fill="#f59e0b"/><ellipse cx="26" cy="90" rx="15" ry="7" fill="#f59e0b"/></svg>
+        <div><h1>HOW TO PLAY</h1><p>Hoot is thinking of a secret word. Can you guess it?</p></div>
+      </div>
+      <div class="hw-top">
+        <div class="hw-board"><div class="hw-row"><span class="t s" style="animation-delay:0.30s">S</span><span class="t y" style="animation-delay:0.48s">T</span><span class="t g" style="animation-delay:0.66s">A</span><span class="t g" style="animation-delay:0.84s">I</span><span class="t y" style="animation-delay:1.02s">R</span></div><div class="hw-row win"><span class="t g" style="animation-delay:1.50s, 2.50s">T</span><span class="t g" style="animation-delay:1.68s, 2.58s">R</span><span class="t g" style="animation-delay:1.86s, 2.66s">A</span><span class="t g" style="animation-delay:2.04s, 2.74s">I</span><span class="t g" style="animation-delay:2.22s, 2.82s">N</span></div><div class="hw-cap">THE SECRET WORD WAS <b>TRAIN</b></div></div>
+        <div class="hw-key">
+          <div class="lead">Type a word and press <b>ENTER</b>. The tiles flip to give you clues:</div>
+          <div><span class="t g sm">A</span><span><b>GREEN</b> &mdash; right letter, right spot!</span></div>
+          <div><span class="t y sm">T</span><span><b>YELLOW</b> &mdash; it&rsquo;s in the word, but in a different spot.</span></div>
+          <div><span class="t s sm">S</span><span><b>GRAY</b> &mdash; that letter isn&rsquo;t in the word. Try new ones!</span></div>
+        </div>
+      </div>
+      <div class="hw-grid">
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="12" width="38" height="25" rx="5" fill="rgba(255,255,255,.12)" stroke="#fff" stroke-width="2.5"/><path d="M11 20h3M18 20h3M25 20h3M32 20h5M11 28h26" stroke="#fff" stroke-width="3"/></svg>
+          <b>TYPE A GUESS</b><p>Tap the letters or use a keyboard. Fill every box, then guess.</p>
+          <div class="keys"><span>KEYS <kbd>A-Z &middot; ENTER</kbd></span><span>PAD <kbd>D-PAD + A</kbd></span><span>GUESS <kbd>START</kbd></span><span>DELETE <kbd>B</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="20" r="12" fill="#fcd34d" stroke="#f59e0b" stroke-width="2.5"/><rect x="18" y="31" width="12" height="8" rx="2" fill="#fff"/><path d="M20 43h8" stroke="#fff" stroke-width="3"/><path d="M24 2v4M8 8l3 3M40 8l-3 3" stroke="#fde047" stroke-width="3"/></svg>
+          <b>STUCK? HINT!</b><p>Tap HINT and Hoot shows you one letter in its spot. Hints cost a few points.</p>
+          <div class="keys"><span>KEYS <kbd>?</kbd></span><span>PAD <kbd>Y</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M24 41C10 31 6 24 6 17a9 9 0 0 1 18-2 9 9 0 0 1 18 2c0 7-4 14-18 24z" fill="#fb7185" stroke="#e11d48" stroke-width="2.5"/></svg>
+          <b>3 HEARTS</b><p>Every round is a brand new word. Run out of tries and you lose a heart. No hearts left? Game over!</p>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M24 4c6 9 13 14 13 25a13 13 0 0 1-26 0c0-6 3-9 5-13 1 4 3 6 5 6-1-7 0-12 3-18z" fill="#fb923c" stroke="#ef4444" stroke-width="2.5"/><ellipse cx="24" cy="33" rx="5" ry="6" fill="#fef9c3"/></svg>
+          <b>STREAKS</b><p>Solve words in a row for more points: &times;1.5 at 3, &times;2 at 5, &times;3 at 10. Every 5 in a row wins an extra heart!</p>
+        </div>
+      </div>
+      <div class="hw-levels">
+        <div style="--c:#f472b6"><b>ABC</b>3-letter words for kindergarten</div>
+        <div style="--c:#4ade80"><b>1</b>Easy 4-letter words</div>
+        <div style="--c:#60a5fa"><b>2</b>Common 5-letter words</div>
+        <div style="--c:#a78bfa"><b>3</b>Tricky 5-letter words</div>
+        <div style="--c:#f87171"><b>ADULT</b>Hard words for grown-ups</div>
+      </div>
+      <div class="hw-foot">
+        <span>Fewer guesses = more points. Hoot says the word out loud after each round.</span>
+        <button id="btn-howto-close" class="hw-go" type="button">GOT IT!</button>
+      </div>
+    </div>
   </div>
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>
