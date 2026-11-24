@@ -2402,7 +2402,12 @@
     k.prog = k.lap * T.N + k.idx;
     // the height of the road (or grass, or ramp) under the kart, eased between samples
     const f = ((k.x - T.px[best]) * T.tx[best] + (k.z - T.pz[best]) * T.tz[best]) / T.SP;
-    const a = T.surf(best, k.lat, true), b = T.surf(mod(best + (f >= 0 ? 1 : -1), T.N), k.lat, true);
+    const nb = mod(best + (f >= 0 ? 1 : -1), T.N);
+    const a = T.surf(best, k.lat, true);
+    let b = T.surf(nb, k.lat, true);
+    // (a jump's top edge is a sharp drop, not rounded off - so you fly off it, not sag down it)
+    const ra = a - T.surf(best, k.lat), rb = b - T.surf(nb, k.lat, false);
+    if (f >= 0 && ra > 0.3 && rb < 0.01) b += ra - rb;
     k.gy = a + (b - a) * Math.min(1, Math.abs(f));
     // space: past the edge of the road (where there's no rail) there is nothing to drive on
     if (T.open) {
@@ -2413,6 +2418,7 @@
   // back onto the middle of the road after falling off it
   function respawn(k) {
     k.pa = null;
+    k.rampAir = 0;
     const T = world, i = k.idx;
     k.fell = false; k.fallT = 0;
     k.x = T.px[i]; k.z = T.pz[i];
@@ -2662,6 +2668,7 @@
   const FLY_T = 1.5, FLY_H = 16;
   function launch(k, c) {
     k.pa = null;
+    k.rampAir = 0;
     const T = world;
     k.fly = { a: k.idx, b: k.idx + mod(c.to - k.idx, T.N), t: 0, lat: k.lat, y0: k.ay };
     k.air = true; k.airT = 0; k.vy = 0; k.drift = 0; k.hopping = false; k.spin = 0;
@@ -2794,7 +2801,7 @@
       if (r.t < 0.4 && inp.hopPressed) rocket(k);
       if (inp.itemPressed) useItem(k);
       // a hop -- and a drift if you land still holding it while steering
-      if (inp.hopPressed && grounded && k.spin <= 0 && !k.pa) { k.air = true; k.vy = 5.5; k.hopping = true; sfxHop(); }
+      if (inp.hopPressed && grounded && k.spin <= 0 && !k.pa) { k.air = true; k.vy = 5.5; k.hopping = true; k.hopAt = r.t; sfxHop(); }
       if (k.hopping && grounded) {
         k.hopping = false;
         if (inp.hop && Math.abs(inp.steer) > 0.25 && k.v > 15) { k.drift = Math.sign(inp.steer); k.charge = 0; }
@@ -2867,15 +2874,21 @@
 
     const lapBefore = k.lap, idxBefore = k.idx;
     locate(k);
-    // Hopped onto (or over) a jump: going off its top edge still launches you - higher, with a
-    // trick boost when you land - instead of sailing past the ramp and dropping straight down.
-    if (k.air && !T.arena && !k.bounced && idxBefore !== k.idx && k.v > 8) {
+    // Off the top edge of a jump ramp (driving, or hopping on/over it): launch, worked out from the
+    // ramp itself so nothing can cancel it. A hop pressed just before the edge makes it a trick
+    // jump: higher, floatier, and a bigger boost when you land.
+    let launched = false;
+    if (!T.arena && !k.bounced && !k.pa && k.v > 8) {
+      const step = mod(k.idx - idxBefore, T.N);
       const top = T.surf(idxBefore, k.lat, true), rPrev = top - T.surf(idxBefore, k.lat);
       const rNow = T.surf(k.idx, k.lat, true) - T.surf(k.idx, k.lat);
-      if (rPrev > RAMP_H * 0.5 && rNow < rPrev - 0.3 && k.ay < top + 2.5) {
-        k.vy = Math.max(k.vy, k.v * RAMP_H / (2 * RAMP_L) + (k.hopping ? 3 : 0));
-        if (k.hopping) k.rampHop = true;
+      if (step >= 1 && step <= 3 && rPrev > RAMP_H * 0.5 && rNow < 0.01 && k.ay < top + 2.5) {
+        const trick = k.pi != null && r.t - (k.hopAt == null ? -9 : k.hopAt) < 0.5;
+        if (!k.air) { k.air = true; k.airT = 0; k.vy = 0; }
+        k.vy = Math.max(k.vy, k.v * RAMP_H / (2 * RAMP_L) + (trick ? 2.5 : 0));
+        k.rampAir = trick ? 2 : 1;
         k.hopping = false;
+        launched = true;
       }
     }
 
@@ -2893,26 +2906,23 @@
       const pred = k.ay + k.vy * dt;
       if (k.vy > 2.5 && pred > k.gy + 0.12 && !T.arena && !(T.tilt && (T.tilt[k.idx] || T.tilt[mod(k.idx - 3, T.N)]))) {   // (arena ramps lead onto decks, not into the sky)
         k.air = true; k.ay = pred; k.airT = 0;
-        if (k.rampHop) k.vy += 3;          // hopped onto this jump: off it higher
-      } else {
-        k.vy = clamp((k.gy - k.ay) / dt, -30, 30); k.ay = k.gy;
-        if (k.rampHop && !T.arena && T.surf(k.idx, k.lat, true) - T.surf(k.idx, k.lat) < 0.01) k.rampHop = false;   // left the ramp without jumping
-      }
+      } else { k.vy = clamp((k.gy - k.ay) / dt, -30, 30); k.ay = k.gy; }
     }
     if (k.air) {
       k.airT += dt;
-      k.vy -= GRAV * dt;
+      // off a jump ramp you float a little (a trick jump floats a lot), instead of being yanked down
+      const g = k.rampAir === 2 ? (k.vy > 0 ? 0.6 : 0.75) : k.rampAir === 1 ? 0.85 : 1;
+      k.vy -= GRAV * g * dt;
       k.ay += k.vy * dt;
-      if (k.ay <= k.gy) {
+      if (k.ay <= k.gy && !launched) {
         const big = k.airT > 0.45, hard = k.vy < -7;
         k.ay = k.gy; k.air = false; k.vy = 0; k.airT = 0; k.bounced = false;
         if (hard && nearView(k)) burst(k.x, k.ay + 0.3, k.z, (THEMES[T.def.theme] || THEMES.meadow).dust, 10, { spread: 5, up: 3, life: 0.5, size: 0.4 });
-        if (k.rampHop) {      // hopped off a jump: a bigger reward
+        if (k.rampAir === 2) {      // a trick jump: a bigger reward
           k.boost = Math.max(k.boost, 1.0);
           if (k.pi != null) { sfxMini(true); say(k, 'NICE JUMP!', 1); }
         } else if (big && !k.hopping) { k.boost = Math.max(k.boost, 0.5); if (k.pi != null) sfxMini(false); }   // a little reward for big air
-        // a hop that lands on a jump counts too: you'll get the bigger launch off its top
-        k.rampHop = !k.rampHop && k.hopping && !T.arena && T.surf(k.idx, k.lat, true) - T.surf(k.idx, k.lat) > 0.01;
+        k.rampAir = 0;
       }
     }
 
