@@ -16,6 +16,7 @@
   }
   // len = letters in the word, rows = guesses. Younger levels get an extra guess.
   const LEVELS = [
+    { id: 'k', name: 'ABC', title: 'STARTER', sub: 'TINY WORDS', grades: 'KINDER', len: 3, rows: 7, hints: 2, color: '#f472b6' },
     { id: 'l1', name: '1', title: 'LEVEL 1', sub: 'EASY', grades: 'GRADES 1-2', len: 4, rows: 7, hints: 2, color: '#4ade80' },
     { id: 'l2', name: '2', title: 'LEVEL 2', sub: 'MEDIUM', grades: 'GRADES 3-4', len: 5, rows: 7, hints: 2, color: '#60a5fa' },
     { id: 'l3', name: '3', title: 'LEVEL 3', sub: 'HARD', grades: 'GRADES 5-6', len: 5, rows: 6, hints: 2, color: '#a78bfa' },
@@ -42,7 +43,7 @@
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
       if (s && s.best) { s.used = s.used || {}; return s; }
     } catch (e) { /* storage blocked: play without saving */ }
-    return { best: {}, used: {}, lastLevel: 0 };
+    return { best: {}, used: {}, lastLevel: 1 };
   }
   function writeSave() {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* ignore */ }
@@ -155,7 +156,7 @@
   const OVER = { x: 110, y: 40, w: 260, h: 196 };
   const AGAIN_BTN = { x: 130, y: 192, w: 130, h: 30 };
   const MENU_BTN = { x: 270, y: 192, w: 80, h: 30 };
-  const CARD_W = 88, CARD_H = 80, CARD_GAP = 12, CARD_Y = 96;
+  const CARD_W = 82, CARD_H = 80, CARD_GAP = 8, CARD_Y = 96;
   const PLAY_BTN = { x: 165, y: 188, w: 150, h: 28 };
   function cardX(i) { return (W - (LEVELS.length * CARD_W + (LEVELS.length - 1) * CARD_GAP)) / 2 + i * (CARD_W + CARD_GAP); }
   function inRect(x, y, r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
@@ -602,7 +603,7 @@
     ctx.closePath();
   }
   function fitFont(text, maxW, size, weight = 800) {
-    for (; size > 7; size--) {
+    for (; size > 5; size--) {
       ctx.font = font(size, weight);
       if (ctx.measureText(text).width <= maxW) return size;
     }
@@ -902,9 +903,9 @@
       ctx.font = font(9, 900);
       ctx.fillStyle = L.color;
       ctx.fillText(L.sub, 0, y0 + 44);
-      ctx.font = font(7, 700);
+      fitFont(L.grades + ' · ' + L.len + ' LETTERS', CARD_W - 10, 7, 700);
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText(L.grades + '  ·  ' + L.len + ' LETTERS', 0, y0 + 55);
+      ctx.fillText(L.grades + ' · ' + L.len + ' LETTERS', 0, y0 + 55);
       const best = save.best[L.id];
       ctx.font = font(8, 800);
       ctx.fillStyle = best && best.score ? '#fde047' : 'rgba(255,255,255,0.35)';
