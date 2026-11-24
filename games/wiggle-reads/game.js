@@ -124,12 +124,30 @@
   // can begin after its question is already gone; a line that starts out of date is cut off and
   // the current line is spoken instead. cancel() + an immediate speak() also drops lines in
   // Chrome, hence the short wait before speaking.
-  let speechGen = 0, speechNow = null;
-  function speakList(texts, gen) {
-    texts.forEach((t) => {
-      const u = new SpeechSynthesisUtterance(t);
-      if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
-      u.rate = young() ? 0.82 : 0.92; u.pitch = 1.05;
+  let speechGen = 0, speechNow = null, sayDone = null;
+  // Say something, then call next() once the voice has finished -- but never sooner than `min` ms
+  // (time to see the celebration) and never later than a guess at how long it should take, in case a
+  // voice never reports that it ended. Without a voice it just waits `min`.
+  function sayThen(text, next, min) {
+    min = min || 1000;
+    const t0 = Date.now();
+    let fired = false;
+    const go = () => { if (fired) return; fired = true; setTimeout(next, Math.max(0, min - (Date.now() - t0))); };
+    if (!voiceOn()) { go(); return; }
+    setTimeout(go, 2500 + String(text).length * 110);
+    sayDone = go;
+    say(text);
+  }
+  function utter(t) {
+    const u = new SpeechSynthesisUtterance(t);
+    if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
+    u.rate = young() ? 0.82 : 0.92; u.pitch = 1.05;
+    return u;
+  }
+  function speakList(texts, gen, done) {
+    texts.forEach((t, k) => {
+      const u = utter(t);
+      if (done && k === texts.length - 1) u.onend = () => { if (gen === speechGen) done(); };
       u.onstart = () => {
         if (gen === speechGen) return;
         try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
@@ -141,15 +159,69 @@
   }
   function say() {
     if (!voiceOn()) return;
+    readerStopped();
     const texts = [].concat.apply([], arguments).filter(Boolean).map(cleanSpeech).filter(Boolean);
-    const gen = ++speechGen;
+    const gen = ++speechGen, done = sayDone;
+    sayDone = null;
     speechNow = texts;
     try {
       speechSynthesis.cancel();
-      setTimeout(() => { if (gen === speechGen) try { speakList(texts, gen); } catch (e) { /* ignore */ } }, 60);
+      setTimeout(() => { if (gen === speechGen) try { speakList(texts, gen, done); } catch (e) { /* ignore */ } }, 60);
     } catch (e) { /* no voice: words stay on screen */ }
   }
-  function hush() { speechGen++; speechNow = null; if (canSpeak) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+  function hush() { readerStopped(); speechGen++; speechNow = null; if (canSpeak) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+
+  // STORY READER: a passage is read one sentence at a time, so PAUSE can remember the sentence and
+  // PLAY carries on from it (speechSynthesis.pause() is unreliable on Android tablets -- on some it
+  // just stops). The reader belongs to one passage and keeps its place across that story's questions.
+  let reader = null; // { p, items, i, state: 'idle' | 'playing' | 'paused', btn, again, after }
+  function newReader(p) {
+    const sentences = (p.p.match(/[^.!?]+[.!?]+["')]*\s*/g) || [p.p]).map((x) => x.trim()).filter(Boolean);
+    return { p, items: [p.t + '.'].concat(sentences), i: 0, state: 'idle', btn: null, again: null, after: null };
+  }
+  function readerSync() {
+    if (!reader || !reader.btn) return;
+    const icon = reader.state === 'playing' ? '⏸️' : reader.state === 'paused' ? '▶️' : '🔊';
+    reader.btn.firstChild.textContent = icon;
+    reader.btn.setAttribute('aria-label', reader.state === 'playing' ? 'Pause' : reader.state === 'paused' ? 'Keep reading' : 'Read it to me');
+    reader.btn.classList.toggle('reading', reader.state === 'playing');
+    reader.again.style.display = reader.state === 'idle' ? 'none' : '';
+  }
+  // something else is about to speak (or speech is being stopped): the story pauses where it was
+  function readerStopped() {
+    if (reader && reader.state === 'playing') { reader.state = 'paused'; readerSync(); }
+  }
+  function readerPlay(from) {
+    if (!reader) return;
+    if (!voiceOn()) { flashTip(canSpeak ? 'The voice is off. Turn it on from the title screen.' : 'This device has no reading voice.'); return; }
+    if (from != null) reader.i = from;
+    if (reader.i >= reader.items.length) reader.i = 0;
+    const r = reader, gen = ++speechGen, start = r.i;
+    speechNow = null;
+    r.state = 'playing'; readerSync();
+    try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    setTimeout(() => {
+      if (gen !== speechGen) return;
+      r.items.slice(start).forEach((t, k) => {
+        const u = utter(cleanSpeech(t));
+        u.onend = () => {
+          if (gen !== speechGen || r !== reader) return;
+          r.i = start + k + 1;
+          if (r.i >= r.items.length) {
+            r.i = 0; r.state = 'idle'; readerSync();
+            if (r.after) { const a = r.after; r.after = null; say(a); }
+          }
+        };
+        try { speechSynthesis.speak(u); } catch (e) { /* ignore */ }
+      });
+    }, 60);
+  }
+  function readerPause() {
+    if (!reader || reader.state !== 'playing') return;
+    speechGen++;
+    try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    reader.state = 'paused'; readerSync();
+  }
 
   // ---------------------------------------------------------------- Wiggle the bookworm
   let svgId = 0;
@@ -439,19 +511,23 @@
     hush();
     const main = h('div', { class: 'qmain' });
     if (q.passage) {
+      if (!reader || reader.p !== q.passage) reader = newReader(q.passage);
+      reader.btn = h('button', { class: 'iconbtn', onclick: () => { sfx.tap(); if (reader.state === 'playing') readerPause(); else readerPlay(); } }, h('span', { text: '🔊' }));
+      reader.again = h('button', { class: 'iconbtn', 'aria-label': 'Start the story again', onclick: () => { sfx.tap(); readerPlay(0); } }, h('span', { text: '↺' }));
+      readerSync();
       const size = G() <= 1 ? 'big' : G() === 2 ? 'mid' : G() === 3 ? 'sm' : '';
       body.append(h('div', { class: 'passage ' + size },
-        h('h3', null, '📖 ' + q.passage.t, h('button', { class: 'iconbtn', 'aria-label': 'Read it to me', onclick: () => say(q.passage.t + '. ' + q.passage.p) }, h('span', { text: '🔊' }))),
+        h('h3', null, '📖 ' + q.passage.t, reader.btn, reader.again),
         h('p', { text: q.passage.p })));
       body.classList.add('withpass');
-    } else body.classList.remove('withpass');
+    } else { body.classList.remove('withpass'); reader = null; }
     body.append(main);
     if (q.kind === 'order') renderOrder(q, main);
     else renderChoice(q, main);
     fitQuestion();
     // read aloud: always for the youngest, and for questions you have to hear
     const still = () => quiz && quiz.q === q && current && current.id === 's-quiz';
-    if (q.passage && q.firstOfStory && G() <= 1) setTimeout(() => { if (still()) say(q.passage.p, q.say); }, 300);
+    if (q.passage && q.firstOfStory && G() <= 1) setTimeout(() => { if (still()) { reader.after = q.say; readerPlay(1); } }, 300);
     else if (young() || q.autoSay) setTimeout(() => { if (still()) say(q.say); }, 250);
   }
   function promptEl(text) {
@@ -556,9 +632,8 @@
         quiz.locked = true;
         placed.forEach((b) => b.classList.add('good'));
         sfx.good(); burst(slots);
-        say(q.sentence);
         scored(quiz.tries === 0);
-        setTimeout(() => { if (quiz && quiz.q === q) nextQ(); }, 1500);
+        sayThen(q.sentence, () => { if (quiz && quiz.q === q) setTimeout(() => { if (quiz && quiz.q === q) nextQ(); }, 350); }, 1300);
         return;
       }
       quiz.tries++;
@@ -1005,10 +1080,10 @@
         if (at === q.words.length) {
           gm.streak++;
           gm.addScore(q.words.length * 5 + Math.min(gm.streak, 5) * 3, track.lastChild);
-          sfx.toot(); say(q.sentence);
+          sfx.toot();
           const t = track; q = null;
           setTimeout(() => t.classList.add('go'), 500);
-          setTimeout(() => { if (!gm.over) next(); }, 1500);
+          sayThen(t.textContent ? Array.from(t.querySelectorAll('.car')).map((c) => c.textContent).join(' ') : '', () => { if (!gm.over && game === gm) next(); }, 1300);
         }
       } else {
         sfx.oops(); gm.streak = 0;
