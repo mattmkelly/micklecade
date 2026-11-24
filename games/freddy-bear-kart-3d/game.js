@@ -2412,6 +2412,7 @@
   }
   // back onto the middle of the road after falling off it
   function respawn(k) {
+    k.pa = null;
     const T = world, i = k.idx;
     k.fell = false; k.fallT = 0;
     k.x = T.px[i]; k.z = T.pz[i];
@@ -2614,10 +2615,12 @@
       return clamp(u + help * auto * (1 - 0.5 * Math.abs(u)), -1, 1);
     }
     // like bumpers at a bowling alley: near the edge, steering further off the road fades away
+    // (not up the wall of a half-pipe though: riding up there and flying off the top is the fun)
     const along = Math.sin(k.h) * T.tx[k.idx] + Math.cos(k.h) * T.tz[k.idx];
-    if (along > 0 && u * k.lat > 0) u *= 1 - help * clamp((Math.abs(k.lat) - (ROAD - 5)) / 5, 0, 1);
+    const upWall = T.tilt && T.tilt[k.idx] > 0.3 && k.lat * T.tside[k.idx] > 0;
+    if (along > 0 && u * k.lat > 0 && !upWall) u *= 1 - help * clamp((Math.abs(k.lat) - (ROAD - 5)) / 5, 0, 1);
     // steer for a spot a little way down the road in the kart's own lane (kept on the road)
-    const lane = clamp(k.lat, -(ROAD - 3), ROAD - 3);
+    const lane = upWall ? k.lat : clamp(k.lat, -(ROAD - 3), ROAD - 3);
     const j = mod(k.idx + Math.max(2, Math.round((9 + Math.abs(k.v) * 0.3) / T.SP)), T.N);
     const gx = T.px[j] + T.nx[j] * lane, gz = T.pz[j] + T.nz[j] * lane;
     const auto = clamp(-wrapAngle(Math.atan2(gx - k.x, gz - k.z) - k.h) * 3, -1, 1);
@@ -2658,6 +2661,7 @@
   // down on the target a few squares on, with a boost.
   const FLY_T = 1.5, FLY_H = 16;
   function launch(k, c) {
+    k.pa = null;
     const T = world;
     k.fly = { a: k.idx, b: k.idx + mod(c.to - k.idx, T.N), t: 0, lat: k.lat, y0: k.ay };
     k.air = true; k.airT = 0; k.vy = 0; k.drift = 0; k.hopping = false; k.spin = 0;
@@ -2692,6 +2696,7 @@
   }
   // portals: in through the blue one, out of the orange one (always further on round the loop)
   function warp(k, p) {
+    k.pa = null;
     const T = world, rel = wrapAngle(k.h - Math.atan2(T.tx[k.idx], T.tz[k.idx]));
     if (nearView(k)) burst(k.x, k.ay + 2, k.z, [0x4fb8ff, 0xffffff], 12, { spread: 4, up: 4, life: 0.5, size: 0.4 });
     const j = mod(p.to + 2, T.N), oldH = k.h;
@@ -2707,6 +2712,50 @@
     k.warpT = 0.6;
     if (nearView(k)) burst(k.x, k.ay + 2, k.z, [0xff9a2e, 0xffffff], 12, { spread: 4, up: 4, life: 0.5, size: 0.4 });
     if (k.pi != null) { sfxPortal(); say(k, 'WHOOSH!', 1); }
+  }
+  // Half-pipe air: race up the wall fast enough and you fly up out of the top (doing a spin),
+  // carry on along the pipe while you're up there, then drop back in heading down the wall -
+  // like a snowboarder. k.pa = { up, vu, t, T, w, rel } while in the air.
+  function pipeAir(k, dt, grounded) {
+    const T = world, i = k.idx;
+    const rh = Math.atan2(T.tx[i], T.tz[i]);
+    if (k.pa) {
+      const p = k.pa;
+      p.t += dt; p.vu -= GRAV * dt; p.up += p.vu * dt;
+      // flying along the pipe (no steering up there), turning round from facing up the wall to
+      // facing back down it by the time you land
+      k.md = rh;
+      k.h = rh + p.a0 + (p.a1 - p.a0) * smooth(p.t / p.T);
+      const lat = (k.x - T.px[i]) * T.nx[i] + (k.z - T.pz[i]) * T.nz[i], want = p.w * (T.wall[i] - 0.3);
+      k.x += T.nx[i] * (want - lat); k.z += T.nz[i] * (want - lat);
+      if (p.up <= 0 || T.tilt[i] < 0.3 || k.spin > 0) {
+        // back down onto the wall, pointing away from it
+        k.h = k.md = rh + p.a1;
+        k.pa = null;
+        if (k.spin <= 0) {
+          k.boost = Math.max(k.boost, 0.6);              // a little reward for the trick
+          if (k.pi != null) { sfxMini(false); say(k, 'AWESOME!', 1); }
+          if (nearView(k)) burst(k.x + k.wd[0], k.ay + k.wd[1] + 0.5, k.z + k.wd[2], [0xff5ccf, 0x7ff6ff, 0xffffff], 10, { spread: 4, up: 3, life: 0.5, size: 0.35 });
+        }
+      }
+      return;
+    }
+    if (!grounded || k.spin > 0 || !(T.tilt[i] > 0.6)) return;
+    const w = T.tside[i];
+    const lat = (k.x - T.px[i]) * T.nx[i] + (k.z - T.pz[i]) * T.nz[i];
+    const toWall = k.v * (Math.sin(k.md) * T.nx[i] + Math.cos(k.md) * T.nz[i]) * w;
+    if (lat * w < T.wall[i] - 0.5 || toWall < 4) return;
+    // fast enough at the top of the wall: up and out (only where the pipe goes on long enough to land)
+    const S = T.pipeLen(T.tilt[i]) / (2 * ROAD), vu = Math.min(20, 6 + toWall * S * 0.6), dur = 2 * vu / GRAV;
+    const ahead = Math.round(Math.abs(k.v) * dur / T.SP);
+    for (let o = 0; o <= ahead; o += 2) if (!(T.tilt[mod(i + o, T.N)] > 0.6)) return;
+    const a0 = wrapAngle(k.h - rh);
+    let a1 = clamp(Math.abs(wrapAngle(k.md - rh)) * 0.6, 0.2, 0.45);     // the way back down: away from the wall
+    if ((Math.sin(rh + a1) * T.nx[i] + Math.cos(rh + a1) * T.nz[i]) * w > 0) a1 = -a1;
+    k.pa = { up: 0, vu, t: 0, T: dur, w, a0, a1 };
+    k.md = rh;
+    k.drift = 0; k.hopping = false;
+    if (k.pi != null) sfxHop();
   }
   function lapAndFinish(k, lapBefore) {
     const r = race;
@@ -2745,7 +2794,7 @@
       if (r.t < 0.4 && inp.hopPressed) rocket(k);
       if (inp.itemPressed) useItem(k);
       // a hop -- and a drift if you land still holding it while steering
-      if (inp.hopPressed && grounded && k.spin <= 0) { k.air = true; k.vy = 5.5; k.hopping = true; sfxHop(); }
+      if (inp.hopPressed && grounded && k.spin <= 0 && !k.pa) { k.air = true; k.vy = 5.5; k.hopping = true; sfxHop(); }
       if (k.hopping && grounded) {
         k.hopping = false;
         if (inp.hop && Math.abs(inp.steer) > 0.25 && k.v > 15) { k.drift = Math.sign(inp.steer); k.charge = 0; }
@@ -2814,9 +2863,21 @@
       const pull = clamp(k.lat, -6, 6) * 1.2 * dt;
       k.x -= T.nx[k.idx] * pull; k.z -= T.nz[k.idx] * pull;
     }
+    if (!T.arena && T.tilt) pipeAir(k, dt, grounded);
 
-    const lapBefore = k.lap;
+    const lapBefore = k.lap, idxBefore = k.idx;
     locate(k);
+    // Hopped onto (or over) a jump: going off its top edge still launches you - higher, with a
+    // trick boost when you land - instead of sailing past the ramp and dropping straight down.
+    if (k.air && !T.arena && !k.bounced && idxBefore !== k.idx && k.v > 8) {
+      const top = T.surf(idxBefore, k.lat, true), rPrev = top - T.surf(idxBefore, k.lat);
+      const rNow = T.surf(k.idx, k.lat, true) - T.surf(k.idx, k.lat);
+      if (rPrev > RAMP_H * 0.5 && rNow < rPrev - 0.3 && k.ay < top + 2.5) {
+        k.vy = Math.max(k.vy, k.v * RAMP_H / (2 * RAMP_L) + (k.hopping ? 3 : 0));
+        if (k.hopping) k.rampHop = true;
+        k.hopping = false;
+      }
+    }
 
     if (T.arena && !k.air && k.gy < k.ay - 0.8) { k.air = true; k.airT = 0; k.vy = Math.min(k.vy, 0); }   // off the edge of a deck
     if (T.open) {
@@ -2830,8 +2891,13 @@
     // up and down: follow the road, fly off the end of a ramp, land again
     if (!k.air) {
       const pred = k.ay + k.vy * dt;
-      if (k.vy > 2.5 && pred > k.gy + 0.12 && !T.arena && !(T.tilt && (T.tilt[k.idx] || T.tilt[mod(k.idx - 3, T.N)]))) { k.air = true; k.ay = pred; k.airT = 0; }   // (arena ramps lead onto decks, not into the sky)
-      else { k.vy = clamp((k.gy - k.ay) / dt, -30, 30); k.ay = k.gy; }
+      if (k.vy > 2.5 && pred > k.gy + 0.12 && !T.arena && !(T.tilt && (T.tilt[k.idx] || T.tilt[mod(k.idx - 3, T.N)]))) {   // (arena ramps lead onto decks, not into the sky)
+        k.air = true; k.ay = pred; k.airT = 0;
+        if (k.rampHop) k.vy += 3;          // hopped onto this jump: off it higher
+      } else {
+        k.vy = clamp((k.gy - k.ay) / dt, -30, 30); k.ay = k.gy;
+        if (k.rampHop && !T.arena && T.surf(k.idx, k.lat, true) - T.surf(k.idx, k.lat) < 0.01) k.rampHop = false;   // left the ramp without jumping
+      }
     }
     if (k.air) {
       k.airT += dt;
@@ -2841,7 +2907,12 @@
         const big = k.airT > 0.45, hard = k.vy < -7;
         k.ay = k.gy; k.air = false; k.vy = 0; k.airT = 0; k.bounced = false;
         if (hard && nearView(k)) burst(k.x, k.ay + 0.3, k.z, (THEMES[T.def.theme] || THEMES.meadow).dust, 10, { spread: 5, up: 3, life: 0.5, size: 0.4 });
-        if (big && !k.hopping) { k.boost = Math.max(k.boost, 0.5); if (k.pi != null) sfxMini(false); }   // a little reward for big air
+        if (k.rampHop) {      // hopped off a jump: a bigger reward
+          k.boost = Math.max(k.boost, 1.0);
+          if (k.pi != null) { sfxMini(true); say(k, 'NICE JUMP!', 1); }
+        } else if (big && !k.hopping) { k.boost = Math.max(k.boost, 0.5); if (k.pi != null) sfxMini(false); }   // a little reward for big air
+        // a hop that lands on a jump counts too: you'll get the bigger launch off its top
+        k.rampHop = !k.rampHop && k.hopping && !T.arena && T.surf(k.idx, k.lat, true) - T.surf(k.idx, k.lat) > 0.01;
       }
     }
 
@@ -3106,15 +3177,36 @@
   // On an anti-gravity half-pipe: where the kart (on the flat road inside the game) shows up on
   // the floor or wall, `up` above the surface. Fills k.wd = [dx, dy, dz] (shown minus real) and
   // returns the surface's slope there (0 on the floor and off the pipes; k.wslope keeps it).
+  // How far a road point (`lat` across, `lift` off the surface, `air` up out of the top of the
+  // wall) moves when shown on the pipe at sample i: o = [dx, dy, dz, slope].
+  function pipeD1(i, lat, lift, air, o) {
+    const T = world, f = T.tilt[i];
+    if (!f) { o[0] = o[1] = o[2] = o[3] = 0; return; }
+    const w = T.tside[i], P = T.pipe(i, lat), sl = P[2];
+    let side = P[0] - lat - w * Math.sin(sl) * lift, dy = P[1] + (Math.cos(sl) - 1) * lift;
+    if (air) { side += w * Math.cos(sl) * air; dy += Math.sin(sl) * air; }
+    o[0] = T.nx[i] * side; o[1] = dy; o[2] = T.nz[i] * side; o[3] = sl;
+  }
+  // ...the same, blended between the two nearest samples so nothing jumps from one to the next.
+  // Returns how grown the pipe is there (0: not on a pipe at all).
+  const _d1 = [0, 0, 0, 0], _d2 = [0, 0, 0, 0];
+  function pipeDelta(i, x, z, lat, lift, air, o) {
+    const T = world;
+    const fa = ((x - T.px[i]) * T.tx[i] + (z - T.pz[i]) * T.tz[i]) / T.SP;
+    const j = mod(i + (fa >= 0 ? 1 : -1), T.N), u = Math.min(0.5, Math.abs(fa));
+    const f = T.tilt[i] * (1 - u) + T.tilt[j] * u;
+    if (!T.tilt[i] && !T.tilt[j]) { o[0] = o[1] = o[2] = o[3] = 0; return 0; }
+    pipeD1(i, lat, lift, air, _d1); pipeD1(j, lat, lift, air, _d2);
+    for (let q = 0; q < 4; q++) o[q] = _d1[q] * (1 - u) + _d2[q] * u;
+    return f;
+  }
   function wallShift(k, up) {
-    const T = world, i = k.idx, f = T.tilt ? T.tilt[i] : 0;
+    const T = world;
     k.wslope = 0;
-    if (!f) { k.wd[0] = k.wd[1] = k.wd[2] = 0; return 0; }
-    const w = T.tside[i], P = T.pipe(i, k.lat), sl = P[2];
-    const side = P[0] - k.lat - w * Math.sin(sl) * up;
-    k.wd[0] = T.nx[i] * side; k.wd[2] = T.nz[i] * side;
-    k.wd[1] = P[1] + (Math.cos(sl) - 1) * up;
-    k.wslope = sl;
+    if (!T.tilt) { k.wd[0] = k.wd[1] = k.wd[2] = 0; return 0; }
+    const f = pipeDelta(k.idx, k.x, k.z, k.lat, up, k.pa ? k.pa.up : 0, _sd);
+    k.wd[0] = _sd[0]; k.wd[1] = _sd[1]; k.wd[2] = _sd[2];
+    k.wslope = _sd[3];
     return f;
   }
   // a road point on the pipe as it's shown: [x, y, z] `lift` off the surface (and its slope)
@@ -3127,6 +3219,7 @@
     return visOut;
   }
   const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _Y = new THREE.Vector3(0, 1, 0), _Z = new THREE.Vector3(0, 0, 1);
+  const _sd = [0, 0, 0, 0], _cd = [0, 0, 0, 0], _ld = [0, 0, 0, 0];
   function showKart(k, dt) {
     const m = k.model, T = world, i = k.idx;
     if (!k.wd) k.wd = [0, 0, 0];
@@ -3144,11 +3237,14 @@
     k.dv += ((k.drift ? -k.drift * 0.38 : 0) - k.dv) * Math.min(1, dt * 8);
     k.tinyS += ((k.tiny > 0 ? 0.55 : 1) - k.tinyS) * Math.min(1, dt * 6);
     m.g.position.set(k.x + k.wd[0], k.ay + k.wd[1], k.z + k.wd[2]);
-    const yaw = k.dv + (k.spin > 0 ? (1 - k.spin / SPIN_T) * TAU * 2 : 0);
+    // (up out of a half-pipe: a big spin trick on the way)
+    const yaw = k.dv + (k.spin > 0 ? (1 - k.spin / SPIN_T) * TAU * 2 : 0) + (k.pa ? TAU * smooth(k.pa.t / k.pa.T) : 0);
     if (wf) {
       // on a half-pipe: stand on the floor or wall, and point the way you're really going there
       // (the pipe spreads the road out sideways, so sideways moves look bigger)
-      const rh = Math.atan2(T.tx[i], T.tz[i]), rel = wrapAngle(k.h - rh), S = T.pipeLen(wf) / (2 * ROAD);
+      const fa = ((k.x - T.px[i]) * T.tx[i] + (k.z - T.pz[i]) * T.tz[i]) / T.SP, j = mod(i + (fa >= 0 ? 1 : -1), T.N), u = Math.min(0.5, Math.abs(fa));
+      const rh = Math.atan2(T.tx[i] * (1 - u) + T.tx[j] * u, T.tz[i] * (1 - u) + T.tz[j] * u);
+      const rel = wrapAngle(k.h - rh), S = T.pipeLen(wf) / (2 * ROAD);
       m.g.quaternion.setFromAxisAngle(_Y, rh)
         .multiply(_qa.setFromAxisAngle(_Z, -T.tside[i] * k.wslope))
         .multiply(_qb.setFromAxisAngle(_Y, Math.atan2(Math.sin(rel) * S, Math.cos(rel)) + yaw));
@@ -3163,15 +3259,15 @@
     m.bubble.visible = k.shield > 0 && (k.shield > 2 || Math.floor(k.shield * 8) % 2 === 0);
     m.g.visible = k.rescue > 0 || !!k.fly || !(k.safe > 0 && k.spin <= 0 && Math.floor(k.safe * 10) % 2 === 0);
     if (wf) {
-      const v = visAt(i, k.lat, 0.14), dx = k.x - T.px[i] - T.nx[i] * k.lat, dz = k.z - T.pz[i] - T.nz[i] * k.lat;
-      m.shadow.position.set(v[0] + dx, k.gy - T.surf(i, k.lat) + v[1], v[2] + dz);
+      pipeDelta(i, k.x, k.z, k.lat, 0.14, 0, _cd);
+      m.shadow.position.set(k.x + _cd[0], k.gy + 0.14 + _cd[1], k.z + _cd[2]);
       m.shadow.quaternion.copy(m.g.quaternion);
     } else {
       m.shadow.position.set(k.x, k.gy + 0.14, k.z);
       m.shadow.rotation.set(-pitch, k.h, roll);
     }
     m.shadow.visible = k.gy > -500;
-    m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy) * 0.25));
+    m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy + (k.pa ? k.pa.up : 0)) * 0.25));
     showPuff(k);
     if (k.bal) { showBalloons(k); showCrown(k); }
     if (k.stack) { showStack(k); showCrown(k); }
@@ -3207,27 +3303,37 @@
     }
     let camY = Math.max(ky + 4.4 + (r.demo ? 1.5 : 0), world.groundY(cx, cz) + 2.5), upL = 0;
     let lx = k.x + fx * 5, ly = ky + 1.5, lz = k.z + fz * 5;
-    if (!T.arena && !k.fly && k.gy > -500 && (T.tilt[ci] || T.tilt[k.idx])) {
-      // on an anti-gravity half-pipe the camera follows the kart up the wall, turning over with it
-      const air = Math.max(0, ky - k.gy);
+    // On an anti-gravity half-pipe the camera follows the kart up the wall, turning over with it.
+    // Work out how far the pipe moves the camera and the spot it looks at (blended between road
+    // samples), then ease toward that, so climbing the wall stays smooth.
+    if (!c.pd) c.pd = [0, 0, 0, 0, 0, 0, 0, 0];
+    const pd = c.pd;
+    let g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, gnx = pd[6], gnz = pd[7];
+    if (!T.arena && !k.fly && k.gy > -500 && T.tilt && (T.tilt[ci] || T.tilt[k.idx])) {
+      const air = Math.max(0, ky - k.gy), pa = k.pa ? k.pa.up : 0;
       // (sideways the pipe spreads things out, so the camera keeps closer in behind as it grows)
       const cl = (cx - T.px[ci]) * T.nx[ci] + (cz - T.pz[ci]) * T.nz[ci], d = cl - k.lat;
-      const latc = cl - T.tilt[ci] * (d - clamp(d, -3, 3) * 0.5);
-      const v = visAt(ci, latc, 4.4 + air);
-      const along = (cx - T.px[ci]) * T.tx[ci] + (cz - T.pz[ci]) * T.tz[ci];
-      cx = v[0] + T.tx[ci] * along; cz = v[2] + T.tz[ci] * along;
-      camY += v[1] - T.surf(ci, latc) - (4.4 + air);      // (just the pipe's part: no jump on the way in)
-      const i = k.idx, ka = (k.x - T.px[i]) * T.tx[i] + (k.z - T.pz[i]) * T.tz[i];
-      const kv = visAt(i, k.lat, 1.5 + air), sl = kv[3];
-      upL = -(T.tside[i] || T.tside[ci]) * Math.sin(sl * 0.8);
-      lx = kv[0] + T.tx[i] * ka + fx * 5; lz = kv[2] + T.tz[i] * ka + fz * 5; ly += kv[1] - T.surf(i, k.lat) - (1.5 + air);
+      const pull = -T.tilt[ci] * (d - clamp(d, -3, 3) * 0.5);
+      pipeDelta(ci, cx, cz, cl + pull, 4.4 + air, pa * 0.5, _cd);
+      g0 = _cd[0] + T.nx[ci] * pull; g1 = _cd[1]; g2 = _cd[2] + T.nz[ci] * pull;
+      pipeDelta(k.idx, k.x, k.z, k.lat, 1.5 + air, pa * 0.8, _ld);
+      g3 = _ld[0]; g4 = _ld[1]; g5 = _ld[2];
+      upL = -(T.tside[k.idx] || T.tside[ci]) * Math.sin(_ld[3] * 0.8);
+      gnx = T.nx[k.idx]; gnz = T.nz[k.idx];
     }
+    const e = Math.min(1, dt * 9);
+    pd[0] += (g0 - pd[0]) * e; pd[1] += (g1 - pd[1]) * e; pd[2] += (g2 - pd[2]) * e;
+    pd[3] += (g3 - pd[3]) * e; pd[4] += (g4 - pd[4]) * e; pd[5] += (g5 - pd[5]) * e;
+    pd[6] += (gnx - pd[6]) * e; pd[7] += (gnz - pd[7]) * e;
     c.y += (camY - c.y) * Math.min(1, dt * 8);
     c.up = (c.up || 0) + (upL - (c.up || 0)) * Math.min(1, dt * 6);
     if (Math.abs(c.up) < 1e-3) cam.up.set(0, 1, 0);
-    else cam.up.set(T.nx[k.idx] * c.up, Math.sqrt(Math.max(0, 1 - c.up * c.up)), T.nz[k.idx] * c.up);
-    cam.position.set(cx, c.y, cz);
-    cam.lookAt(lx, ly, lz);
+    else {
+      const nl = Math.hypot(pd[6], pd[7]) || 1;
+      cam.up.set(pd[6] / nl * c.up, Math.sqrt(Math.max(0, 1 - c.up * c.up)), pd[7] / nl * c.up);
+    }
+    cam.position.set(cx + pd[0], c.y + pd[1], cz + pd[2]);
+    cam.lookAt(lx + pd[3], ly + pd[4], lz + pd[5]);
     const fov = (k.boost > 0 ? 74 : 62) + (r.view.length > 1 ? 6 : 0);
     if (Math.abs(c.fov - fov) > 0.05) c.fov += (fov - c.fov) * Math.min(1, dt * 4);
     if (Math.abs(cam.fov - c.fov) > 0.01) { cam.fov = c.fov; cam.updateProjectionMatrix(); }
