@@ -1,4 +1,4 @@
-// Map Detective -- a geography mystery game for kindergarten to 6th grade, with Finn the fennec fox.
+// Globe Sleuths -- a geography mystery game for kindergarten to 6th grade, with Finn the fennec fox.
 // Screens: TITLE (pick a grade) -> BOARD (6 case folders, the BIG CASE poster, the NOTEBOOK)
 // -> CASE (clues in the notepad, answer on the map / pictures / evidence) -> SOLVED card -> BOARD.
 // The BIG CASE chases Rascal the raccoon through 5 places in a row and records a high score.
@@ -6,13 +6,13 @@
 // Content (clues, facts, pictures) lives in cases.js; the world map in worldmap.js.
 (function () {
   'use strict';
-  const { ITEMS, ART } = window.MapDetective;
+  const { ITEMS, ART } = window.GlobeSleuths;
   const MAP = window.MDMap;
   const stage = document.getElementById('stage');
   const screen = document.getElementById('screen');
   const fx = document.getElementById('fx');
   const fctx = fx.getContext('2d');
-  const SAVE_KEY = 'mapDetective.save';
+  const SAVE_KEY = 'globeSleuths.save';
   const BOARD_N = 6, CHASE_N = 5;
 
   const byId = {};
@@ -226,7 +226,7 @@
     const ro = save.read === null ? 'AUTO' : save.read ? 'ON' : 'OFF';
     const n = filedCount();
     show(`<div class="title-scr">
-      <div class="logo-row rise">${finnSVG()}<div><h1 class="logo"><small>FINN THE FOX IN</small>MAP<br>DETECTIVE</h1><p>Follow the clues. Find the place. Solve the case!</p></div></div>
+      <div class="logo-row rise">${finnSVG()}<div><h1 class="logo"><small>FINN THE FOX IN</small>GLOBE<br>SLEUTHS</h1><p>Follow the clues. Find the place. Solve the case!</p></div></div>
       <div class="grades rise" style="animation-delay:.1s">${btns}</div>
       <div class="title-row rise" style="animation-delay:.18s"><span class="rank">\u{1F50E} ${rankOf(n).toUpperCase()} · ${n} CASE FILES</span><button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button></div>
     </div>`);
@@ -371,7 +371,7 @@
   const answerOf = (it) => (it.k === 'animal' ? it.c : it.id);
   function locOf(it) {
     const id = answerOf(it);
-    if (MAP.LABELS[id]) return { lon: MAP.LABELS[id][0], lat: MAP.LABELS[id][1] };
+    if (SPOT[id]) return { lon: SPOT[id][0], lat: SPOT[id][1] };
     return { lon: it.lon, lat: it.lat };
   }
   const locDist = (a, b) => dist(a, b);
@@ -468,23 +468,66 @@
   }
 
   // ---------- the map ----------
-  const WORLD = [0, 2, 360, 168];
+  // Equal Earth projection (equal-area, so continents keep their true sizes); see worldmap.js.
+  const P = (lon, lat) => MAP.project(lon, lat);
+  const WORLD = [-164, -81, 328, 162];
   const LAND = { NA: '#fcd34d', SA: '#86efac', EU: '#c4b5fd', AF: '#fdba74', AS: '#f9a8d4', AU: '#fca5a5', AN: '#f8fafc', '': '#e2e8f0' };
-  let mapPaths = null;
+  // Where each continent / ocean badge sits (lon, lat).
+  const SPOT = {
+    NA: [-100, 47], SA: [-59, -12], EU: [16, 51], AF: [20, 6], AS: [92, 47], AU: [134, -25], AN: [20, -80],
+    pacific: [-140, 8], atlantic: [-38, 28], indian: [78, -20], arctic: [-150, 79], southern: [-105, -62],
+  };
+  const OCEAN_NAMES = { pacific: 'PACIFIC OCEAN', atlantic: 'ATLANTIC OCEAN', indian: 'INDIAN OCEAN', arctic: 'ARCTIC OCEAN', southern: 'SOUTHERN OCEAN' };
+  // Seas and gulfs, by their internationally recognized names (IHO / UN usage).
+  const WATERS = [
+    ['Gulf of Mexico', -90, 25], ['Caribbean Sea', -75, 15], ['Hudson Bay', -86, 59], ['Gulf of Alaska', -145, 56.5], ['Bering Sea', -178, 58],
+    ['Labrador Sea', -54, 58], ['Mediterranean Sea', 18, 34.5], ['North Sea', 3, 56], ['Baltic Sea', 19.5, 57.5], ['Black Sea', 34, 43.3],
+    ['Caspian Sea', 50.8, 42], ['Red Sea', 38.5, 20], ['Arabian Sea', 64, 15], ['Bay of Bengal', 88, 15], ['South China Sea', 114, 13],
+    ['Coral Sea', 155, -17], ['Tasman Sea', 162, -39], ['Gulf of Guinea', 2, 2], ['Barents Sea', 40, 73], ['Sea of Okhotsk', 150, 55],
+    ['Philippine Sea', 132, 18], ['Gulf of California', -110.5, 27],
+  ];
+  // Provinces, states and territories, shown when zoomed in close.
+  const REGIONS = [
+    ['British Columbia', -125, 54], ['Alberta', -115, 55], ['Saskatchewan', -106, 54], ['Manitoba', -98, 55], ['Ontario', -86, 50],
+    ['Quebec', -72, 52], ['Newfoundland and Labrador', -61, 53.5], ['New Brunswick', -66.5, 46.6], ['Nova Scotia', -63.3, 45.1],
+    ['Yukon', -136, 64], ['Northwest Territories', -118, 64.5], ['Nunavut', -95, 66], ['Alaska', -152, 64.5], ['Hawaii', -157, 21.8],
+    ['Western Australia', 122, -26], ['Northern Territory', 133.5, -20], ['South Australia', 135.5, -30], ['Queensland', 144.5, -22],
+    ['New South Wales', 147, -32.5], ['Victoria', 144, -37], ['Tasmania', 146.5, -42],
+  ];
+  const byCountry = {};
+  MAP.COUNTRIES.forEach((c, i) => { (byCountry[c.n] = byCountry[c.n] || []).push(i); });
+  const countryOf = (name) => byCountry[name] || null;
+  function countrySpot(name) {
+    const list = byCountry[name] || [];
+    const i = list.find((j) => MAP.COUNTRIES[j].lab);
+    const c = MAP.COUNTRIES[i === undefined ? list[0] : i];
+    if (!c) return null;
+    return c.lab || [(c.box[0] + c.box[2]) / 2, (c.box[1] + c.box[3]) / 2];
+  }
+  const line = (pts) => 'M' + pts.map((p) => p.map((n) => n.toFixed(1)).join(' ')).join('L');
+  let mapStatic = null;
   function mapSVG() {
-    // Colours go on as attributes: CSS rules don't reach the <use> copies drawn either side.
-    if (!mapPaths) mapPaths = Object.keys(MAP.paths).map((c) => `<path class="c-${c}" data-c="${c}" fill="${LAND[c] || LAND['']}" stroke="#1e3a5f" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="${MAP.paths[c]}"/>`).join('');
-    const g = cur.grade;
-    let grat = '';
-    for (let lon = -150; lon <= 510; lon += 30) grat += `<path class="grat" d="M${lon + 180} -60V240" opacity=".35"/>`;
-    for (let lat = -60; lat <= 60; lat += 30) if (lat) grat += `<path class="grat" d="M-400 ${90 - lat}H800" opacity=".35"/>`;
-    const eq = g >= 3 ? '<path class="grat eq" d="M-400 90H800"/>' : '';
+    if (!mapStatic) {
+      const edge = [];
+      for (let la = -90; la <= 90; la += 5) edge.push(P(180, la));
+      for (let la = 90; la >= -90; la -= 5) edge.push(P(-180, la));
+      let grat = '';
+      for (let la = -60; la <= 60; la += 30) { const pts = []; for (let lo = -180; lo <= 180; lo += 5) pts.push(P(lo, la)); grat += line(pts); }
+      for (let lo = -150; lo <= 150; lo += 30) { const pts = []; for (let la = -90; la <= 90; la += 5) pts.push(P(lo, la)); grat += line(pts); }
+      const eq = []; for (let lo = -180; lo <= 180; lo += 5) eq.push(P(lo, 0));
+      mapStatic = {
+        edge: line(edge) + 'Z', grat, eq: line(eq),
+        land: MAP.COUNTRIES.map((c, i) => `<path data-i="${i}" class="c-${c.c}" fill="${LAND[c.c] || LAND['']}" d="${c.d}"/>`).join(''),
+      };
+    }
+    const m = mapStatic;
     return `<svg id="msvg" viewBox="${WORLD.join(' ')}" preserveAspectRatio="xMidYMid meet">
-      <defs><radialGradient id="sea" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#93d5ef"/><stop offset="1" stop-color="#5eb3db"/></radialGradient></defs>
-      <rect x="-800" y="-200" width="2000" height="600" fill="url(#sea)"/>
-      ${grat}${eq}
-      <g class="land" id="land0">${mapPaths}</g>
-      <use href="#land0" x="-360"/><use href="#land0" x="360"/>
+      <defs><radialGradient id="sea" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#9bd9f1"/><stop offset="1" stop-color="#5eb3db"/></radialGradient></defs>
+      <path d="${m.edge}" fill="url(#sea)" stroke="#fffbeb" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+      <path class="grat" d="${m.grat}"/>${cur.grade >= 3 ? `<path class="grat eq" d="${m.eq}"/>` : ''}
+      <g class="land" id="land0">${m.land}</g>
+      <path class="borders" d="${MAP.BORDERS}"/>
+      <path class="coasts" d="${MAP.COASTS}"/>
       <g id="trail"></g>
     </svg>`;
   }
@@ -505,47 +548,46 @@
     if (y1 - y0 < minH) { const c = (y0 + y1) / 2; y0 = c - minH / 2; y1 = c + minH / 2; }
     return fitAspect([x0, y0, x1 - x0, y1 - y0]);
   }
-  // Pick longitudes so a set of places sits together (across the date line if need be).
-  function unwrap(lons) {
-    if (lons.length < 2) return lons.slice();
-    const s = lons.slice().sort((a, b) => a - b);
-    let gap = -1, at = 0;
-    for (let i = 0; i < s.length; i++) { const nx = i === s.length - 1 ? s[0] + 360 : s[i + 1]; if (nx - s[i] > gap) { gap = nx - s[i]; at = i; } }
-    const start = s[(at + 1) % s.length];
-    return lons.map((l) => (l < start ? l + 360 : l));
-  }
   function initMap() {
     const cs = cur.cs, k = cs.kind;
-    const svg = document.getElementById('msvg');
-    mapState = { svg, vb: WORLD.slice(), anim: 0, marks: [] };
+    const svg = document.getElementById('msvg'), box = document.getElementById('mapbox');
+    mapState = { svg, vb: WORLD.slice(), anim: 0 };
     const pins = document.getElementById('pins');
+    const tagPaths = (idxs, i) => idxs.forEach((j) => {
+      const p = svg.querySelector(`#land0 [data-i="${j}"]`);
+      if (p) { p.classList.add('opt', 'o' + i); if (cs.bad.includes(i)) p.classList.add('bad'); p.dataset.act = 'ans'; p.dataset.k = i; }
+    });
+    const badge = (o, i) => `<button class="badge nav${cs.bad.includes(i) ? ' bad' : ''}" data-act="ans" data-k="${i}" data-x="${o.x}" data-y="${o.y}" style="--pc:${PIN_COLORS[i]}">${cs.bad.includes(i) ? '✗' : LETTERS[i]}</button>`;
     let html = '';
-    if (k.mode === 'pin') {
-      const ux = unwrap(cs.opts.map((o) => o.lon));
-      cs.opts.forEach((o, i) => { o.x = ux[i] + 180; o.y = 90 - o.lat; });
+    // Countries are picked by tapping the country itself, when every choice has a shape on this map.
+    cs.shape = cs.item.k === 'country' && cs.opts.every((o) => countryOf(o.label) && countrySpot(o.label));
+    if (cs.shape) {
+      box.classList.add('pickc');
+      cs.opts.forEach((o, i) => { [o.x, o.y] = countrySpot(o.label); tagPaths(countryOf(o.label), i); });
+      html = cs.opts.map(badge).join('');
+    } else if (k.mode === 'pin') {
+      cs.opts.forEach((o) => { [o.x, o.y] = P(o.lon, o.lat); });
       html = cs.opts.map((o, i) => `<button class="pin nav${cs.bad.includes(i) ? ' bad' : ''}" data-act="ans" data-k="${i}" data-x="${o.x}" data-y="${o.y}" style="--pc:${PIN_COLORS[i]}"><div class="head"><b>${cs.bad.includes(i) ? '✗' : LETTERS[i]}</b></div><div class="dot"></div></button>`).join('');
     } else {
-      cs.opts.forEach((o) => { const L = MAP.LABELS[o.id]; o.x = L[0] + 180; o.y = 90 - L[1]; });
-      html = cs.opts.map((o, i) => `<button class="badge nav${cs.bad.includes(i) ? ' bad' : ''}" data-act="ans" data-k="${i}" data-x="${o.x}" data-y="${o.y}" style="--pc:${PIN_COLORS[i]}">${cs.bad.includes(i) ? '✗' : LETTERS[i]}</button>`).join('');
-      if (k.mode === 'cont') {
-        cs.opts.forEach((o, i) => {
-          const p = svg.querySelector(`#land0 .c-${o.id}`);
-          if (p) { p.classList.add('opt', 'o' + i); if (cs.bad.includes(i)) p.classList.add('bad'); p.dataset.act = 'ans'; p.dataset.k = i; }
-        });
-      }
+      cs.opts.forEach((o) => { [o.x, o.y] = P(...SPOT[o.id]); });
+      html = cs.opts.map(badge).join('');
+      if (k.mode === 'cont') cs.opts.forEach((o, i) => tagPaths(MAP.COUNTRIES.map((c, j) => (c.c === o.id ? j : -1)).filter((j) => j >= 0), i));
     }
-    // Rascal's trail so far.
+    // Place names: seas and gulfs, provinces and states, countries, oceans. placeMarkers() decides which show.
+    // Biggest first, so when two names would overlap the more important one wins (see placeMarkers).
+    let labels = '';
+    for (const id of OCEANS) { const [x, y] = P(...SPOT[id]); labels += `<div class="lbl ocean" data-x="${x}" data-y="${y}">${OCEAN_NAMES[id]}</div>`; }
+    MAP.COUNTRIES.filter((c) => c.lab).sort((a, b) => (b.w || 0) - (a.w || 0)).forEach((c) => { labels += `<div class="lbl country" data-x="${c.lab[0]}" data-y="${c.lab[1]}" data-w="${c.w || 40}">${esc(c.n)}</div>`; });
+    for (const [n, lo, la] of REGIONS) { const [x, y] = P(lo, la); labels += `<div class="lbl region" data-x="${x}" data-y="${y}">${esc(n)}</div>`; }
+    for (const [n, lo, la] of WATERS) { const [x, y] = P(lo, la); labels += `<div class="lbl water" data-x="${x}" data-y="${y}">${esc(n)}</div>`; }
     if (cur.chase && cur.chase.trail.length) drawTrail(svg);
-    pins.innerHTML = html;
-    mapState.marks = [...pins.children];
-    // Big kids zoom in on the pins; little ones always see the whole world.
-    setVB(k.mode === 'pin' && cur.grade >= 3 ? viewAround(cs.opts.map((o) => [o.x, o.y]), 16, 70) : fitAspect(WORLD));
+    pins.innerHTML = html + labels;
+    // Big kids zoom in on the choices; little ones always see the whole world.
+    setVB((k.mode === 'pin' || cs.shape) && cur.grade >= 3 ? viewAround(cs.opts.map((o) => [o.x, o.y]), 16, 70) : fitAspect(WORLD));
   }
   function drawTrail(svg) {
     const t = cur.chase.trail; if (t.length < 2) return;
-    const ux = unwrap(t.map((p) => p.lon));
-    const d = t.map((p, i) => (i ? 'L' : 'M') + (ux[i] + 180).toFixed(1) + ' ' + (90 - p.lat).toFixed(1)).join(' ');
-    svg.querySelector('#trail').innerHTML = `<path class="trail" d="${d}"/>`;
+    svg.querySelector('#trail').innerHTML = `<path class="trail" d="${line(t.map((p) => P(p.lon, p.lat)))}"/>`;
   }
   function setVB(v) {
     if (!mapState) return;
@@ -572,9 +614,32 @@
   function placeMarkers() {
     if (!mapState) return;
     const pins = document.getElementById('pins'); if (!pins) return;
+    const cs = cur.cs, [W, H] = boxSize(), vw = mapState.vb[2], scale = Math.min(W / vw, H / mapState.vb[3]);
+    const em = parseFloat(stage.style.fontSize) || 12;
+    // Names that would give the answer away stay hidden until the case is solved.
+    const hideCountries = cs && !cs.done && (cs.item.k === 'country' || cs.kind.mode === 'cont' || cs.kind.mode === 'ocean');
+    const hideOceans = cs && !cs.done && cs.kind.mode === 'ocean';
+    const taken = []; // boxes already used on screen: pins, badges, then names in priority order
+    const hits = (b) => taken.some((t) => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
     for (const el of pins.children) {
       if (el.dataset.x === undefined) continue;
       const [px, py] = toPx(+el.dataset.x, +el.dataset.y);
+      if (el.classList.contains('lbl')) {
+        let on = px > -40 && py > -10 && px < W + 40 && py < H + 10;
+        if (on && el.classList.contains('country')) on = !hideCountries && +el.dataset.w * scale > el.textContent.length * em * 0.36 + 8;
+        else if (on && el.classList.contains('region')) on = vw < 95;
+        else if (on && el.classList.contains('water')) on = vw < 130;
+        else if (on && el.classList.contains('ocean')) on = !hideOceans;
+        if (on) {
+          const fs = em * (el.classList.contains('ocean') ? 0.72 : 0.6), hw = el.textContent.length * fs * (el.classList.contains('ocean') ? 0.45 : 0.29) + 2;
+          const b = [px - hw, py - fs * 0.7, px + hw, py + fs * 0.7];
+          if (b[0] < 2 || b[2] > W - 2 || b[1] < 2 || b[3] > H - 2 || hits(b)) on = false; else taken.push(b);
+        }
+        el.style.display = on ? '' : 'none';
+        if (!on) continue;
+      } else if (el.classList.contains('pin') || el.classList.contains('badge')) {
+        const r = em * 1.5; taken.push([px - r, py - (el.classList.contains('pin') ? r * 2.2 : r), px + r, py + r * 0.4]);
+      }
       el.style.left = px + 'px'; el.style.top = py + 'px';
     }
   }
@@ -705,7 +770,7 @@
     const isBest = total > prev;
     if (isBest) save.chase[key] = total;
     store();
-    if (window.MickleScores) MickleScores.record('map-detective', total, { category: g.label, order: g.n });
+    if (window.MickleScores) MickleScores.record('globe-sleuths', total, { category: g.label, order: g.n });
     const stars = total >= 520 ? 3 : total >= 380 ? 2 : 1;
     cur = { name: 'result', grade: cur.grade };
     show(`${topBar('BOARD', 'BIG CASE · CAUGHT!')}
@@ -908,7 +973,7 @@
   requestAnimationFrame(padLoop);
 
   // test hooks
-  window.MapDetectiveDebug = {
+  window.GlobeSleuthsDebug = {
     get state() { return cur; }, save: () => save, ITEMS, byId, buildCase, startCase, startChase, choose, act, goTitle, goBoard, goBook, newBoard,
     grade: (n) => { cur.grade = n; }, sayOf,
     // Open any item as a case (for checking layouts): testCase('everest', 3, 3)

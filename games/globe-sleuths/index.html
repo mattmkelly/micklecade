@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Map Detective</title>
+<title>Globe Sleuths</title>
 <link rel="icon" type="image/png" sizes="48x48" href="../../assets/favicon-48.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../../assets/icon-192.png">
 <link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
@@ -160,7 +160,7 @@
   .clue-btn { margin-top: .4em; width: 100%; font-size: 1.1em; }
   .clue-btn:disabled { display: none; }
   .right { display: flex; flex-direction: column; gap: .6em; min-height: 0; }
-  .mapbox { position: relative; flex: 1; min-height: 0; border-radius: .9em; overflow: hidden; background: #7cc4e4; box-shadow: 0 .5em 1.4em rgba(0,0,0,.35), inset 0 0 0 .25em #fffbeb; }
+  .mapbox { position: relative; flex: 1; min-height: 0; border-radius: .9em; overflow: hidden; background: #10294a; box-shadow: 0 .5em 1.4em rgba(0,0,0,.35), inset 0 0 0 .25em #fffbeb; }
   .mapbox svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   /* land colours are attributes on the paths (game.js) so the <use> copies get them too */
   .mapbox .land path { transition: fill .3s; }
@@ -170,7 +170,14 @@
   .mapbox.pickc .land path.opt.o2 { fill: #86efac; } .mapbox.pickc .land path.opt.o3 { fill: #d8b4fe; }
   .mapbox.pickc .land path.opt.bad { fill: #cbd5e1; }
   .mapbox.pickc .land path.opt.win { fill: #fcd34d; }
-  .mapbox .grat { stroke: rgba(255,255,255,.5); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+  .mapbox .grat { stroke: rgba(255,255,255,.45); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+  .mapbox .borders { fill: none; stroke: rgba(30, 58, 95, .55); stroke-width: .9; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .mapbox .coasts { fill: none; stroke: #1e3a5f; stroke-width: 1.3; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .lbl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none; font-weight: 800; line-height: 1; }
+  .lbl.country { font-size: .62em; color: #1e293b; text-shadow: 0 0 .25em rgba(255,255,255,.95), 0 0 .12em #fff; }
+  .lbl.region { font-size: .5em; color: #475569; letter-spacing: .08em; text-transform: uppercase; text-shadow: 0 0 .25em rgba(255,255,255,.9); }
+  .lbl.water { font-size: .6em; color: #1e5f8a; font-style: italic; text-shadow: 0 0 .25em rgba(219, 242, 252, .95); }
+  .lbl.ocean { font-size: .72em; color: #1d4e74; letter-spacing: .25em; opacity: .85; }
   .mapbox .eq { stroke: rgba(220, 38, 38, .55); stroke-dasharray: 6 4; }
   .mapbox .trail { fill: none; stroke: #dc2626; stroke-width: 3; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; stroke-linecap: round; }
   .pins { position: absolute; inset: 0; pointer-events: none; }
@@ -286,8 +293,8 @@
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/scores.js"></script>
   <script src="../../shared/menu.js" data-frame="#stage" data-at="1,0"></script>
-  <script src="worldmap.js?v=1"></script>
-  <script src="cases.js?v=1"></script>
-  <script src="game.js?v=1"></script>
+  <script src="worldmap.js?v=4"></script>
+  <script src="cases.js?v=4"></script>
+  <script src="game.js?v=4"></script>
 </body>
 </html>
