@@ -4826,6 +4826,45 @@
     m.g.position.copy(was.pos); m.g.quaternion.copy(was.q); m.g.scale.copy(was.sc); m.tilt.rotation.copy(was.tilt);
     return (thumbCache[key] = c.toDataURL());
   }
+  // a hat on its own, big in the middle of the picture (on a driver it's too small to make out)
+  const hatBox = new THREE.Box3(), hatMid = new THREE.Vector3(), hatSize = new THREE.Vector3();
+  function hatThumb(id) {
+    const key = 'hat|' + id;
+    if (thumbCache[key]) return thumbCache[key];
+    const c = document.createElement('canvas');
+    c.width = TH_W; c.height = TH_H;
+    const g = c.getContext('2d');
+    if (id === 'none') {
+      // no hat: a crossed-out circle
+      g.fillStyle = '#241a52'; g.fillRect(0, 0, TH_W, TH_H);
+      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 10; g.lineCap = 'round';
+      g.beginPath(); g.arc(TH_W / 2, TH_H / 2, 42, 0, TAU); g.stroke();
+      g.beginPath(); g.moveTo(TH_W / 2 - 30, TH_H / 2 + 30); g.lineTo(TH_W / 2 + 30, TH_H / 2 - 30); g.stroke();
+      return (thumbCache[key] = c.toDataURL());
+    }
+    if (!viewW) return '';
+    const hat = makeHat(id);
+    hat.rotation.y = -0.5;
+    thumbScene.add(hat);
+    hat.updateMatrixWorld(true);
+    hatBox.setFromObject(hat);
+    hatBox.getCenter(hatMid); hatBox.getSize(hatSize);
+    // back far enough that the hat fills about two thirds of the picture
+    const d = Math.max(hatSize.x * 0.8, hatSize.y * 1.25, hatSize.z * 0.8) * 2.1 + 0.15;
+    thumbCam.position.set(hatMid.x, hatMid.y + d * 0.35, hatMid.z + d);
+    thumbCam.lookAt(hatMid);
+    const pr = renderer.getPixelRatio(), w = TH_W / pr, h = TH_H / pr;
+    renderer.setScissorTest(true);
+    renderer.setScissor(0, 0, w, h);
+    renderer.setViewport(0, 0, w, h);
+    thumbCam.aspect = w / h; thumbCam.updateProjectionMatrix();
+    renderer.render(thumbScene, thumbCam);
+    g.drawImage(view, 0, view.height - Math.round(h * pr), Math.round(w * pr), Math.round(h * pr), 0, 0, TH_W, TH_H);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, viewW, viewH);
+    thumbScene.remove(hat);
+    return (thumbCache[key] = c.toDataURL());
+  }
 
   // ---- pictures of the tracks and arenas, drawn flat from above ----
   const trackThumbs = {};
@@ -4941,7 +4980,7 @@
       const locked = !isUnlocked(it), on = it.id === gCurrent();
       const tag = taken ? 'PLAYER 1' : locked ? (it.gold ? 'WIN THE CUP' : `<i class="coin"></i>${it.coins}`) : on ? '&#10003; PICKED' : '';
       return `<button class="tile${on ? ' on' : ''}${locked ? ' locked' : ''}${taken ? ' taken' : ''}${selIf(gSel === i)}" data-act="pick" data-i="${i}">
-        <img src="${kartThumb(ri, look)}" alt=""><span class="t-name">${esc(it.name)}</span><span class="t-tag">${tag}</span></button>`;
+        <img src="${gStep === 2 ? hatThumb(it.id) : kartThumb(ri, look)}" alt=""><span class="t-name">${esc(it.name)}</span><span class="t-tag">${tag}</span></button>`;
     }).join('');
     const nu = gStep ? nextUnlock(gStep === 1 ? PAINTS : HATS) : '';
     return `<div class="scr"><div class="veil"></div>
