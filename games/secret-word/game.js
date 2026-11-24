@@ -1,9 +1,20 @@
 (() => {
   const canvas = document.getElementById('game');
 
-  const W = 480, H = 270;
-  // Draw in 480x270 coordinates; HiRes gives the canvas a screen-sized pixel buffer so it stays sharp.
-  const ctx = HiRes.setup(canvas, W, H, (c) => { c.textBaseline = 'middle'; });
+  // Two shapes: WIDE 480x270 for sideways screens, TALL 270x480 for upright ones. fit() picks one
+  // from the window's shape and, like shared/hires.js, sizes the real pixel buffer to the screen
+  // (whole-number 2x/3x/4x) so everything stays sharp. HiRes.setup can't change shape later, so
+  // the game does this itself.
+  let W = 480, H = 270, tall = false, scale = 1;
+  const ctx = canvas.getContext('2d');
+  // The transform doesn't apply to shadows, so scale glow sizes by hand (as hires.js does).
+  ['shadowBlur', 'shadowOffsetX', 'shadowOffsetY'].forEach((prop) => {
+    const desc = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, prop);
+    Object.defineProperty(ctx, prop, {
+      get() { return desc.get.call(ctx) / scale; },
+      set(v) { desc.set.call(ctx, v * scale); },
+    });
+  });
 
   const SAVE_KEY = 'secretWord.save';
   const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -147,47 +158,107 @@
   }
 
   // ---------- Layout ----------
-  const LEVELS_BTN = { x: 8, y: 5, w: 62, h: 18 };
-  const CARD = { x: 246, y: 31, w: 226, h: 78 };
-  const BUBBLE = { x: 296, y: 37, w: 170, h: 42 };
-  const HINT_BTN = { x: 296, y: 84, w: 76, h: 20 };
-  const SPEAK_BTN = { x: 262, y: 226, w: 34, h: 30 };
-  const NEXT_BTN = { x: 304, y: 226, w: 160, h: 30 };
-  const OVER = { x: 110, y: 40, w: 260, h: 196 };
-  const AGAIN_BTN = { x: 130, y: 192, w: 130, h: 30 };
-  const MENU_BTN = { x: 270, y: 192, w: 80, h: 30 };
-  const CARD_W = 82, CARD_H = 80, CARD_GAP = 8, CARD_Y = 96;
-  const PLAY_BTN = { x: 100, y: 188, w: 150, h: 28 };
-  const HOWTO_BTN = { x: 260, y: 188, w: 122, h: 28 };
-  function cardX(i) { return (W - (LEVELS.length * CARD_W + (LEVELS.length - 1) * CARD_GAP)) / 2 + i * (CARD_W + CARD_GAP); }
+  // Every box is filled in by layout() for the shape on show. The menu's ☰ button sits in the
+  // top-left corner in both shapes, so the LEVELS button starts just after it.
+  const LEVELS_BTN = {}, CARD = {}, BUBBLE = {}, HINT_BTN = {}, SPEAK_BTN = {}, NEXT_BTN = {}, RESULT = {};
+  const OVER = {}, AGAIN_BTN = {}, MENU_BTN = {}, PLAY_BTN = {}, HOWTO_BTN = {}, GRID_AREA = {};
+  const HUD = {};   // chipX/chipY (level name), streakY, streakRight (tall: right-aligned), heartsX, heartGap
+  const KB = {};    // keyboard area: x, y, w, keyH, rowGap
+  const LV_CARDS = []; // title-screen level cards, one rect each
+  const KEYS = [];
+  function box(o, x, y, w, h) { o.x = x; o.y = y; o.w = w; o.h = h; }
   function inRect(x, y, r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
-  // On-screen keyboard (right side). Row 3 has ENTER and DELETE at its ends.
-  const KX = 246, KW = 226, KY = 114, KEY_H = 40, KEY_GAP = 3, KROW_GAP = 6;
-  const KEY_W = (KW - 9 * KEY_GAP) / 10;
-  const KEYS = [];
-  (function buildKeys() {
-    const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
-    rows.forEach((row, r) => {
-      const y = KY + r * (KEY_H + KROW_GAP);
-      const items = row.split('').map((ch) => ({ ch, w: KEY_W }));
+  function layout() {
+    if (!tall) {
+      box(LEVELS_BTN, 28, 5, 62, 18);
+      Object.assign(HUD, { chipX: 98, chipY: 14, streakY: 14, streakCx: 222, streakRight: 0, heartsX: 330, heartGap: 15 });
+      box(CARD, 246, 31, 226, 78);
+      box(BUBBLE, 296, 37, 170, 42);
+      box(HINT_BTN, 296, 84, 76, 20);
+      box(GRID_AREA, 8, 32, 230, 232);
+      Object.assign(KB, { x: 246, y: 114, w: 226, keyH: 40, rowGap: 6 });
+      box(RESULT, 246, 112, 226, 150);
+      box(SPEAK_BTN, 262, 226, 34, 30);
+      box(NEXT_BTN, 304, 226, 160, 30);
+      box(OVER, 110, 40, 260, 196);
+      box(AGAIN_BTN, 130, 192, 130, 30);
+      box(MENU_BTN, 270, 192, 80, 30);
+      const cw = 82, ch = 80, gap = 8, x0 = (W - (LEVELS.length * cw + (LEVELS.length - 1) * gap)) / 2;
+      LV_CARDS.length = 0;
+      LEVELS.forEach((L, i) => LV_CARDS.push({ x: x0 + i * (cw + gap), y: 96, w: cw, h: ch }));
+      box(PLAY_BTN, 100, 188, 150, 28);
+      box(HOWTO_BTN, 260, 188, 122, 28);
+    } else {
+      box(LEVELS_BTN, 28, 5, 62, 18);
+      Object.assign(HUD, { chipX: 12, chipY: 37, streakY: 37, streakCx: 0, streakRight: W - 8, heartsX: 150, heartGap: 14 });
+      box(CARD, 8, 48, 254, 80);
+      box(BUBBLE, 52, 54, 204, 40);
+      box(HINT_BTN, 52, 100, 76, 20);
+      box(GRID_AREA, 8, 134, 254, 186);
+      Object.assign(KB, { x: 8, y: 326, w: 254, keyH: 44, rowGap: 5 });
+      box(RESULT, 8, 322, 254, 152);
+      box(SPEAK_BTN, 22, 436, 34, 30);
+      box(NEXT_BTN, 64, 436, 192, 30);
+      box(OVER, 12, 142, 246, 196);
+      box(AGAIN_BTN, 28, 294, 130, 30);
+      box(MENU_BTN, 166, 294, 76, 30);
+      LV_CARDS.length = 0;
+      LEVELS.forEach((L, i) => LV_CARDS.push({ x: 18, y: 134 + i * 50, w: 234, h: 44 }));
+      box(PLAY_BTN, 20, 390, 230, 30);
+      box(HOWTO_BTN, 60, 427, 150, 24);
+    }
+    buildKeys();
+    padCursor = null;
+  }
+
+  // On-screen keyboard. Row 3 has ENTER and DELETE at its ends.
+  function buildKeys() {
+    KEYS.length = 0;
+    const gapX = 3, keyW = (KB.w - 9 * gapX) / 10;
+    ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'].forEach((row, r) => {
+      const y = KB.y + r * (KB.keyH + KB.rowGap);
+      const items = row.split('').map((ch) => ({ ch, w: keyW }));
       if (r === 2) {
-        items.unshift({ ch: 'ENTER', w: KEY_W * 1.55 });
-        items.push({ ch: 'DEL', w: KEY_W * 1.55 });
+        items.unshift({ ch: 'ENTER', w: keyW * 1.55 });
+        items.push({ ch: 'DEL', w: keyW * 1.55 });
       }
-      const total = items.reduce((s, k) => s + k.w, 0) + (items.length - 1) * KEY_GAP;
-      let x = KX + (KW - total) / 2;
+      const total = items.reduce((t, k) => t + k.w, 0) + (items.length - 1) * gapX;
+      let x = KB.x + (KB.w - total) / 2;
       items.forEach((k, c) => {
-        KEYS.push({ ch: k.ch, r, c, x, y, w: k.w, h: KEY_H, pressT: 0 });
-        x += k.w + KEY_GAP;
+        KEYS.push({ ch: k.ch, r, c, x, y, w: k.w, h: KB.keyH, pressT: 0 });
+        x += k.w + gapX;
       });
     });
-  })();
+  }
   function keyFor(ch) { return KEYS.find((k) => k.ch === ch) || null; }
+
+  // Pick WIDE or TALL from the window's shape, and size the pixel buffer to the screen.
+  function fit(force) {
+    const wantTall = window.innerHeight > window.innerWidth;
+    let changed = !!force;
+    if (wantTall !== tall || force) {
+      tall = wantTall;
+      W = tall ? 270 : 480;
+      H = tall ? 480 : 270;
+      document.documentElement.classList.toggle('sw-tall', tall);
+      canvas.width = W; canvas.height = H; // the new shape first, so the page lays it out
+      layout();
+      changed = true;
+    }
+    const dpr = window.devicePixelRatio || 1;
+    const s = Math.max(1, Math.min(4, Math.round((canvas.clientWidth || W) * dpr / W)));
+    if (s === scale && !changed) return;
+    scale = s;
+    canvas.width = W * s;
+    canvas.height = H * s;
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+    ctx.textBaseline = 'middle';
+  }
 
   function gridGeom() {
     const n = lv.len, r = lv.rows, gap = 4;
-    const areaX = 8, areaW = 230, areaY = 32, areaH = 232;
+    const areaX = GRID_AREA.x, areaW = GRID_AREA.w, areaY = GRID_AREA.y, areaH = GRID_AREA.h;
     const s = Math.min(38, Math.floor((areaH + gap) / r) - gap, Math.floor((areaW + gap) / n) - gap);
     const gw = n * (s + gap) - gap, gh = r * (s + gap) - gap;
     return { s, gap, x0: areaX + (areaW - gw) / 2, y0: areaY + (areaH - gh) / 2 };
@@ -452,7 +523,7 @@
   function onTap(x, y) {
     if (state === 'title') {
       for (let i = 0; i < LEVELS.length; i++) {
-        if (inRect(x, y, { x: cardX(i), y: CARD_Y, w: CARD_W, h: CARD_H })) {
+        if (inRect(x, y, LV_CARDS[i])) {
           if (titleSel !== i) { titleSel = i; sfxMove(); }
           startRun(i);
           return;
@@ -849,10 +920,11 @@
     g.addColorStop(0, '#1e1b4b'); g.addColorStop(1, '#0b1026');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+    const sx = W / 480, sy = H / 270;
     const blobs = [
-      [90 + Math.sin(time * 0.21) * 50, 70 + Math.cos(time * 0.17) * 30, 190, 'rgba(139, 92, 246, 0.32)'],
-      [400 + Math.cos(time * 0.15) * 50, 220 + Math.sin(time * 0.19) * 30, 210, 'rgba(20, 184, 166, 0.2)'],
-      [320 + Math.sin(time * 0.12) * 70, 10, 150, 'rgba(236, 72, 153, 0.16)'],
+      [(90 + Math.sin(time * 0.21) * 50) * sx, (70 + Math.cos(time * 0.17) * 30) * sy, 190, 'rgba(139, 92, 246, 0.32)'],
+      [(400 + Math.cos(time * 0.15) * 50) * sx, (220 + Math.sin(time * 0.19) * 30) * sy, 210, 'rgba(20, 184, 166, 0.2)'],
+      [(320 + Math.sin(time * 0.12) * 70) * sx, 10, 150, 'rgba(236, 72, 153, 0.16)'],
     ];
     for (const [x, y, r, c] of blobs) {
       const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -882,66 +954,110 @@
 
   const LOGO = 'SECRET WORD';
   const LOGO_KINDS = ['correct', 'present', 'absent', 'correct', 'present', 'correct', null, 'present', 'correct', 'absent', 'correct'];
-  function drawTitle() {
-    drawFloaters(0.06);
-    // logo tiles flip in one by one, then bob in a gentle wave
-    const s = 28, gap = 4, spaceW = 12;
-    const total = 10 * (s + gap) - gap + spaceW;
+  function drawLogoRow(text, kinds, firstIdx, y, s, gap) {
+    const total = text.length * (s + gap) - gap;
     let x = (W - total) / 2;
-    for (let i = 0; i < LOGO.length; i++) {
-      if (LOGO[i] === ' ') { x += spaceW; continue; }
+    for (let j = 0; j < text.length; j++) {
+      const i = firstIdx + j;
       const u = clamp((time - 0.15 - i * 0.07) / 0.45, 0, 1);
       const sy = u < 1 ? Math.abs(Math.cos(u * Math.PI)) : 1;
-      const kind = u < 0.5 ? 'typed' : LOGO_KINDS[i];
+      const kind = u < 0.5 ? 'typed' : kinds[j];
       const bobY = Math.sin(time * 2.4 - i * 0.5) * 2;
-      drawTile(x, 26 + bobY, s, LOGO[i], kind, Math.max(0.02, sy));
+      drawTile(x, y + bobY, s, text[j], kind, Math.max(0.02, sy));
       x += s + gap;
     }
-    drawOwl(447, 44, 17, 'happy');
-    ctx.textAlign = 'center';
-    ctx.font = font(11, 600);
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText('Guess the secret word. Get them in a row for big bonuses!', W / 2, 76);
+  }
 
-    // level cards
-    for (let i = 0; i < LEVELS.length; i++) {
-      const L = LEVELS[i], sel = i === titleSel;
-      const cx = cardX(i), lift = sel ? -4 - Math.sin(time * 4) * 1 : 0;
-      const sc = sel ? 1.06 : 1;
-      ctx.save();
-      ctx.translate(cx + CARD_W / 2, CARD_Y + CARD_H / 2 + lift);
-      ctx.scale(sc, sc);
-      const x0 = -CARD_W / 2, y0 = -CARD_H / 2;
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      rr(x0, y0 + 3, CARD_W, CARD_H, 9); ctx.fill();
-      const g = ctx.createLinearGradient(0, y0, 0, y0 + CARD_H);
-      g.addColorStop(0, sel ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.11)');
-      g.addColorStop(1, sel ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)');
-      rr(x0, y0, CARD_W, CARD_H, 9); ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = sel ? L.color : 'rgba(255,255,255,0.14)';
-      ctx.lineWidth = sel ? 2 : 1;
-      if (sel) { ctx.shadowColor = L.color; ctx.shadowBlur = 10; }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      // colour band
-      ctx.save(); rr(x0, y0, CARD_W, CARD_H, 9); ctx.clip();
-      ctx.fillStyle = L.color; ctx.globalAlpha = 0.9; ctx.fillRect(x0, y0, CARD_W, 5); ctx.restore();
+  function drawLevelCard(i) {
+    const L = LEVELS[i], sel = i === titleSel, r = LV_CARDS[i];
+    const lift = sel ? -3 - Math.sin(time * 4) * 1 : 0;
+    const sc = sel ? (tall ? 1.03 : 1.06) : 1;
+    ctx.save();
+    ctx.translate(r.x + r.w / 2, r.y + r.h / 2 + lift);
+    ctx.scale(sc, sc);
+    const x0 = -r.w / 2, y0 = -r.h / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    rr(x0, y0 + 3, r.w, r.h, 9); ctx.fill();
+    const g = ctx.createLinearGradient(0, y0, 0, y0 + r.h);
+    g.addColorStop(0, sel ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.11)');
+    g.addColorStop(1, sel ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)');
+    rr(x0, y0, r.w, r.h, 9); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = sel ? L.color : 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = sel ? 2 : 1;
+    if (sel) { ctx.shadowColor = L.color; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // colour band: along the top when wide, down the left side when tall
+    ctx.save(); rr(x0, y0, r.w, r.h, 9); ctx.clip();
+    ctx.fillStyle = L.color; ctx.globalAlpha = 0.9;
+    if (tall) ctx.fillRect(x0, y0, 5, r.h); else ctx.fillRect(x0, y0, r.w, 5);
+    ctx.restore();
+    const best = save.best[L.id];
+    const bestText = best && best.score ? '★ BEST ' + best.score : 'NO SCORE YET';
+    const info = L.grades + ' · ' + L.len + ' LETTERS';
+    if (!tall) {
       ctx.textAlign = 'center';
       ctx.fillStyle = '#fff';
-      fitFont(L.name, CARD_W - 12, L.name.length > 2 ? 20 : 30, 900);
+      fitFont(L.name, r.w - 12, L.name.length > 2 ? 20 : 30, 900);
       ctx.fillText(L.name, 0, y0 + 25);
       ctx.font = font(9, 900);
       ctx.fillStyle = L.color;
       ctx.fillText(L.sub, 0, y0 + 44);
-      fitFont(L.grades + ' · ' + L.len + ' LETTERS', CARD_W - 10, 7, 700);
+      fitFont(info, r.w - 10, 7, 700);
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText(L.grades + ' · ' + L.len + ' LETTERS', 0, y0 + 55);
-      const best = save.best[L.id];
+      ctx.fillText(info, 0, y0 + 55);
       ctx.font = font(8, 800);
       ctx.fillStyle = best && best.score ? '#fde047' : 'rgba(255,255,255,0.35)';
-      ctx.fillText(best && best.score ? '★ BEST ' + best.score : 'NO SCORE YET', 0, y0 + 69);
-      ctx.restore();
+      ctx.fillText(bestText, 0, y0 + 69);
+    } else {
+      // name on the left, what it is in the middle, best score on the right
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      fitFont(L.name, 52, L.name.length > 2 ? 15 : 24, 900);
+      ctx.fillText(L.name, x0 + 38, 1);
+      ctx.textAlign = 'left';
+      ctx.font = font(10, 900);
+      ctx.fillStyle = L.color;
+      ctx.fillText(L.sub, x0 + 72, -7);
+      fitFont(info, 96, 8, 700);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText(info, x0 + 72, 8);
+      ctx.textAlign = 'right';
+      ctx.font = font(8, 800);
+      ctx.fillStyle = best && best.score ? '#fde047' : 'rgba(255,255,255,0.35)';
+      ctx.fillText(best && best.score ? '★ ' + best.score : '—', -x0 - 10, 1);
     }
+    ctx.restore();
+  }
+
+  function drawTitle() {
+    drawFloaters(0.06);
+    // logo tiles flip in one by one, then bob in a gentle wave
+    if (!tall) {
+      const s = 28, gap = 4, spaceW = 12;
+      const total = 10 * (s + gap) - gap + spaceW;
+      const left = (W - total) / 2;
+      // two words drawn as one row with a space between
+      const wordW = 6 * (s + gap) - gap;
+      ctx.save(); ctx.translate(left + wordW / 2 - W / 2, 0); drawLogoRow('SECRET', LOGO_KINDS.slice(0, 6), 0, 26, s, gap); ctx.restore();
+      const word2 = 4 * (s + gap) - gap;
+      ctx.save(); ctx.translate(left + wordW + spaceW + gap + word2 / 2 - W / 2, 0); drawLogoRow('WORD', LOGO_KINDS.slice(7), 7, 26, s, gap); ctx.restore();
+      drawOwl(447, 44, 17, 'happy');
+      ctx.textAlign = 'center';
+      ctx.font = font(11, 600);
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText('Guess the secret word. Get them in a row for big bonuses!', W / 2, 76);
+    } else {
+      drawLogoRow('SECRET', LOGO_KINDS.slice(0, 6), 0, 34, 32, 5);
+      drawLogoRow('WORD', LOGO_KINDS.slice(7), 7, 74, 32, 5);
+      drawOwl(236, 92, 15, 'happy');
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      fitFont('Guess the secret word. Streaks win bonuses!', W - 24, 10, 600);
+      ctx.fillText('Guess the secret word. Streaks win bonuses!', W / 2, 120);
+    }
+
+    for (let i = 0; i < LEVELS.length; i++) drawLevelCard(i);
 
     const L = LEVELS[titleSel];
     const pulse = 1 + Math.sin(time * 4) * 0.03;
@@ -962,14 +1078,15 @@
 
     // how it works
     const items = [['correct', 'A', 'RIGHT SPOT'], ['present', 'B', 'IN THE WORD'], ['absent', 'C', 'NOT IN IT']];
-    let lx = 92;
+    const ts = tall ? 14 : 18, ly = tall ? 456 : 226, step = tall ? 86 : 104;
+    let lx = tall ? 14 : 92;
     for (const [k, ch, label] of items) {
-      drawTile(lx, 226, 18, ch, k);
+      drawTile(lx, ly, ts, ch, k);
       ctx.textAlign = 'left';
-      ctx.font = font(9, 700);
+      ctx.font = font(tall ? 8 : 9, 700);
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillText(label, lx + 24, 236);
-      lx += 104;
+      ctx.fillText(label, lx + ts + 5, ly + ts / 2 + 1);
+      lx += step;
     }
   }
 
@@ -978,22 +1095,22 @@
     // level chip, after the ☰ button
     ctx.textAlign = 'left';
     ctx.fillStyle = lv.color;
-    ctx.beginPath(); ctx.arc(110, 14, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(HUD.chipX + 3.5, HUD.chipY, 3.5, 0, Math.PI * 2); ctx.fill();
     ctx.font = font(10, 800);
     ctx.fillStyle = '#fff';
-    ctx.fillText(lv.title, 118, 14.5);
+    ctx.fillText(lv.title, HUD.chipX + 11, HUD.chipY + 0.5);
     // streak
     if (streak > 0) {
       const mult = streakMult(streak);
       const label = streak + ' IN A ROW' + (mult > 1 ? '  ×' + mult : '');
       ctx.font = font(10, 800);
       const tw = ctx.measureText(label).width;
-      const cx = 222, w = tw + 30;
-      glass(cx - w / 2, 5, w, 18, 9, 0.1);
-      drawFlame(cx - w / 2 + 12, 14, 9 + Math.min(streak, 10) * 0.4, time);
+      const w = tw + 30, cx = HUD.streakRight ? HUD.streakRight - w / 2 : HUD.streakCx, cy = HUD.streakY;
+      glass(cx - w / 2, cy - 9, w, 18, 9, 0.1);
+      drawFlame(cx - w / 2 + 12, cy, 9 + Math.min(streak, 10) * 0.4, time);
       ctx.textAlign = 'left';
       ctx.fillStyle = mult > 1 ? '#fde047' : '#fff';
-      ctx.fillText(label, cx - w / 2 + 22, 14.5);
+      ctx.fillText(label, cx - w / 2 + 22, cy + 0.5);
     }
     // hearts
     const shown = Math.max(START_HEARTS, hearts + (heartAnim.some((h) => h && h.kind === 'lose' && h.t < 0.6) ? 1 : 0));
@@ -1003,7 +1120,7 @@
       if (a && a.kind === 'gain' && a.t < 0.8) sc = a.t < 0.5 ? 0.6 : easeOutBack(clamp((a.t - 0.5) / 0.3, 0, 1)) * 1.0;
       if (a && a.kind === 'gain' && a.t < 0.5) full = false;
       if (a && a.kind === 'lose' && a.t < 0.6) { full = true; sc = 1 + a.t * 0.8; ctx.globalAlpha = 1 - a.t / 0.6; }
-      drawHeart(330 + i * 15, 14, 11, full, sc);
+      drawHeart(HUD.heartsX + i * HUD.heartGap, 14, 11, full, sc);
       ctx.globalAlpha = 1;
     }
     // score
@@ -1129,7 +1246,7 @@
 
   function drawResult() {
     const u = easeOutCubic(clamp(resultT / 0.35, 0, 1));
-    const x = KX, y = KY - 2 + (1 - u) * 40, w = KW, h = 150;
+    const x = RESULT.x, y = RESULT.y + (1 - u) * 40, w = RESULT.w, h = RESULT.h;
     ctx.globalAlpha = u;
     ctx.fillStyle = 'rgba(15, 12, 41, 0.92)';
     rr(x, y, w, h, 14); ctx.fill();
@@ -1180,7 +1297,7 @@
     const last = !result.win && hearts <= 0;
     const ready = resultT >= 0.5;
     ctx.globalAlpha = u * (ready ? 1 : 0.5);
-    const nb = canSpeak ? NEXT_BTN : { x: KX + 33, y: NEXT_BTN.y, w: 160, h: NEXT_BTN.h };
+    const nb = canSpeak ? NEXT_BTN : { x: RESULT.x + (RESULT.w - 160) / 2, y: NEXT_BTN.y, w: 160, h: NEXT_BTN.h };
     pill(nb, last ? 'SEE MY SCORE  ▶' : 'NEXT WORD  ▶', { top: '#4ade80', bottom: '#16a34a', stroke: 'rgba(255,255,255,0.35)', size: 12 });
     ctx.globalAlpha = 1;
   }
@@ -1192,12 +1309,13 @@
     ctx.save();
     ctx.globalAlpha = a;
     ctx.fillStyle = 'rgba(10, 8, 30, 0.45)';
-    ctx.fillRect(0, 88, W, 70);
-    ctx.translate(W / 2, 114);
+    const by = tall ? 220 : 114;
+    ctx.fillRect(0, by - 26, W, 70);
+    ctx.translate(W / 2, by);
     ctx.scale(s, s);
     ctx.rotate(Math.sin(t * 3) * 0.02);
     ctx.textAlign = 'center';
-    ctx.font = font(34, 900);
+    fitFont(banner.text, W - 24, 34, 900);
     const g = ctx.createLinearGradient(0, -18, 0, 18);
     g.addColorStop(0, '#fef08a'); g.addColorStop(0.5, '#fbbf24'); g.addColorStop(1, '#f97316');
     ctx.shadowColor = 'rgba(251, 191, 36, 0.8)'; ctx.shadowBlur = 16;
@@ -1224,7 +1342,8 @@
     drawOwl(o.x + 34, o.y + dy + 36, 18, 'cheer');
     ctx.textAlign = 'center';
     const cx = o.x + o.w / 2 + 14;
-    ctx.font = font(18, 900); ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#fff';
+    fitFont(over.newBest ? 'NEW BEST SCORE!' : 'GREAT GAME!', o.w - 84, 18, 900);
     ctx.fillText(over.newBest ? 'NEW BEST SCORE!' : 'GREAT GAME!', cx, o.y + dy + 28);
     ctx.font = font(9, 700); ctx.fillStyle = lv.color;
     ctx.fillText(lv.title, cx, o.y + dy + 46);
@@ -1236,7 +1355,7 @@
     ctx.fillText(String(shown), o.x + o.w / 2, o.y + dy + 82);
     const stats = [['WORDS', over.words], ['BEST STREAK', over.streak], ['TOP SCORE', Math.max(score, (save.best[lv.id] || {}).score || 0)]];
     stats.forEach(([label, v], i) => {
-      const bx = o.x + 18 + i * 76;
+      const bx = o.x + (o.w - 222) / 2 + i * 76;
       glass(bx, o.y + dy + 106, 70, 36, 9, 0.08);
       ctx.font = font(15, 900); ctx.fillStyle = '#fff';
       ctx.fillText(String(v), bx + 35, o.y + dy + 120);
@@ -1299,6 +1418,10 @@
   }
 
   // ---------- Loop ----------
+  fit(true);
+  if (window.ResizeObserver) new ResizeObserver(() => fit(false)).observe(canvas);
+  window.addEventListener('resize', () => fit(false));
+  window.addEventListener('orientationchange', () => setTimeout(() => fit(false), 120));
   let last = performance.now();
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
