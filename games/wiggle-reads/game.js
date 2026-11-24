@@ -311,8 +311,10 @@
     return q;
   }
   const qKey = (q) => q.kind === 'order' ? q.sentence : q.prompt + '|' + (q.say || '') + '|' + (q.choices[q.answer].t || q.choices[q.answer].e);
-  function uniqueQs(maker, n) {
-    const out = [], seen = new Set();
+  // `seen` can be shared so several batches (a stop's main + review questions) never repeat
+  function uniqueQs(maker, n, seen) {
+    const out = [];
+    seen = seen || new Set();
     for (let tries = 0; out.length < n && tries < n * 12; tries++) {
       const q = maker(); const k = qKey(q);
       if (seen.has(k)) continue;
@@ -332,12 +334,20 @@
     return { kind: 'order', sentence, hint, words: sentence.split(' '), prompt: 'Put the words in order!',
       say: young() ? 'Put the words in order. ' + sentence : 'Put the words in order.', skill: 'BUILD A SENTENCE' };
   }
+  // Garden and Arcade ask endlessly: skip anything asked in the last RECENT questions
+  const RECENT = 20, recent = [];
   function anyQ(g, filter) {
-    for (let i = 0; i < 40; i++) {
-      const q = makeQ(g, pick(GR[g].skills));
-      if (!filter || filter(q)) return q;
+    let q = null;
+    for (let i = 0; i < 60; i++) {
+      const c = makeQ(g, pick(GR[g].skills));
+      if (filter && !filter(c)) continue;
+      q = c;
+      if (recent.indexOf(qKey(c)) < 0) break;
     }
-    return makeQ(g, GR[g].skills[0]);
+    if (!q) q = makeQ(g, GR[g].skills[0]);
+    recent.push(qKey(q));
+    if (recent.length > RECENT) recent.shift();
+    return q;
   }
 
   // ---------------------------------------------------------------- screens + navigation
@@ -716,7 +726,8 @@
       const skills = GR[g].skills;
       const main = skills[s.idx];
       const earlier = skills.slice(0, Math.max(1, s.idx));
-      list = uniqueQs(() => makeQ(g, main), 4).concat(uniqueQs(() => makeQ(g, pick(s.n >= skills.length ? skills : earlier)), 2));
+      const seen = new Set();
+      list = uniqueQs(() => makeQ(g, main), 4, seen).concat(uniqueQs(() => makeQ(g, pick(s.n >= skills.length ? skills : earlier)), 2, seen));
       list = list.slice(0, 4).concat(shuffle(list.slice(4)));
     }
     runQuiz({ title: 'STOP ' + (i + 1) + ': ' + stopName(g, s), list, backFn: trail, onDone: (res) => stopDone(i, res) });
