@@ -67,8 +67,8 @@ window.SecretWordLists = {
     feral fiery frank grimy gruff knead lanky merge mince mogul nasal outdo rebut relay rogue
     sated scoff shirk sinew spire swarm tally tempt unify vexed`,
 
-  // ADULT: hard 5-letter vocabulary -- 386 words
-  adult: `abide abyss acrid adept adore agile aloft amber amiss angst anvil aptly ardor askew attic
+  // HIGH: hard 5-letter vocabulary (high school and up) -- 386 words
+  high: `abide abyss acrid adept adore agile aloft amber amiss angst anvil aptly ardor askew attic
     audit augur avert awash azure bagel balmy banal bayou beget beret bevel bland bliss bloat
     blurb borax bough brash brawn briar brine brood brunt budge cache cadet cairn caper caste
     cedar chafe chasm chide chime chord cider cinch clout covet coyly crank crass craze creak

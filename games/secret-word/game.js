@@ -20,7 +20,7 @@
     { id: 'l1', name: '1', title: 'LEVEL 1', sub: 'EASY', grades: 'GRADES 1-2', len: 4, rows: 7, hints: 2, color: '#4ade80' },
     { id: 'l2', name: '2', title: 'LEVEL 2', sub: 'MEDIUM', grades: 'GRADES 3-4', len: 5, rows: 7, hints: 2, color: '#60a5fa' },
     { id: 'l3', name: '3', title: 'LEVEL 3', sub: 'HARD', grades: 'GRADES 5-6', len: 5, rows: 6, hints: 2, color: '#a78bfa' },
-    { id: 'adult', name: 'ADULT', title: 'ADULT', sub: 'EXPERT', grades: 'GROWN-UPS', len: 5, rows: 6, hints: 1, color: '#f87171' },
+    { id: 'high', name: 'HIGH', title: 'HIGH', sub: 'EXPERT', grades: 'HIGH SCHOOL+', len: 5, rows: 6, hints: 1, color: '#f87171' },
   ];
   const START_HEARTS = 3, MAX_HEARTS = 5;
 
