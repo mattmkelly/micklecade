@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#93c5fd"/><stop offset="1" stop-color="#c7d2fe"/></linearGradient>
+    <linearGradient id="mtn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#4f46e5"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e0e7ff"/></linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <circle cx="680" cy="90" r="46" fill="#fef08a"/><circle cx="680" cy="90" r="66" fill="#fef08a" opacity=".3"/>
+  <g fill="#fff" opacity=".85"><ellipse cx="130" cy="80" rx="60" ry="20"/><ellipse cx="165" cy="66" rx="34" ry="22"/></g>
+  <polygon points="0,400 120,250 200,330 330,170 470,330 560,230 700,360 800,300 800,600 0,600" fill="#a5b4fc"/>
+  <polygon points="40,600 400,120 760,600" fill="url(#mtn)"/>
+  <polygon points="400,120 352,184 380,178 402,200 424,176 450,186" fill="#f8fafc"/>
+  <path d="M400 124 V58 L452 72 L400 86" fill="#f43f5e" stroke="#9f1239" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M180 600 C 280 520 470 520 420 450 S 300 360 400 230" fill="none" stroke="#fff" stroke-width="7" stroke-dasharray="18 14" stroke-linecap="round" opacity=".9"/>
+  <path d="M0 520 Q200 470 400 510 T800 500 V600 H0Z" fill="#4ade80"/>
+  <path d="M0 560 Q240 520 480 556 T800 548 V600 H0Z" fill="#22c55e"/>
+  <!-- floating sum tiles -->
+  <g font-family="system-ui, Segoe UI, Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <g transform="translate(110 300) rotate(-10)"><rect x="-40" y="-40" width="80" height="80" rx="18" fill="url(#tile)" stroke="#6366f1" stroke-width="4"/><text y="22" font-size="60" fill="#ec4899">+</text></g>
+    <g transform="translate(690 270) rotate(9)"><rect x="-40" y="-40" width="80" height="80" rx="18" fill="url(#tile)" stroke="#6366f1" stroke-width="4"/><text y="22" font-size="60" fill="#2563eb">&#215;</text></g>
+    <g transform="translate(600 430) rotate(-6)"><rect x="-36" y="-36" width="72" height="72" rx="16" fill="url(#tile)" stroke="#6366f1" stroke-width="4"/><text y="20" font-size="54" fill="#16a34a">&#247;</text></g>
+    <g transform="translate(205 440) rotate(7)"><rect x="-36" y="-36" width="72" height="72" rx="16" fill="url(#tile)" stroke="#6366f1" stroke-width="4"/><text y="18" font-size="46" fill="#b45309">&#189;</text></g>
+  </g>
+  <!-- Pip the goat -->
+  <g transform="translate(400 452) scale(1.2)">
+    <ellipse cx="0" cy="70" rx="38" ry="6" fill="rgba(30,58,138,.25)"/>
+    <rect x="-26" y="40" width="9" height="28" rx="4" fill="#e2e8f0"/><rect x="17" y="40" width="9" height="28" rx="4" fill="#e2e8f0"/>
+    <rect x="-14" y="44" width="9" height="26" rx="4" fill="#f8fafc"/><rect x="5" y="44" width="9" height="26" rx="4" fill="#f8fafc"/>
+    <rect x="-26" y="62" width="9" height="7" rx="2" fill="#475569"/><rect x="17" y="62" width="9" height="7" rx="2" fill="#475569"/>
+    <rect x="-14" y="64" width="9" height="7" rx="2" fill="#475569"/><rect x="5" y="64" width="9" height="7" rx="2" fill="#475569"/>
+    <ellipse cx="0" cy="34" rx="36" ry="24" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+    <ellipse cx="36" cy="20" rx="5" ry="8" fill="#fff" stroke="#cbd5e1" stroke-width="2" transform="rotate(30 36 20)"/>
+    <path d="M-22 6 Q0 18 22 6 L20 16 Q0 26 -20 16 Z" fill="#f43f5e"/><path d="M12 14 l8 20 l-9 -2 z" fill="#e11d48"/>
+    <path d="M-11 -44 q-20 -14 -16 -34 q6 10 22 26" fill="#d6a35c" stroke="#a16207" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M11 -44 q20 -14 16 -34 q-6 10 -22 26" fill="#d6a35c" stroke="#a16207" stroke-width="2" stroke-linejoin="round"/>
+    <ellipse cx="-30" cy="-26" rx="15" ry="7" fill="#fff" stroke="#cbd5e1" stroke-width="2" transform="rotate(-20 -30 -26)"/>
+    <ellipse cx="30" cy="-26" rx="15" ry="7" fill="#fff" stroke="#cbd5e1" stroke-width="2" transform="rotate(20 30 -26)"/>
+    <ellipse cx="0" cy="-20" rx="25" ry="27" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+    <path d="M-6 6 L0 22 L6 6 Z" fill="#e2e8f0"/>
+    <circle cx="-10" cy="-24" r="5.5" fill="#1e293b"/><circle cx="10" cy="-24" r="5.5" fill="#1e293b"/>
+    <circle cx="-8" cy="-26" r="2" fill="#fff"/><circle cx="12" cy="-26" r="2" fill="#fff"/>
+    <ellipse cx="-17" cy="-13" rx="4.5" ry="2.6" fill="#fda4af" opacity=".7"/><ellipse cx="17" cy="-13" rx="4.5" ry="2.6" fill="#fda4af" opacity=".7"/>
+    <ellipse cx="0" cy="-6" rx="11" ry="8" fill="#fde2e4"/><circle cx="-4" cy="-7" r="1.6" fill="#9f1239"/><circle cx="4" cy="-7" r="1.6" fill="#9f1239"/>
+    <path d="M-5 -1 q5 5 10 0" stroke="#9f1239" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </g>
+  <!-- title -->
+  <g font-family="system-ui, Segoe UI, Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <text x="400" y="232" font-size="92" fill="#1e3a8a" opacity=".35">MATH</text>
+    <text x="400" y="226" font-size="92" fill="#fff" stroke="#1e3a8a" stroke-width="6" paint-order="stroke">MATH</text>
+    <text x="400" y="326" font-size="80" fill="#1e3a8a" opacity=".35">MOUNTAIN</text>
+    <text x="400" y="320" font-size="80" fill="url(#gold)" stroke="#1e3a8a" stroke-width="6" paint-order="stroke">MOUNTAIN</text>
+  </g>
+</svg>
