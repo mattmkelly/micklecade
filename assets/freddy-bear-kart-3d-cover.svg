@@ -1,30 +1,74 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <!-- Launcher cover for Freddy Bear Kart 3D, in the style of its glass home screen -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3fa8ff"/>
-      <stop offset="1" stop-color="#bfeaff"/>
+      <stop offset="0" stop-color="#2a5bd8"/>
+      <stop offset="0.55" stop-color="#5fb8ff"/>
+      <stop offset="1" stop-color="#ffd9a8"/>
     </linearGradient>
     <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6a7080"/>
-      <stop offset="1" stop-color="#474c58"/>
+      <stop offset="0" stop-color="#6a7088"/>
+      <stop offset="1" stop-color="#3a3e50"/>
     </linearGradient>
+    <linearGradient id="logo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff7b0"/>
+      <stop offset="0.38" stop-color="#ffd23f"/>
+      <stop offset="0.72" stop-color="#ff8a2b"/>
+      <stop offset="1" stop-color="#ff4f6d"/>
+    </linearGradient>
+    <linearGradient id="hot" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4fd8"/>
+      <stop offset="1" stop-color="#ff7a3d"/>
+    </linearGradient>
+    <radialGradient id="coin" cx="0.35" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff6b0"/><stop offset="0.6" stop-color="#ffb300"/><stop offset="1" stop-color="#a86800"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="6"/></filter>
   </defs>
-  <rect width="320" height="240" fill="url(#sky)"/>
-  <!-- hills and trees -->
-  <path d="M0 128 Q50 84 110 122 Q160 92 215 120 Q270 90 320 124 V240 H0Z" fill="#4f9e58"/>
-  <rect y="122" width="320" height="118" fill="#6cbf4b"/>
+
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <!-- clouds -->
+  <g fill="#fff" opacity="0.85">
+    <ellipse cx="640" cy="90" rx="70" ry="22"/><ellipse cx="600" cy="80" rx="40" ry="24"/><ellipse cx="680" cy="76" rx="36" ry="20"/>
+    <ellipse cx="740" cy="200" rx="50" ry="14"/><ellipse cx="720" cy="192" rx="28" ry="15"/>
+  </g>
+  <!-- mountains, hills, grass -->
+  <path d="M380 300 L470 220 L540 290 L610 200 L700 290 L760 240 L800 270 V320 H380Z" fill="#7a86c8"/>
+  <path d="M590 216 L610 200 L630 222 L618 218 L608 228 L600 218Z" fill="#fff"/>
+  <path d="M0 320 Q120 270 260 312 Q400 270 540 306 Q680 272 800 300 V600 H0Z" fill="#4f9e58"/>
+  <rect y="306" width="800" height="294" fill="#6cbf4b"/>
   <g fill="#2f8f45">
-    <circle cx="26" cy="124" r="13"/><circle cx="296" cy="126" r="14"/><circle cx="258" cy="118" r="9"/><circle cx="62" cy="118" r="8"/>
+    <circle cx="60" cy="312" r="26"/><circle cx="110" cy="306" r="16"/><circle cx="740" cy="314" r="28"/><circle cx="690" cy="306" r="17"/>
   </g>
-  <!-- road, curbs and centre dashes -->
-  <path d="M132 122 H188 L330 240 H-10Z" fill="url(#road)"/>
-  <path d="M132 122 L-10 240 H-28 L128 122Z" fill="#ff4a4a"/>
-  <path d="M188 122 L330 240 H348 L192 122Z" fill="#ffffff"/>
+
+  <!-- road, curbs and centre dashes, heading off to the horizon -->
+  <path d="M500 306 H580 L860 600 H120Z" fill="url(#road)"/>
+  <path d="M500 306 L120 600 H70 L494 306Z" fill="#ff4a4a"/>
+  <g fill="#fff"><path d="M494 306 L470 324 L440 324 L466 306Z"/><path d="M410 366 L370 396 L330 396 L372 366Z"/><path d="M290 458 L230 504 L170 504 L236 458Z"/></g>
+  <path d="M580 306 L860 600 H910 L586 306Z" fill="#ffffff"/>
+  <g fill="#ff4a4a"><path d="M600 326 L612 338 L640 338 L626 326Z"/><path d="M660 388 L690 418 L736 418 L702 388Z"/><path d="M760 492 L810 544 L870 544 L816 492Z"/></g>
   <g fill="#ffe14f">
-    <path d="M159 128 h3 l1 12 h-5z"/><path d="M157 150 h7 l2 22 h-11z"/><path d="M153 188 h14 l4 40 h-22z"/>
+    <path d="M538 312 h5 l1 16 h-8z"/><path d="M534 346 h12 l3 32 h-18z"/><path d="M528 404 h22 l6 58 h-34z"/>
   </g>
+  <!-- boost pad -->
+  <g transform="translate(478 372) scale(0.8)">
+    <path d="M-50 22 L-34 -22 H34 L50 22Z" fill="url(#hot)" opacity="0.92"/>
+    <g fill="#fff"><path d="M-24 15 L0 -15 L24 15 L14 15 L0 -1 L-14 15Z"/></g>
+  </g>
+
+  <!-- coins -->
+  <g>
+    <circle cx="610" cy="350" r="13" fill="url(#coin)" stroke="#7a4c00" stroke-width="2"/>
+    <circle cx="650" cy="392" r="17" fill="url(#coin)" stroke="#7a4c00" stroke-width="2.5"/>
+    <circle cx="704" cy="452" r="23" fill="url(#coin)" stroke="#7a4c00" stroke-width="3"/>
+  </g>
+
   <!-- Snowbell, further up the road -->
-  <g transform="translate(206 138) scale(0.5)">
+  <g transform="translate(548 340) scale(0.95)">
+    <ellipse cx="0" cy="44" rx="42" ry="6" fill="#000" opacity="0.2"/>
     <rect x="-30" y="12" width="60" height="22" rx="8" fill="#ff7ab8"/>
     <rect x="-38" y="24" width="14" height="18" rx="5" fill="#1c1c22"/><rect x="24" y="24" width="14" height="18" rx="5" fill="#1c1c22"/>
     <ellipse cx="-9" cy="-36" rx="6" ry="20" fill="#fff"/><ellipse cx="9" cy="-36" rx="6" ry="20" fill="#fff"/>
@@ -33,7 +77,8 @@
     <circle cx="-7" cy="-7" r="3" fill="#15151a"/><circle cx="7" cy="-7" r="3" fill="#15151a"/><circle cy="1" r="3" fill="#ff8fb0"/>
   </g>
   <!-- Bowie -->
-  <g transform="translate(100 152) scale(0.7)">
+  <g transform="translate(360 410) scale(1.5)">
+    <ellipse cx="0" cy="44" rx="44" ry="6" fill="#000" opacity="0.22"/>
     <rect x="-30" y="12" width="60" height="22" rx="8" fill="#35c46a"/>
     <rect x="-38" y="24" width="14" height="18" rx="5" fill="#1c1c22"/><rect x="24" y="24" width="14" height="18" rx="5" fill="#1c1c22"/>
     <ellipse cx="-9" cy="-36" rx="6" ry="20" fill="#ff8a1e"/><ellipse cx="9" cy="-36" rx="6" ry="20" fill="#ff8a1e"/>
@@ -43,9 +88,10 @@
     <circle cx="-7" cy="-8" r="3" fill="#15151a"/><circle cx="7" cy="-8" r="3" fill="#15151a"/><circle cy="0" r="3" fill="#ff7aa8"/>
   </g>
   <!-- Freddy Bear, up front -->
-  <g transform="translate(166 190)">
-    <ellipse cx="0" cy="44" rx="52" ry="7" fill="#000" opacity="0.25"/>
+  <g transform="translate(570 470) scale(2.3)">
+    <ellipse cx="0" cy="44" rx="52" ry="7" fill="#000" opacity="0.28"/>
     <rect x="-40" y="12" width="80" height="28" rx="10" fill="#2f8fe0"/>
+    <rect x="-40" y="12" width="80" height="8" rx="4" fill="#5cb4ff"/>
     <rect x="-16" y="30" width="32" height="8" rx="3" fill="#fff"/>
     <rect x="-52" y="24" width="18" height="24" rx="6" fill="#1c1c22"/><rect x="34" y="24" width="18" height="24" rx="6" fill="#1c1c22"/>
     <circle cx="-25" cy="-24" r="13" fill="#9b9ba3"/><circle cx="25" cy="-24" r="13" fill="#9b9ba3"/>
@@ -53,14 +99,21 @@
     <circle cy="-6" r="25" fill="#9b9ba3"/>
     <ellipse cy="2" rx="11" ry="9" fill="#c9c9d1"/>
     <circle cx="-9" cy="-11" r="3.5" fill="#15151a"/><circle cx="9" cy="-11" r="3.5" fill="#15151a"/>
+    <circle cx="-8" cy="-12" r="1.2" fill="#fff"/><circle cx="10" cy="-12" r="1.2" fill="#fff"/>
     <ellipse cy="-2" rx="5" ry="7" fill="#1c1c1c"/>
     <path d="M-7 9 Q0 14 7 9" stroke="#15151a" stroke-width="2" fill="none" stroke-linecap="round"/>
   </g>
-  <!-- title -->
-  <g font-family="'Courier New', Courier, monospace" font-weight="bold" text-anchor="middle" stroke-linejoin="round">
-    <text x="160" y="38" font-size="30" stroke="#120b28" stroke-width="7" fill="#120b28">FREDDY BEAR</text>
-    <text x="160" y="38" font-size="30" fill="#ffe14f">FREDDY BEAR</text>
-    <text x="160" y="76" font-size="36" stroke="#120b28" stroke-width="7" fill="#120b28">KART 3D</text>
-    <text x="160" y="76" font-size="36" fill="#ff7a1e">KART 3D</text>
+
+  <!-- the logo, set like the home screen's: skewed heavy type -->
+  <g transform="translate(44 0) skewX(-9)" font-family="system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="900">
+    <text x="22" y="86" font-size="52" letter-spacing="3" fill="#2a0f5a" opacity="0.5" filter="url(#soft)">FREDDY BEAR</text>
+    <text x="22" y="82" font-size="52" letter-spacing="3" fill="#fff" stroke="#2a0f5a" stroke-width="4" paint-order="stroke">FREDDY BEAR</text>
+    <g filter="url(#shadow)">
+      <text x="14" y="196" font-size="130" letter-spacing="-1" fill="url(#logo)" stroke="#2a0f5a" stroke-width="9" stroke-linejoin="round" paint-order="stroke">KART 3D</text>
+    </g>
+    <!-- the speed stripes under the logo -->
+    <rect x="22" y="222" width="200" height="14" rx="7" fill="url(#hot)"/>
+    <rect x="232" y="222" width="90" height="14" rx="7" fill="url(#hot)" opacity="0.7"/>
+    <rect x="332" y="222" width="36" height="14" rx="7" fill="url(#hot)" opacity="0.45"/>
   </g>
 </svg>
