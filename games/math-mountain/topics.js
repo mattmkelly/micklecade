@@ -335,7 +335,9 @@
     s += `<path d="M30 30H210" stroke="#475569" stroke-width="5" stroke-linecap="round"/><circle cx="120" cy="30" r="5" fill="#f59e0b"/>`;
     s += `<path d="M30 30L10 62M30 30L50 62M210 30L190 62M210 30L230 62" stroke="#94a3b8" stroke-width="1.5"/>`;
     s += `<path d="M2 62H58Q54 78 30 78Q6 78 2 62Z" fill="#fcd34d" stroke="#b45309" stroke-width="1.5"/><path d="M182 62H238Q234 78 210 78Q186 78 182 62Z" fill="#fcd34d" stroke="#b45309" stroke-width="1.5"/>`;
-    s += T(30, 48, L, 17, '#1e3a8a') + T(210, 48, Rt, 17, '#1e3a8a');
+    // the mystery letter gets the same italic serif as .v, so x never looks like a times sign
+    const vx = (t) => String(t).replace(/x/g, `<tspan font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="700">x</tspan>`);
+    s += T(30, 48, vx(L), 17, '#1e3a8a') + T(210, 48, vx(Rt), 17, '#1e3a8a');
     return SV('-6 0 252 112', s);
   }
 
