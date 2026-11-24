@@ -43,7 +43,17 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const em = () => parseFloat(stage.style.fontSize) || 10;
 
-  function fit() { stage.style.fontSize = (stage.clientWidth / 48) + 'px'; }
+  function fit() { stage.style.fontSize = (stage.clientWidth / 48) + 'px'; fitQuestion(); }
+  // A question can be taller than the room under the HUD (a picture + a word + picture answers,
+  // or a device whose emoji draw big). Shrink the question area until nothing spills off the frame.
+  function fitQuestion() {
+    const main = document.querySelector('#s-quiz.on .qmain');
+    if (!main) return;
+    let f = 1;
+    main.style.fontSize = '';
+    const over = () => main.scrollHeight > main.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1;
+    while (over() && f > 0.55) { f -= 0.05; main.style.fontSize = f + 'em'; }
+  }
   fit();
   window.addEventListener('resize', fit);
   if (window.ResizeObserver) new ResizeObserver(fit).observe(stage);
@@ -97,7 +107,10 @@
     let vs = [];
     try { vs = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)); } catch (e) { return; }
     const pref = [/samantha/i, /aria/i, /jenny/i, /google us english/i, /zira/i, /en[-_]US/i];
-    for (const p of pref) { const v = vs.find((x) => p.test(x.name) || p.test(x.lang)); if (v) { voice = v; return; } }
+    // voices on the device start talking much sooner than online ones, so try those first
+    for (const pool of [vs.filter((x) => x.localService), vs]) {
+      for (const p of pref) { const v = pool.find((x) => p.test(x.name) || p.test(x.lang)); if (v) { voice = v; return; } }
+    }
     voice = vs[0] || null;
   }
   if (canSpeak) { pickVoice(); try { speechSynthesis.onvoiceschanged = pickVoice; } catch (e) { /* ignore */ } }
@@ -107,20 +120,36 @@
       .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{231A}-\u{23FF}]/gu, '')
       .replace(/\s+/g, ' ').trim();
   }
+  // Each say() is one "generation". Some voices (online ones especially) start late, so a line
+  // can begin after its question is already gone; a line that starts out of date is cut off and
+  // the current line is spoken instead. cancel() + an immediate speak() also drops lines in
+  // Chrome, hence the short wait before speaking.
+  let speechGen = 0, speechNow = null;
+  function speakList(texts, gen) {
+    texts.forEach((t) => {
+      const u = new SpeechSynthesisUtterance(t);
+      if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
+      u.rate = young() ? 0.82 : 0.92; u.pitch = 1.05;
+      u.onstart = () => {
+        if (gen === speechGen) return;
+        try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+        const cur = speechGen, again = speechNow;
+        if (again) setTimeout(() => { if (cur === speechGen) speakList(again, cur); }, 80);
+      };
+      speechSynthesis.speak(u);
+    });
+  }
   function say() {
     if (!voiceOn()) return;
     const texts = [].concat.apply([], arguments).filter(Boolean).map(cleanSpeech).filter(Boolean);
+    const gen = ++speechGen;
+    speechNow = texts;
     try {
       speechSynthesis.cancel();
-      texts.forEach((t) => {
-        const u = new SpeechSynthesisUtterance(t);
-        if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
-        u.rate = young() ? 0.82 : 0.92; u.pitch = 1.05;
-        speechSynthesis.speak(u);
-      });
+      setTimeout(() => { if (gen === speechGen) try { speakList(texts, gen); } catch (e) { /* ignore */ } }, 60);
     } catch (e) { /* no voice: words stay on screen */ }
   }
-  function hush() { if (canSpeak) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+  function hush() { speechGen++; speechNow = null; if (canSpeak) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
 
   // ---------------------------------------------------------------- Wiggle the bookworm
   let svgId = 0;
@@ -409,9 +438,11 @@
     body.append(main);
     if (q.kind === 'order') renderOrder(q, main);
     else renderChoice(q, main);
+    fitQuestion();
     // read aloud: always for the youngest, and for questions you have to hear
-    if (q.passage && q.firstOfStory && G() <= 1) setTimeout(() => say(q.passage.p, q.say), 300);
-    else if (young() || q.autoSay) setTimeout(() => say(q.say), 250);
+    const still = () => quiz && quiz.q === q && current && current.id === 's-quiz';
+    if (q.passage && q.firstOfStory && G() <= 1) setTimeout(() => { if (still()) say(q.passage.p, q.say); }, 300);
+    else if (young() || q.autoSay) setTimeout(() => { if (still()) say(q.say); }, 250);
   }
   function promptEl(text) {
     const long = text.length > 60;
@@ -420,7 +451,7 @@
   }
   function bigEl(b) {
     if (!b) return null;
-    return h('div', { class: 'big' },
+    return h('div', { class: 'big' + (b.emo && (b.word || b.html) ? ' both' : '') },
       b.emo ? h('div', { class: 'emo', text: b.emo }) : null,
       b.html ? h('div', { class: 'word', html: b.html }) : b.word ? h('div', { class: 'word' + (b.huge ? ' huge' : ''), text: b.word }) : null);
   }

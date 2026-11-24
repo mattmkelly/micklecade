@@ -41,6 +41,7 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
     background: linear-gradient(#bae6fd, #e0f2fe 55%, #dcfce7);
     color: #1e293b; font-size: 10px; touch-action: manipulation;
+    isolation: isolate; /* keeps garden items, balloons etc. under the ☰ menu */
   }
   .screen { position: absolute; inset: 0; display: none; }
   .screen.on { display: block; }
@@ -168,6 +169,9 @@
   .prompt .blank { display: inline-block; min-width: 2.6em; border-bottom: .14em solid #f59e0b; margin: 0 .15em; }
   .big { display: flex; flex-direction: column; align-items: center; gap: .1em; }
   .big .emo { font-size: 4.8em; line-height: 1.1; }
+  .big.both { flex-direction: row; gap: .5em; }
+  .big.both .emo { font-size: 4.2em; }
+  .big.both .word { font-size: 3em; }
   .big .word { font-size: 3.4em; font-weight: 900; letter-spacing: .04em; color: #0f172a; }
   .big .word.huge { font-size: 5em; }
   .big .word u { text-decoration: none; display: inline-block; min-width: .6em; border-bottom: .1em solid #f59e0b; color: transparent; }
@@ -392,7 +396,7 @@
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/scores.js"></script>
   <script src="../../shared/menu.js" data-frame="#stage" data-at="1,0"></script>
-  <script src="content.js"></script>
-  <script src="game.js"></script>
+  <script src="content.js?v=2"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>
