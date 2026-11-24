@@ -1874,6 +1874,7 @@
 
   // which world is showing: a story level's own, otherwise the one picked in the builder
   function worldNow() {
+    if (attract) return LEVELS[attractLevel - 1].world;
     if (mode === 'levels') return LEVELS[levelSel - 1].world;   // (25 levels, 9 to a row)
     if (mode === 'race' && raceKind === 'story') return LEVELS[storyLevel - 1].world;
     return save.world;
@@ -2016,7 +2017,9 @@
     mat.emissiveMap = spec.kind === 'lava' || spec.kind === 'galaxy' ? mat.map : null;
     mat.emissive.set(spec.kind === 'lava' ? 0x995522 : spec.kind === 'galaxy' ? 0x333355 : 0x000000);
     mat.needsUpdate = true;
-    player.rc = Object.assign({}, RACERS[0], { name: playerName(), color: spec.dot });
+    // (speed / accel only matter in the demo race behind the menus, where the computer rolls you)
+    player.rc = Object.assign({}, RACERS[0], { name: playerName(), color: spec.dot, speed: 9.3, accel: 0.97 });
+    if (uiReady) uiPlayer();
   }
   applyMarble();
   const SPAWNS = [[-0.75, -2], [0.75, -2], [-2.2, -2], [2.2, -2]];
@@ -2124,7 +2127,7 @@
       if (o.kind !== 'cyl' && !m.ai && m.bonkCool <= 0) { sfxBonk(); m.bonkCool = 0.4; }
     }
   }
-  const near = (m) => m.pos.distanceToSquared(player.pos) < 100;
+  const near = (m) => !attract && m.pos.distanceToSquared(player.pos) < 100;
 
   // Boost pads: over one, your speed down the piece jumps up (a launch pad sets it exactly).
   function applyPads(m, pc) {
@@ -2250,7 +2253,10 @@
   const storyUnlocked = (n) => n <= Math.min(LEVELS.length, save.story.done + 1);
 
   // ---------- Race ----------
-  let mode = 'menu';        // 'menu' | 'levels' | 'build' | 'race'
+  let mode = 'menu';        // 'menu' | 'marbles' | 'levels' | 'build' | 'race'
+  // the menus float over a demo race: all four marbles rolled by the computer down a story track
+  var attract = false, attractLevel = 1, attractEnd = 0, attractCam = null, attractCamT = 0;
+  var uiReady = false;      // the menus' HTML is wired up (applyMarble runs before that)
   let raceKind = 'custom';  // 'custom' (your own track) | 'story'
   let storyLevel = 1;
   let aiScale = 1;          // story levels slow the computer marbles down
@@ -2279,6 +2285,10 @@
     applyMarble();
     raceTime = -3; lastCount = 4; obstacleTime = 0;
     starsGot = 0; results = null; finishOrder = [];
+    lineUp();
+    setHint();
+  }
+  function lineUp() {
     marbles.forEach((m, i) => {
       spawnAt(m, pieces[0], SPAWNS[i][0], SPAWNS[i][1]);
       m.finished = false; m.ghost = 0; m.stuck = 0; m.mesh.visible = true;
@@ -2287,7 +2297,26 @@
     });
     camYaw = Math.atan2(pieces[0].frames[0].fwd.x, pieces[0].frames[0].fwd.z);
     snapCam = true;
-    setHint();
+  }
+
+  // The demo race behind the menus: a story level (a different one each time), no sounds,
+  // nobody's scores touched. `next` moves on to the following level.
+  function startAttract(next) {
+    attract = true;
+    attractLevel = next ? attractLevel % LEVELS.length + 1 : 1 + Math.floor(Math.random() * LEVELS.length);
+    rebuildTrack(true, layout(storyTrack(attractLevel)));
+    aiScale = 1;
+    player.ai = true;
+    raceTime = -1; lastCount = 1; obstacleTime = 0;
+    starsGot = 0; results = null; finishOrder = []; attractEnd = 0;
+    lineUp();
+    attractCam = marbles[0]; attractCamT = 4;
+  }
+  function stopAttract() {
+    if (!attract) return;
+    attract = false;
+    player.ai = false;
+    hideRace();
   }
 
   function hideRace() {
@@ -2302,7 +2331,7 @@
   function toMenu() {
     hideRace();
     setMode('menu');
-    rebuildTrack(false);
+    startAttract();
   }
   function toLevels(pick) {
     hideRace();
@@ -2320,11 +2349,16 @@
     storyLevel = n;
     startRace();
   }
+  const MENU_MODES = ['menu', 'marbles', 'levels'];
   function setMode(m) {
+    const was = mode;
     mode = m;
-    nameBox.hidden = m !== 'menu';
-    if (m !== 'menu') { nameBox.blur(); commitName(); }
+    if (was === 'marbles' && m !== 'marbles') { nameBox.blur(); commitName(); }
+    if (m !== 'menu' && m !== 'marbles') stopAttract();
+    document.body.classList.toggle('menus', MENU_MODES.includes(m));
+    showScreen(m === 'menu' ? 'home' : MENU_MODES.includes(m) ? m : null);
     setHint();
+    resize();
   }
 
   function respawn(m) {
@@ -2514,14 +2548,15 @@
   function updateRace(dt) {
     raceTime += dt;
     const count = Math.ceil(-raceTime);
-    if (raceTime < 0 && count !== lastCount) { lastCount = count; sfxCount(false); }
+    if (raceTime < 0 && count !== lastCount) { lastCount = count; if (!attract) sfxCount(false); }
     if (raceTime >= 0 && lastCount > 0) {
-      lastCount = 0; sfxCount(true);
+      lastCount = 0; if (!attract) sfxCount(true);
       pieces[0].gate.open = 0.001;
     }
     if (pieces[0].gate.open > 0) pieces[0].gate.open = Math.min(1, pieces[0].gate.open + dt * 4);
 
-    if (!results) playerInput(); else { player.input.set(0, 0, 0); player.jump = false; }
+    if (attract) { /* the computer rolls everyone */ }
+    else if (!results) playerInput(); else { player.input.set(0, 0, 0); player.jump = false; }
     marbles.forEach((m) => { if (m.ai) steerAI(m, dt); });
 
     let acc = dt;
@@ -2544,7 +2579,7 @@
         m.finished = true;
         m.finishTime = raceTime;
         finishOrder.push(m);
-        if (m === player) playerFinished();
+        if (m === player && !attract) playerFinished();
         else if (near(m)) beep(660, 0.1, 'triangle', 0.08);
       }
       // roll the marble's picture to match how far it moved
@@ -2560,14 +2595,25 @@
 
     // stars
     for (const pc of pieces) for (const st of pc.stars) {
-      if (st.taken) continue;
+      if (st.taken || attract) continue;
       if (st.mesh.position.distanceToSquared(player.pos) < (R + 0.6) ** 2) {
         st.taken = true; st.mesh.visible = false; starsGot++;
         sfxStar(); burst(st.mesh.position, 0xffd400, 12);
       }
     }
 
-    if (results && raceTime > resultsAt && !results.shown) results.shown = true;
+    if (results && raceTime > resultsAt && !results.shown) { results.shown = true; showScreen('results'); }
+
+    if (attract) {
+      // follow whoever is in front (checked now and then, so the camera isn't jumping about)
+      attractCamT -= dt;
+      if (attractCamT <= 0) {
+        attractCam = marbles.filter((m) => !m.finished).sort((a, b) => progressOf(b) - progressOf(a))[0] || attractCam;
+        attractCamT = 5;
+      }
+      if (!attractEnd && (finishOrder.length === marbles.length || raceTime > 80)) attractEnd = raceTime + 2.5;
+      if (attractEnd && raceTime > attractEnd) startAttract(true);
+    }
   }
 
   function placeName(n) { return ['1st', '2nd', '3rd', '4th'][n] || ''; }
@@ -2632,7 +2678,7 @@
   const wantPos = new THREE.Vector3(), wantLook = new THREE.Vector3();
 
   function updateCamera(dt) {
-    if (mode !== 'race') {
+    if (mode !== 'race' && !attract) {
       if (mode !== 'build') buildYawTarget += dt * 0.12;   // menus slowly turn round the track on show
       buildYaw += (buildYawTarget - buildYaw) * Math.min(1, dt * 6);
       const box = new THREE.Box3();
@@ -2646,17 +2692,18 @@
       wantPos.set(wantLook.x - Math.sin(buildYaw) * dist * 0.75, wantLook.y + dist * 0.75, wantLook.z - Math.cos(buildYaw) * dist * 0.75);
     } else {
       // chase: sit behind the player, turned the way the track runs
-      const fr = frameAt(player);
+      const P = attract ? attractCam : player;   // the demo race watches the leader
+      const fr = frameAt(P);
       const want = Math.atan2(fr.fwd.x, fr.fwd.z);
       let d = want - camYaw;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       camYaw += d * Math.min(1, dt * 2.5);
       const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
-      wantPos.set(player.pos.x - fx * 6, player.pos.y + 3.4, player.pos.z - fz * 6);
-      wantLook.set(player.pos.x + fx * 3, player.pos.y + 0.2, player.pos.z + fz * 3);
+      wantPos.set(P.pos.x - fx * 6, P.pos.y + 3.4, P.pos.z - fz * 6);
+      wantLook.set(P.pos.x + fx * 3, P.pos.y + 0.2, P.pos.z + fz * 3);
       // going round a loop, a chase camera would be stuck outside the ring -- watch from the side
-      const pc = pieces[player.pieceIdx];
+      const pc = pieces[P.pieceIdx];
       if (fr.ride && pc.pl.type === 'loop') {
         toW(pc.B, 12, LOOP_R + 1.5, 10, wantPos);
         toW(pc.B, 0, LOOP_R, 10, wantLook);
@@ -2664,7 +2711,7 @@
       // round the spiral, watch from off to the side (like the loop), keeping level with the
       // marble as it winds down so the turns above never hide it
       if (fr.coast && (pc.pl.type === 'spiral' || pc.pl.type === 'corkscrew')) {
-        const h = player.pos.y - pc.B.y0;
+        const h = P.pos.y - pc.B.y0;
         // the open side (the way in and out run down the other), just above the marble: low
         // enough to look under the turn above, through the glass walls
         toW(pc.B, 9, h + 1.8, SP_C - 2, wantPos);
@@ -2672,7 +2719,7 @@
       }
     }
     if (snapCam) { camPos.copy(wantPos); camLook.copy(wantLook); snapCam = false; }
-    const k = Math.min(1, dt * (mode !== 'race' ? 4 : 7));
+    const k = Math.min(1, dt * (attract ? 3 : mode !== 'race' ? 4 : 7));
     camPos.lerp(wantPos, k);
     camLook.lerp(wantLook, k);
     camera.position.copy(camPos);
@@ -2766,11 +2813,13 @@
     startRace();
   }
 
-  // ---------- Menu and level picker ----------
-  let menuFocus = 1;        // 0: marble row, 1: STORY MODE, 2: BUILD YOUR OWN
+  // ---------- Menus (HTML, over the 3D scene) ----------
+  const $ = (id) => document.getElementById(id);
+  const ui = $('ui');
+  const howto = $('howto');
   let marbleSel = Math.max(0, MARBLES.findIndex((mb) => mb.id === save.marble));
   let levelSel = Math.min(LEVELS.length, save.story.done + 1);
-  const nameBox = document.getElementById('nameBox');
+  const nameBox = $('nameBox');
   // the arcade keeps names to 10 letters (shared/scores.js), so the box does too --
   // what you type is exactly what shows on the scoreboards
   const NAME_MAX = 10;
@@ -2799,53 +2848,330 @@
     if (e.key === 'Enter') { nameBox.blur(); commitName(); sfxPlace(); }
   });
   // typed a name and then went back to the arcade or closed the tab? still keep it
-  window.addEventListener('pagehide', () => { if (mode === 'menu') commitName(); });
+  window.addEventListener('pagehide', () => { if (mode === 'marbles') commitName(); });
 
-  // Names saved in this browser (shared with the whole arcade), newest last, as tap-to-pick
-  // chips under the name box.
+  // Names saved in this browser (shared with the whole arcade), newest last, as tap-to-pick chips.
   const NAME_CHIPS = 6;
-  let nameSel = 0;
   function savedNames() {
     const all = window.MickleScores ? MickleScores.players() : (save.name ? [save.name] : []);
     return all.slice(-NAME_CHIPS);
   }
-  function pickName(i) {
-    const names = savedNames();
-    if (!names.length) return;
-    nameSel = (i + names.length) % names.length;
-    nameBox.value = names[nameSel];
-    commitName();
-    sfxSelect();
+
+  function make(tag, cls, txt) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt !== undefined) e.textContent = txt;
+    return e;
+  }
+  // a marble's picture on its own little canvas
+  function swatchCanvas(spec, size, locked) {
+    const cv = make('canvas');
+    cv.width = cv.height = size;
+    drawSwatch(spec, size / 2, size / 2, size / 2 - 2, locked, cv.getContext('2d'));
+    return cv;
+  }
+  // a piece's picture, on its card colour
+  function pieceCanvas(type, size) {
+    const cv = make('canvas');
+    cv.width = cv.height = size;
+    const g = cv.getContext('2d');
+    g.fillStyle = hex(PIECES[type].color);
+    g.beginPath(); g.roundRect ? g.roundRect(0, 0, size, size, size * 0.2) : g.rect(0, 0, size, size); g.fill();
+    drawIcon(type, size / 2, size / 2, size * 0.62, g);
+    return cv;
+  }
+  const medalIcon = (color) => { const i = make('i', 'medal'); i.style.setProperty('--m', color); return i; };
+
+  function showScreen(name) {
+    for (const sc of ui.querySelectorAll('.screen')) sc.classList.toggle('active', sc.id === 'screen-' + name);
+    if (name === 'home') renderHome();
+    else if (name === 'marbles') renderMarbles();
+    else if (name === 'levels') renderLevels();
+    else if (name === 'results') renderResults();
+    if (name) focusFirst();
   }
 
-  function pickMarble(i) {
-    marbleSel = (i + MARBLES.length) % MARBLES.length;
-    const mb = MARBLES[marbleSel];
-    if (unlocked(mb)) { save.marble = mb.id; writeSave(); applyMarble(); sfxSelect(); }
-    else beep(300, 0.06, 'triangle', 0.06);
+  function uiPlayer() {
+    $('player-name').textContent = playerName();
+    const cv = $('player-chip-cv');
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    drawSwatch(marbleSpec(save.marble), cv.width / 2, cv.height / 2, cv.width / 2 - 2, false, g);
+    $('marble-sub').textContent = 'Rolling as ' + marbleSpec(save.marble).name;
+    renderChips();
+  }
+  function uiMedals() {
+    const done = Math.min(LEVELS.length, save.story.done);
+    for (const e of document.querySelectorAll('.medal-count')) e.textContent = done + '/' + LEVELS.length;
+  }
+
+  function renderHome() {
+    const done = save.story.done, N = LEVELS.length;
+    $('story-sub').textContent = done >= N ? 'All ' + N + ' levels done!' : 'Level ' + (done + 1) + ' of ' + N;
+    const has = save.track.length > 0;
+    $('mode-mine').classList.toggle('empty', !has);
+    $('mine-sub').textContent = has ? 'Race the run you built' : 'Build a run first!';
+    $('tagline').textContent = N + ' LEVELS · ' + PALETTE.length + ' PIECES · ' + WORLDS.length + ' WORLDS';
+    uiPlayer();
+    uiMedals();
+  }
+
+  // ---- my marble ----
+  function renderChips() {
+    const box = $('name-chips');
+    box.innerHTML = '';
+    for (const nm of savedNames()) {
+      const b = make('button', 'chip' + (nm === nameBox.value ? ' on' : ''), nm);
+      b.addEventListener('click', () => {
+        nameBox.value = nm;
+        commitName();
+        sfxSelect();
+        renderChips();
+        const again = [...box.children].find((c) => c.textContent === nm);
+        if (again) again.focus({ preventScroll: true });
+      });
+      box.appendChild(b);
+    }
+  }
+  function renderMarbles() {
+    const grid = $('marble-grid');
+    grid.innerHTML = '';
+    MARBLES.forEach((mb, i) => {
+      const open = unlocked(mb), mine = mb.id === save.marble;
+      const b = make('button', 'tile' + (mine ? ' on' : '') + (open ? '' : ' locked'));
+      b.dataset.marble = i;
+      b.append(swatchCanvas(mb, 96, false), make('div', 't-name', mb.name),
+        make('div', 't-tag', mine ? '✔ YOURS' : open ? 'TAP TO ROLL' : 'WIN ON LEVEL ' + mb.unlock));
+      b.addEventListener('focus', () => showMarble(i));
+      b.addEventListener('pointerenter', () => showMarble(i));
+      b.addEventListener('click', () => chooseMarble(i));
+      grid.appendChild(b);
+    });
+    renderChips();
+    uiMedals();
+    showMarble(Math.max(0, MARBLES.findIndex((mb) => mb.id === save.marble)));
+  }
+  function showMarble(i) {
+    marbleSel = i;
+    const mb = MARBLES[i], open = unlocked(mb);
+    $('show-name').textContent = mb.name;
+    const sub = $('show-sub');
+    sub.textContent = mb.id === save.marble ? "THAT'S YOUR MARBLE!" : open ? 'TAP IT TO ROLL AS ' + mb.name :
+      'FINISH STORY LEVEL ' + mb.unlock + ' TO WIN IT';
+    sub.classList.toggle('locked', !open);
+  }
+  function chooseMarble(i) {
+    const mb = MARBLES[i];
+    if (!unlocked(mb)) {
+      sfxNope();
+      const t = $('marble-grid').children[i];
+      t.classList.remove('nope'); void t.offsetWidth; t.classList.add('nope');
+      return;
+    }
+    save.marble = mb.id; writeSave(); applyMarble(); sfxPlace();
+    renderMarbles();
+    $('marble-grid').children[i].focus({ preventScroll: true });
+  }
+  // the big marble on the left, slowly rolling
+  function drawShowroom(now) {
+    const cv = $('showroom'), g = cv.getContext('2d');
+    const spec = MARBLES[marbleSel], open = unlocked(spec);
+    const cx = cv.width / 2, cy = cv.height / 2 - 6, r = cv.width / 2 - 22;
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.beginPath(); g.ellipse(cx, cy + r + 10, r * 0.8, r * 0.14, 0, 0, Math.PI * 2); g.fill();
+    g.save();
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+    const img = marbleTex(spec).image, off = (now / 1000 * 0.12 % 1) * r * 4;
+    g.imageSmoothingEnabled = true;
+    g.drawImage(img, cx - r * 2 + off, cy - r, r * 4, r * 2);
+    g.drawImage(img, cx - r * 6 + off, cy - r, r * 4, r * 2);
+    const shine = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r * 1.1);
+    shine.addColorStop(0, 'rgba(255,255,255,0.6)'); shine.addColorStop(0.4, 'rgba(255,255,255,0)'); shine.addColorStop(1, 'rgba(0,0,0,0.4)');
+    g.fillStyle = shine; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    if (!open) { g.fillStyle = 'rgba(10,12,40,0.7)'; g.fillRect(cx - r, cy - r, r * 2, r * 2); }
+    g.restore();
+    if (!open) {
+      g.strokeStyle = '#ffffff'; g.lineWidth = r * 0.09;
+      g.beginPath(); g.arc(cx, cy - r * 0.08, r * 0.24, Math.PI, 0); g.stroke();
+      g.fillStyle = '#ffffff'; g.fillRect(cx - r * 0.34, cy - r * 0.08, r * 0.68, r * 0.5);
+    }
+  }
+
+  // ---- story levels ----
+  const LOCK_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  function renderLevels() {
+    const grid = $('level-grid');
+    grid.innerHTML = '';
+    LEVELS.forEach((L, i) => {
+      const n = i + 1, open = storyUnlocked(n), medal = save.story.medals[n];
+      const b = make('button', 'lv' + (open ? '' : ' locked') + (n === levelSel ? ' sel' : ''));
+      b.dataset.level = n;
+      b.style.setProperty('--w', worldById(L.world).ui);
+      b.appendChild(make('b', '', String(n)));
+      if (!open) b.insertAdjacentHTML('beforeend', LOCK_SVG);
+      else if (medal !== undefined) b.appendChild(medalIcon(MEDALS[medal].color));
+      else b.appendChild(make('i', 'none'));
+      const prize = MARBLES.find((mb) => mb.unlock === n);
+      if (prize && !unlocked(prize)) b.appendChild(swatchCanvas(prize, 32, false));
+      b.addEventListener('click', () => { if (levelSel === n) startStory(n); else pickLevel(n); });
+      grid.appendChild(b);
+    });
+    uiMedals();
+    levelDetail();
+  }
+  function levelDetail() {
+    const n = levelSel, L = LEVELS[n - 1], open = storyUnlocked(n), w = worldById(L.world);
+    for (const b of $('level-grid').children) b.classList.toggle('sel', +b.dataset.level === n);
+    $('lv-kicker').textContent = 'LEVEL ' + n + ' OF ' + LEVELS.length;
+    $('lv-name').textContent = L.name;
+    const nw = $('lv-new');
+    nw.innerHTML = '';
+    if (L.feature) nw.append(pieceCanvas(L.feature, 64), make('span', '', 'NEW PIECE: ' + PIECES[L.feature].name + '!'));
+    else nw.append(make('span', '', n === 1 ? 'A nice easy start.' : 'Everything mixed up!'));
+    const wc = $('lv-world');
+    wc.style.setProperty('--w', w.ui);
+    wc.lastChild.textContent = w.name;
+    const best = $('lv-best'), medal = save.story.medals[n], t = save.best['story' + n];
+    best.innerHTML = '';
+    if (medal !== undefined) {
+      best.append(medalIcon(MEDALS[medal].color), document.createTextNode(' ' + MEDALS[medal].name + (t ? '  ' + fmtTime(t) : '')));
+      best.style.color = MEDALS[medal].color;
+    }
+    const pz = $('lv-prize'), prize = MARBLES.find((mb) => mb.unlock === n);
+    pz.innerHTML = '';
+    if (prize && !unlocked(prize)) {
+      pz.append(swatchCanvas(prize, 64, false), make('span', '', 'WIN THE ' + prize.name + ' MARBLE!'));
+      pz.style.color = '#ffb0ff';
+    }
+    $('btn-play').hidden = !open;
+    const lk = $('lv-locked');
+    lk.hidden = open;
+    lk.textContent = 'FINISH LEVEL ' + (n - 1) + ' FIRST';
   }
   function pickLevel(n) {
     const next = Math.max(1, Math.min(LEVELS.length, n));
     if (next === levelSel) return;
     levelSel = next;
     sfxSelect();
+    levelDetail();
     rebuildTrack(false, layout(storyTrack(levelSel)));
   }
-  // menuFocus -1 is the row of saved names (only there when there are some)
-  function menuMove(dx, dy) {
-    if (dy < 0) menuFocus = menuFocus >= 1 ? 0 : savedNames().length ? -1 : 0;
-    else if (dy > 0) menuFocus = menuFocus === -1 ? 0 : menuFocus === 0 ? 1 : menuFocus;
-    else if (dx && menuFocus === -1) { pickName(nameSel + dx); return; }
-    else if (dx && menuFocus === 0) { pickMarble(marbleSel + dx); return; }
-    else if (dx) menuFocus = dx < 0 ? 1 : 2;
-    if (menuFocus === -1) nameSel = Math.max(0, savedNames().indexOf(nameBox.value));
-    sfxSelect();
+
+  // ---- results ----
+  function renderResults() {
+    const story = raceKind === 'story', r = results;
+    $('result-kicker').textContent = story ? 'LEVEL ' + storyLevel + ' · ' + LEVELS[storyLevel - 1].name : 'YOUR MARBLE RUN';
+    $('result-title').textContent = story ? 'LEVEL ' + storyLevel + ' DONE!' : ['YOU WON!', 'SUPER 2ND!', 'GREAT 3RD!', 'YOU FINISHED!'][r.place];
+    const order = finishOrder.concat(marbles.filter((m) => !m.finished).sort((a, b) => progressOf(b) - progressOf(a)));
+    const pod = $('podium');
+    pod.innerHTML = '';
+    for (const p of [1, 0, 2]) {
+      const m = order[p];
+      if (!m) continue;
+      const d = make('div', 'pod p' + (p + 1) + (m === player ? ' me' : ''));
+      d.append(swatchCanvas(m === player ? marbleSpec(save.marble) : m.rc, 96, false), make('div', 'pname', m.rc.name), make('div', 'block', String(p + 1)));
+      pod.appendChild(d);
+    }
+    const body = $('result-body');
+    body.innerHTML = '';
+    const line = (txt, cls, icon) => { const e = make('div', 'result-line' + (cls ? ' ' + cls : '')); if (icon) e.appendChild(icon); e.appendChild(document.createTextNode(txt)); body.appendChild(e); return e; };
+    if (story) line(MEDALS[r.place].name + (r.place < 3 ? ' MEDAL!' : '!'), '', medalIcon(MEDALS[r.place].color)).style.color = MEDALS[r.place].color;
+    if (r.place === 3) line('YOU CAME 4TH -- AND YOU STILL FINISHED!');
+    line('TIME ' + fmtTime(r.time) + (r.newBest ? '  NEW BEST!' : ''), r.newBest ? '' : 'dim');
+    line('★ ' + r.stars + ' STARS').style.color = '#ffd23f';
+    body.appendChild(make('div', 'result-big', 'SCORE ' + r.score));
+    if (r.unlock) {
+      const u = make('div', 'unlock');
+      u.append(swatchCanvas(r.unlock, 64, false), make('span', '', 'NEW MARBLE: ' + r.unlock.name + '!'));
+      body.appendChild(u);
+    }
+    const acts = $('res-actions');
+    acts.innerHTML = '';
+    const btn = (label, fn, primary) => { const b = make('button', 'btn' + (primary ? ' primary' : ''), label); b.addEventListener('click', () => { sfxPlace(); fn(); }); acts.appendChild(b); };
+    if (story) {
+      const last = storyLevel >= LEVELS.length;
+      btn(last ? 'ALL DONE!' : 'NEXT LEVEL ▶', resultsPrimary, true);
+      btn('TRY AGAIN', startRace);
+      btn('LEVELS', () => toLevels(storyLevel));
+    } else {
+      btn('RACE AGAIN', startRace, true);
+      btn('BUILD MORE', backToBuild);
+    }
   }
-  function menuChoose() {
-    if (menuFocus <= 0) menuFocus = 1;
-    else if (menuFocus === 1) toLevels();
-    else backToBuild();
-    sfxPlace();
+
+  // ---- how to play ----
+  function openHowto() {
+    if (window.MickleMenu && MickleMenu.isOpen && MickleMenu.isOpen()) MickleMenu.close();
+    howto.hidden = false;
+    $('btn-howto-close').focus({ preventScroll: true });
+  }
+  function closeHowto() {
+    howto.hidden = true;
+    if (uiActive()) focusFirst();
+  }
+
+  // ---- wiring ----
+  ui.addEventListener('pointerdown', () => unlockAudio());
+  $('mode-story').addEventListener('click', () => { sfxPlace(); toLevels(); });
+  $('mode-build').addEventListener('click', () => { sfxPlace(); backToBuild(); });
+  $('mode-mine').addEventListener('click', () => {
+    if (!save.track.length) { sfxNope(); return; }
+    sfxPlace(); tryRace();
+  });
+  for (const id of ['mode-marble', 'btn-player']) $(id).addEventListener('click', () => { sfxPlace(); setMode('marbles'); });
+  for (const id of ['btn-marbles-back', 'btn-marbles-done']) $(id).addEventListener('click', () => { sfxPlace(); setMode('menu'); });
+  $('btn-levels-back').addEventListener('click', () => { sfxPlace(); toMenu(); });
+  $('btn-play').addEventListener('click', () => startStory(levelSel));
+  $('btn-home-howto').addEventListener('click', openHowto);
+  $('btn-howto').addEventListener('click', openHowto);
+  $('btn-howto-close').addEventListener('click', () => { sfxPlace(); closeHowto(); });
+
+  // Menus (Xbox 360 controller or arrow keys): the arrows move to the nearest button in that
+  // direction, A / Enter presses it, B / Esc goes back (the same as Freddy Bear Kart).
+  const uiActive = () => MENU_MODES.includes(mode) || !!(results && results.shown);
+  function navRoot() { return !howto.hidden ? howto : ui.querySelector('.screen.active'); }
+  function navTargets() {
+    const root = navRoot();
+    if (!root) return [];
+    return [...root.querySelectorAll('button')].filter((f) => !f.disabled && !f.hidden && f.offsetParent !== null);
+  }
+  function focusFirst() {
+    const root = navRoot();
+    const f = root && (root.querySelector('.lv.sel, .tile.on, .btn.primary, .mode-tile.primary') || navTargets()[0]);
+    if (f) f.focus({ preventScroll: true });
+  }
+  function menuNav(dx, dy) {
+    const cur = document.activeElement;
+    const list = navTargets();
+    if (!list.includes(cur)) { focusFirst(); return; }
+    const r = cur.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let best = null, bestScore = Infinity;
+    for (const f of list) {
+      if (f === cur) continue;
+      const q = f.getBoundingClientRect();
+      const ex = q.left + q.width / 2 - cx, ey = q.top + q.height / 2 - cy;
+      const along = dx ? ex * dx : ey * dy;
+      if (along <= 4) continue;
+      const score = along + (dx ? Math.abs(ey) : Math.abs(ex)) * 2.5;
+      if (score < bestScore) { bestScore = score; best = f; }
+    }
+    if (!best) return;
+    best.focus({ preventScroll: true });
+    if (best.closest('.grid')) best.scrollIntoView({ block: 'nearest' });
+    if (best.dataset.level) pickLevel(+best.dataset.level); else sfxSelect();
+  }
+  function pressFocused() {
+    const f = document.activeElement;
+    if (f && f.closest && (f.closest('.screen.active') || f.closest('#howto')) && f.tagName === 'BUTTON') { unlockAudio(); f.click(); }
+    else focusFirst();
+  }
+  function menuBack() {
+    if (!howto.hidden) closeHowto();
+    else if (mode === 'levels') { sfxPlace(); toMenu(); }
+    else if (mode === 'marbles') { sfxPlace(); setMode('menu'); }
+    else if (mode === 'race') leaveRace();
   }
   function selectPiece(i) {
     sel = (i + PALETTE.length) % PALETTE.length;
@@ -2868,19 +3194,15 @@
     buttons: [{ id: 'jump', label: 'JUMP' }],
     onPress(id) { unlockAudio(); if (id === 'jump' && mode === 'race') primary(); },
     onStep(dx) {
-      if (mode === 'build') selectPiece(sel + dx);
-      else if (mode === 'menu') menuMove(dx, 0);
-      else if (mode === 'levels') pickLevel(levelSel + dx);
+      if (uiActive() || !howto.hidden) menuNav(dx, 0);
+      else if (mode === 'build') selectPiece(sel + dx);
     },
   });
 
-  // A / Space / tap-the-jump-button: place a piece, jump, or race again
+  // A / Space / tap-the-jump-button: place a piece, or jump (the menus press their own buttons)
   function primary() {
-    if (mode === 'menu') menuChoose();
-    else if (mode === 'levels') startStory(levelSel);
-    else if (mode === 'build') addPiece();
-    else if (results && results.shown) resultsPrimary();
-    else if (raceTime > 0) jumpQueued = true;
+    if (mode === 'build') addPiece();
+    else if (mode === 'race' && !results && raceTime > 0) jumpQueued = true;
   }
   // after a race: story goes on to the next level, your own track races again
   function resultsPrimary() {
@@ -2888,31 +3210,25 @@
     else if (raceKind === 'story') toLevels(storyLevel);
     else startRace();
   }
-  function back() {
-    if (mode === 'race') leaveRace();
-    else if (mode === 'levels') toMenu();
-    else if (mode === 'build') undoPiece();
-  }
 
   window.addEventListener('keydown', (e) => {
     unlockAudio();
     if (e.repeat && !['ArrowLeft', 'ArrowRight'].includes(e.code)) { keys[e.code] = true; return; }
     keys[e.code] = true;
     const c = e.code;
-    if (mode === 'menu') {
-      if (c === 'ArrowLeft' || c === 'KeyA') menuMove(-1, 0);
-      else if (c === 'ArrowRight' || c === 'KeyD') menuMove(1, 0);
-      else if (c === 'ArrowUp' || c === 'KeyW') menuMove(0, -1);
-      else if (c === 'ArrowDown' || c === 'KeyS') menuMove(0, 1);
-      else if (c === 'Space' || c === 'Enter') primary();
-      else return;
-    } else if (mode === 'levels') {
-      if (c === 'ArrowLeft' || c === 'KeyA') pickLevel(levelSel - 1);
-      else if (c === 'ArrowRight' || c === 'KeyD') pickLevel(levelSel + 1);
-      else if (c === 'ArrowUp' || c === 'KeyW') pickLevel(levelSel - 9);
-      else if (c === 'ArrowDown' || c === 'KeyS') pickLevel(levelSel + 9);
-      else if (c === 'Space' || c === 'Enter') primary();
-      else if (c === 'Escape' || c === 'Backspace' || c === 'KeyB') toMenu();
+    if (!howto.hidden || uiActive()) {
+      if (c === 'ArrowLeft' || c === 'KeyA') menuNav(-1, 0);
+      else if (c === 'ArrowRight' || c === 'KeyD') menuNav(1, 0);
+      else if (c === 'ArrowUp' || c === 'KeyW') menuNav(0, -1);
+      else if (c === 'ArrowDown' || c === 'KeyS') menuNav(0, 1);
+      else if (c === 'Escape' || c === 'Backspace' || c === 'KeyB') menuBack();
+      else if (c === 'KeyR' && mode === 'race') startRace();
+      else if (c === 'Space' || c === 'Enter') {
+        // a focused button presses itself; with nothing focused, focus the main one
+        const f = document.activeElement;
+        if (f && f.tagName === 'BUTTON' && navRoot() && navRoot().contains(f)) return;
+        focusFirst();
+      }
       else return;
     } else if (mode === 'build') {
       if (c === 'ArrowLeft' || c === 'KeyA') selectPiece(sel - 1);
@@ -2930,7 +3246,6 @@
     } else {
       if (c === 'Space' || c === 'Enter') primary();
       else if (c === 'Escape' || c === 'Backspace' || c === 'KeyB') leaveRace();
-      else if (c === 'KeyR' && results && results.shown) startRace();
       else if (!c.startsWith('Arrow')) return;
     }
     e.preventDefault();
@@ -2945,8 +3260,7 @@
   let hudButtons = [];
   stage.addEventListener('pointerdown', (e) => {
     unlockAudio();
-    if (e.target === nameBox) return;
-    if (document.activeElement === nameBox) nameBox.blur();
+    if (e.target.closest && e.target.closest('#ui .screen')) return;   // the menus handle their own taps
     const p = hudPoint(e);
     const btn = hudButtons.find((b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
     if (btn) { btn.fn(); e.preventDefault(); return; }
@@ -2971,7 +3285,7 @@
   stage.addEventListener('pointercancel', endDrag);
   document.addEventListener('pointerdown', (e) => {
     // taps outside the game (but not on links) count as the main button too
-    if (mode !== 'race' || e.target.closest('a, button, #stage, .mt-layer')) return;
+    if (mode !== 'race' || e.target.closest('a, button, #stage, .mt-layer, .howto, .mc-menu-back')) return;
     unlockAudio();
     primary();
   });
@@ -2979,15 +3293,13 @@
   function pollPad() {
     Pad360.poll();
     const B = Pad360.BTN;
-    if (mode === 'menu') {
+    if (!howto.hidden) {
+      if (Pad360.pressed(B.A) || Pad360.pressed(B.B) || Pad360.pressed(B.START)) closeHowto();
+    } else if (uiActive()) {
       const dx = Pad360.dxPressed(), dy = Pad360.dyPressed();
-      if (dx || dy) menuMove(dx, dy);
-      if (Pad360.pressed(B.A) || Pad360.pressed(B.START)) primary();
-    } else if (mode === 'levels') {
-      const dx = Pad360.dxPressed(), dy = Pad360.dyPressed();
-      if (dx || dy) pickLevel(levelSel + dx + dy * 9);
-      if (Pad360.pressed(B.A) || Pad360.pressed(B.START)) primary();
-      if (Pad360.pressed(B.B) || Pad360.pressed(B.BACK)) toMenu();
+      if (dx || dy) menuNav(dx, dy);
+      if (Pad360.pressed(B.A) || Pad360.pressed(B.START)) pressFocused();
+      if (Pad360.pressed(B.B) || Pad360.pressed(B.BACK)) menuBack();
     } else if (mode === 'build') {
       const dx = Pad360.dxPressed(), dy = Pad360.dyPressed();
       if (dx) selectPiece(sel + dx);
@@ -3000,14 +3312,15 @@
       if (Pad360.pressed(B.RB)) { buildYawTarget += Math.PI / 2; sfxSelect(); }
       if (Pad360.pressed(B.BACK)) toMenu();
     } else {
-      if (Pad360.pressed(B.A) || (results && results.shown && Pad360.pressed(B.START))) primary();
-      if (Pad360.pressed(B.B) || Pad360.pressed(B.BACK)) back();
+      if (Pad360.pressed(B.A)) primary();
+      if (Pad360.pressed(B.B) || Pad360.pressed(B.BACK)) leaveRace();
     }
   }
 
   function setHint() {
     hintEl.textContent = {
-      menu: 'ARROWS PICK — SPACE / A CHOOSE — TAP A NAME, OR THE BOX TO TYPE A NEW ONE',
+      menu: 'ARROWS / STICK MOVE — SPACE / A CHOOSE — ESC / B BACK',
+      marbles: 'TAP A MARBLE TO ROLL AS IT — TAP THE BOX TO TYPE YOUR NAME',
       levels: 'ARROWS PICK A LEVEL — SPACE / A PLAY — ESC / B BACK',
       build: 'LEFT/RIGHT PICK A PIECE — UP/DOWN CHANGE WORLD — SPACE / A ADDS IT — BACKSPACE / B UNDO — R / Y RACE! — ESC MENU',
       race: 'ARROWS / STICK ROLL — SPACE / A JUMP — ESC / B BACK',
@@ -3015,12 +3328,13 @@
   }
 
   // ---------- HUD ----------
-  function font(px) { return 'bold ' + px + 'px "Courier New", Courier, monospace'; }
+  function font(px) { return 'italic 900 ' + px + 'px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'; }
   function text(str, x, y, px, color, align = 'left', glow) {
     hctx.font = font(px);
     hctx.textAlign = align;
-    hctx.lineWidth = 3;
-    hctx.strokeStyle = 'rgba(10,12,40,0.85)';
+    hctx.lineWidth = 2.5;
+    hctx.lineJoin = 'round';
+    hctx.strokeStyle = 'rgba(6,8,30,0.75)';
     hctx.strokeText(str, x, y);
     if (glow) { hctx.shadowColor = glow; hctx.shadowBlur = 8; }
     hctx.fillStyle = color;
@@ -3042,21 +3356,44 @@
     hctx.arcTo(x, y, x + w, y, r);
     hctx.closePath();
   }
-  function button(label, x, y, w, h, color, fn, big) {
-    roundRect(x, y, w, h, 6);
-    hctx.fillStyle = 'rgba(10,12,40,0.75)';
+  // a see-through panel, like the menus' glass
+  function glass(x, y, w, h, r = 8) {
+    roundRect(x, y, w, h, r);
+    hctx.fillStyle = 'rgba(12,16,48,0.62)';
     hctx.fill();
-    hctx.lineWidth = 2;
-    hctx.strokeStyle = color;
+    hctx.lineWidth = 1;
+    hctx.strokeStyle = 'rgba(255,255,255,0.16)';
     hctx.stroke();
-    text(label, x + w / 2, y + h / 2 + 1, big ? 13 : 9, color, 'center');
+  }
+  // color 'hot' is the big orange-pink main button; any other colour is a glass button with
+  // a stripe of that colour down its left side
+  function button(label, x, y, w, h, color, fn, big) {
+    const hot = color === 'hot', r = Math.min(8, h / 2.5);
+    roundRect(x, y, w, h, r);
+    if (hot) {
+      const gr = hctx.createLinearGradient(x, y, x + w, y + h);
+      gr.addColorStop(0, '#ff7a3d'); gr.addColorStop(1, '#ff4fd8');
+      hctx.fillStyle = gr;
+      hctx.shadowColor = 'rgba(255,79,216,0.6)'; hctx.shadowBlur = 10;
+    } else hctx.fillStyle = 'rgba(12,16,48,0.72)';
+    hctx.fill();
+    hctx.shadowBlur = 0;
+    hctx.lineWidth = 1;
+    hctx.strokeStyle = hot ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)';
+    hctx.stroke();
+    if (!hot) {
+      hctx.save();
+      roundRect(x, y, w, h, r); hctx.clip();
+      hctx.fillStyle = color; hctx.fillRect(x, y, 3, h);
+      hctx.restore();
+    }
+    text(label, x + w / 2 + (hot ? 0 : 1.5), y + h / 2 + 1, big ? 13 : 9, '#ffffff', 'center');
     hudButtons.push({ x, y, w, h, fn });
   }
   const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
   // Little top-down pictures of each piece for the picker cards.
-  function drawIcon(type, cx, cy, s) {
-    const g = hctx;
+  function drawIcon(type, cx, cy, s, g = hctx) {
     g.save();
     g.translate(cx, cy);
     g.lineCap = 'round';
@@ -3228,8 +3565,7 @@
   }
 
   // a marble's picture, shaded to look round
-  function drawSwatch(spec, cx, cy, r, locked) {
-    const g = hctx;
+  function drawSwatch(spec, cx, cy, r, locked, g = hctx) {
     g.save();
     g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
     g.imageSmoothingEnabled = true;
@@ -3241,122 +3577,24 @@
     g.restore();
     if (locked) {
       // a little padlock
-      g.strokeStyle = '#ffffff'; g.lineWidth = 2;
+      g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(2, r * 0.12);
       g.beginPath(); g.arc(cx, cy - 2, r * 0.28, Math.PI, 0); g.stroke();
       g.fillStyle = '#ffffff'; g.fillRect(cx - r * 0.38, cy - 2, r * 0.76, r * 0.55);
     }
   }
 
-  function drawMenuHud() {
-    text('MARBLE RUMBLE', W / 2, 26, 26, '#ffe14f', 'center', '#ff6b2c');
-    text('YOUR NAME', W / 2, 58, 9, '#5ff3ff', 'center');
-
-    // saved names: tap one to be that player again
-    const names = savedNames();
-    if (names.length) {
-      hctx.font = font(8);
-      const widths = names.map((nm) => hctx.measureText(nm).width + 14);
-      let cx = W / 2 - (widths.reduce((a, b) => a + b, 0) + 5 * (names.length - 1)) / 2;
-      names.forEach((nm, i) => {
-        const w = widths[i], current = nm === nameBox.value, focused = menuFocus === -1 && i === nameSel;
-        roundRect(cx, 94, w, 13, 6);
-        hctx.fillStyle = current ? 'rgba(95,243,255,0.3)' : 'rgba(10,12,40,0.75)'; hctx.fill();
-        hctx.lineWidth = focused ? 2.5 : 1.2;
-        hctx.strokeStyle = focused ? '#ffe14f' : current ? '#5ff3ff' : 'rgba(255,255,255,0.5)';
-        hctx.stroke();
-        text(nm, cx + w / 2, 101, 8, current ? '#ffffff' : '#cfe8ff', 'center');
-        const at = cx;
-        hudButtons.push({ x: at, y: 92, w, h: 17, fn: () => { menuFocus = -1; pickName(i); } });
-        cx += w + 5;
-      });
-    }
-
-    const mb = MARBLES[marbleSel];
-    const open = unlocked(mb);
-    text(open ? 'YOUR MARBLE: ' + mb.name : mb.name + ' -- FINISH STORY LEVEL ' + mb.unlock + ' TO UNLOCK',
-      W / 2, 117, 9, open ? '#ffffff' : '#ffb0b0', 'center');
-    const gap = 46, x0 = W / 2 - gap * (MARBLES.length - 1) / 2;
-    MARBLES.forEach((spec, i) => {
-      const x = x0 + i * gap, y = 142, on = i === marbleSel, r = on ? 17 : 14;
-      if (on) {
-        hctx.beginPath(); hctx.arc(x, y, r + 4, 0, Math.PI * 2);
-        hctx.strokeStyle = menuFocus === 0 ? '#ffe14f' : 'rgba(255,225,79,0.5)'; hctx.lineWidth = 3;
-        hctx.shadowColor = '#ffe14f'; hctx.shadowBlur = menuFocus === 0 ? 10 : 0; hctx.stroke(); hctx.shadowBlur = 0;
-      }
-      drawSwatch(spec, x, y, r, !unlocked(spec));
-      if (spec.id === save.marble) text('\u2714', x + r - 2, y - r + 2, 9, '#5dff8a', 'center');
-      if (!unlocked(spec)) text('LV ' + spec.unlock, x, y + r + 9, 7, '#ffb0b0', 'center');
-      hudButtons.push({ x: x - 20, y: y - 20, w: 40, h: 40, fn: () => { menuFocus = 0; pickMarble(i); } });
-    });
-
-    const big = (label, sub, x, focus, fn, color) => {
-      roundRect(x, 180, 170, 46, 10);
-      hctx.fillStyle = 'rgba(10,12,40,0.82)'; hctx.fill();
-      hctx.lineWidth = menuFocus === focus ? 3.5 : 2; hctx.strokeStyle = color;
-      if (menuFocus === focus) { hctx.shadowColor = color; hctx.shadowBlur = 12; }
-      hctx.stroke(); hctx.shadowBlur = 0;
-      text(label, x + 85, 197, 14, color, 'center');
-      text(sub, x + 85, 214, 8, '#ffffff', 'center');
-      hudButtons.push({ x, y: 180, w: 170, h: 46, fn: () => { menuFocus = focus; fn(); } });
-    };
-    const done = save.story.done;
-    big('STORY MODE', done >= LEVELS.length ? 'ALL ' + LEVELS.length + ' LEVELS DONE!' : 'LEVEL ' + (done + 1) + ' OF ' + LEVELS.length,
-      62, 1, () => { sfxPlace(); toLevels(); }, '#5dff8a');
-    big('BUILD YOUR OWN', 'MAKE A RUN AND RACE IT', 248, 2, () => { sfxPlace(); backToBuild(); }, '#9fd8ff');
-  }
-
-  function drawLevelsHud() {
-    text('STORY MODE', W / 2, 18, 16, '#5dff8a', 'center', '#5dff8a');
-    button('\u25C0 MENU', 30, 8, 60, 20, '#9fd8ff', toMenu);
-    const COLS = 9, cw = 46, ch = 36, gap = 5, x0 = (W - (COLS * cw + (COLS - 1) * gap)) / 2;
-    LEVELS.forEach((L, i) => {
-      const n = i + 1, col = i % COLS, row = Math.floor(i / COLS);
-      const x = x0 + col * (cw + gap), y = 34 + row * (ch + gap);
-      const open = storyUnlocked(n), on = n === levelSel, medal = save.story.medals[n];
-      roundRect(x, y, cw, ch, 7);
-      hctx.fillStyle = open ? 'rgba(20,40,90,0.85)' : 'rgba(10,12,40,0.7)'; hctx.fill();
-      hctx.lineWidth = on ? 3 : 1.5;
-      hctx.strokeStyle = on ? '#ffe14f' : open ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)';
-      if (on) { hctx.shadowColor = '#ffe14f'; hctx.shadowBlur = 10; }
-      hctx.stroke(); hctx.shadowBlur = 0;
-      text(String(n), x + cw / 2, y + 13, 13, open ? '#ffffff' : '#667', 'center');
-      if (medal !== undefined) {
-        hctx.fillStyle = MEDALS[medal].color;
-        hctx.beginPath(); hctx.arc(x + cw / 2, y + 27, 4, 0, Math.PI * 2); hctx.fill();
-      } else if (!open) text('LOCKED', x + cw / 2, y + 27, 6, '#667', 'center');
-      const mbu = MARBLES.find((mb) => mb.unlock === n);
-      if (mbu) drawSwatch(mbu, x + cw - 7, y + 7, 4, !unlocked(mbu));
-      hudButtons.push({ x, y, w: cw, h: ch, fn: () => { if (levelSel === n) startStory(n); else pickLevel(n); } });
-    });
-
-    const L = LEVELS[levelSel - 1], open = storyUnlocked(levelSel);
-    roundRect(8, 196, W - 16, 66, 10);
-    hctx.fillStyle = 'rgba(10,12,40,0.8)'; hctx.fill();
-    text('LEVEL ' + levelSel + ': ' + L.name, 20, 212, 13, '#ffe14f');
-    text(L.feature ? 'NEW PIECE: ' + PIECES[L.feature].name + '!' : levelSel === 1 ? 'A NICE EASY START.' : 'EVERYTHING MIXED UP!', 20, 230, 9, '#ffffff');
-    text('WORLD: ' + worldById(L.world).name, 236, 212, 9, worldById(L.world).ui);
-    const medal = save.story.medals[levelSel], best = save.best['story' + levelSel];
-    if (medal !== undefined) text('BEST: ' + MEDALS[medal].name + (best ? '  ' + fmtTime(best) : ''), 20, 247, 9, MEDALS[medal].color);
-    const mbu = MARBLES.find((mb) => mb.unlock === levelSel);
-    if (mbu && !unlocked(mbu)) {
-      drawSwatch(mbu, 250, 229, 10, false);
-      text('WIN A ' + mbu.name + ' MARBLE', 266, 229, 8, '#ffb0ff');
-    }
-    if (open) button('PLAY \u25B6', W - 104, 212, 88, 34, '#5dff8a', () => startStory(levelSel), true);
-    else text('FINISH LEVEL ' + (levelSel - 1) + ' FIRST', W - 64, 229, 8, '#ffb0b0', 'center');
-  }
-
   function drawBuildHud() {
     const n = lay.pieces.length - 1;
     // (x 32, not 10: the ☰ menu button sits in the top-left corner)
-    text('BUILD YOUR MARBLE RUN', 32, 14, 12, '#5ff3ff', 'left', '#5ff3ff');
-    text('PIECES ' + n + '/' + MAX_PIECES + '   LEVEL ' + lay.next.level, 32, 30, 9, '#ffffff');
     const best = save.best[save.track.join('.')];
-    if (best) text('BEST TIME ' + best.toFixed(2) + 's', 32, 43, 9, '#ffe14f');
+    glass(28, 4, 150, best ? 46 : 34);
+    text('BUILD YOUR MARBLE RUN', 36, 15, 11, '#ffffff');
+    text('PIECES ' + n + '/' + MAX_PIECES + '   LEVEL ' + lay.next.level, 36, 30, 8, '#c3cbe8');
+    if (best) text('BEST TIME ' + best.toFixed(2) + 's', 36, 42, 8, '#ffd23f');
 
-    button('RACE! ▶', W - 96, 8, 88, 30, '#5dff8a', tryRace, true);
+    button('RACE! ▶', W - 96, 8, 88, 30, 'hot', tryRace, true);
     // the world picker: tap to go to the next one
-    text('WORLD', W - 52, 48, 7, '#ffffff', 'center');
+    text('WORLD', W - 52, 48, 7, '#c3cbe8', 'center');
     button(world.name + ' ▶', W - 96, 54, 88, 20, world.ui, () => pickWorld(1));
     button('UNDO', 8, 56, 66, 20, '#ffffff', undoPiece);
     button('SURPRISE!', 8, 80, 66, 20, '#ffe14f', surpriseTrack);
@@ -3373,9 +3611,9 @@
       groups.forEach((grp, gi) => {
         const y = rowY[row];
         // a soft panel behind each group, with its name on top
-        roundRect(gx - 3, y - 10, widths[gi] + 6, cw + 13, 6);
-        hctx.fillStyle = 'rgba(10,12,40,0.55)'; hctx.fill();
-        hctx.lineWidth = 1; hctx.strokeStyle = grp.color; hctx.globalAlpha = 0.6; hctx.stroke(); hctx.globalAlpha = 1;
+        glass(gx - 3, y - 10, widths[gi] + 6, cw + 13, 6);
+        hctx.fillStyle = grp.color; hctx.globalAlpha = 0.8;
+        hctx.fillRect(gx + 3, y - 10, widths[gi] - 6, 1.5); hctx.globalAlpha = 1;
         text(grp.name, gx + 1, y - 4, 6, grp.color);
         grp.pieces.forEach((type, k) => {
           const i = PALETTE.indexOf(type);
@@ -3403,8 +3641,12 @@
     }
     const def = PIECES[PALETTE[sel]];
     const grp = PIECE_GROUPS.find((g) => g.pieces.includes(PALETTE[sel]));
-    text(def.name + (def.len ? '  (' + def.len + ' SPACES)' : ''), W / 2, 172, 12, '#ffffff', 'center', grp.color);
-    text(def.tip + '  (TAP AGAIN TO ADD)', W / 2, 185, 8, '#ffe14f', 'center');
+    const nameStr = def.name + (def.len ? '  (' + def.len + ' SPACES)' : ''), tipStr = def.tip + '  (TAP AGAIN TO ADD)';
+    hctx.font = font(12); let tw = hctx.measureText(nameStr).width;
+    hctx.font = font(8); tw = Math.max(tw, hctx.measureText(tipStr).width);
+    glass(W / 2 - tw / 2 - 10, 162, tw + 20, 30, 10);
+    text(nameStr, W / 2, 172, 12, '#ffffff', 'center', grp.color);
+    text(tipStr, W / 2, 185, 8, '#ffd23f', 'center');
   }
 
   function fmtTime(t) {
@@ -3416,7 +3658,7 @@
   function drawRaceHud() {
     // name tags over the other marbles
     for (const m of marbles) {
-      if (m === player || !m.mesh.visible) continue;
+      if (m === player || !m.mesh.visible || (results && results.shown)) continue;
       const p = tmpQ.copy(m.pos).setY(m.pos.y + 0.8).project(camera);
       if (p.z > 1 || Math.abs(p.x) > 1.1 || Math.abs(p.y) > 1.1) continue;
       const d = m.pos.distanceTo(camera.position);
@@ -3425,16 +3667,16 @@
     }
 
     const place = marbles.slice().sort((a, b) => progressOf(b) - progressOf(a)).indexOf(player);
-    text(fmtTime(player.finished ? player.finishTime : raceTime), 32, 14, 13, '#ffffff');
-    text('★ ' + starsGot, 32, 32, 12, '#ffd400');
-    text(placeName(place), W / 2, 18, 20, ['#ffd400', '#e0e6ff', '#ffb06b', '#ffffff'][place], 'center', '#000');
+    glass(28, 4, 62, 38);
+    text(fmtTime(player.finished ? player.finishTime : raceTime), 36, 15, 12, '#ffffff');
+    text('★ ' + starsGot, 36, 32, 11, '#ffd23f');
+    text(placeName(place), W / 2, 18, 22, ['#ffd23f', '#e0e6ff', '#ffb06b', '#ffffff'][place], 'center', '#000');
     button(raceKind === 'story' ? '\u25C0 LEVELS' : '\u25C0 BUILD', W - 74, 8, 66, 20, '#9fd8ff', leaveRace);
     if (raceKind === 'story') text('LEVEL ' + storyLevel + ': ' + LEVELS[storyLevel - 1].name, W - 10, 38, 8, '#ffffff', 'right');
 
     // progress bar with a dot for each marble
     const bx = 120, bw = 240, by = 40;
-    hctx.fillStyle = 'rgba(10,12,40,0.6)';
-    roundRect(bx - 4, by - 4, bw + 8, 8, 4); hctx.fill();
+    glass(bx - 5, by - 5, bw + 10, 10, 5);
     const total = pieces.length - 0.5;
     for (const m of marbles.slice().reverse()) {
       const f = Math.min(1, (m.finished ? total : m.pieceIdx + m.t) / total);
@@ -3452,64 +3694,22 @@
     }
 
     if (player.finished && !(results && results.shown)) {
-      text('FINISHED!', W / 2, H / 2 - 20, 30, '#ffe14f', 'center', '#ff6b2c');
-    }
-    if (results && results.shown) drawResults();
-  }
-
-  function drawResults() {
-    const story = raceKind === 'story';
-    const x = 100, y = 40, w = 280, h = 200;
-    roundRect(x, y, w, h, 10);
-    hctx.fillStyle = 'rgba(10,12,40,0.88)';
-    hctx.fill();
-    hctx.lineWidth = 3; hctx.strokeStyle = '#5ff3ff'; hctx.stroke();
-    const cheer = story ? 'LEVEL ' + storyLevel + ' DONE!' : ['YOU WON!', 'SUPER 2ND!', 'GREAT 3RD!', 'YOU FINISHED!'][results.place];
-    text(cheer, W / 2, y + 20, 20, '#ffe14f', 'center', '#ff6b2c');
-    if (story) text(MEDALS[results.place].name + (results.place < 3 ? ' MEDAL!' : '!'), W / 2, y + 38, 10, MEDALS[results.place].color, 'center');
-    const order = finishOrder.concat(marbles.filter((m) => !m.finished).sort((a, b) => progressOf(b) - progressOf(a)));
-    order.forEach((m, i) => {
-      const yy = y + (story ? 54 : 46) + i * 15;
-      text(placeName(i), x + 30, yy, 10, '#ffffff');
-      hctx.fillStyle = m.rc.color;
-      hctx.beginPath(); hctx.arc(x + 70, yy, 5, 0, Math.PI * 2); hctx.fill();
-      // the name gets everything up to the time column (and shrinks rather than run into it)
-      const timeStr = m.finished ? fmtTime(m.finishTime) : 'ROLLING...';
-      hctx.font = font(10);
-      const nameRoom = x + w - 24 - hctx.measureText(timeStr).width - 8 - (x + 82);
-      fitText(m.rc.name, x + 82, yy, 10, m === player ? '#ffe14f' : '#ffffff', nameRoom);
-      text(timeStr, x + w - 24, yy, 10, '#ffffff', 'right');
-    });
-    text('\u2605 ' + results.stars + ' STARS   TIME ' + fmtTime(results.time) + (results.newBest ? '  NEW BEST!' : ''), W / 2, y + 122, 9, '#ffd400', 'center');
-    text('SCORE ' + results.score, W / 2, y + 138, 12, '#5dff8a', 'center', '#5dff8a');
-    if (results.unlock) {
-      // a new marble!
-      const pulse = 1 + Math.sin(performance.now() / 150) * 0.08;
-      drawSwatch(results.unlock, x + 34, y + 156, 11 * pulse, false);
-      text('NEW MARBLE: ' + results.unlock.name + '!', x + 52, y + 156, 10, '#ffb0ff', 'left', '#ff6fc8');
-    }
-    hudButtons = [];
-    if (story) {
-      const last = storyLevel >= LEVELS.length;
-      button(last ? 'ALL DONE!' : 'NEXT LEVEL \u25B6', x + 10, y + h - 32, 96, 24, '#5dff8a', resultsPrimary);
-      button('TRY AGAIN', x + 112, y + h - 32, 76, 24, '#ffe14f', startRace);
-      button('LEVELS', x + 194, y + h - 32, 76, 24, '#9fd8ff', () => toLevels(storyLevel));
-    } else {
-      button('RACE AGAIN', x + 18, y + h - 32, 110, 24, '#5dff8a', startRace);
-      button('BUILD MORE', x + w - 128, y + h - 32, 110, 24, '#9fd8ff', backToBuild);
+      text('FINISHED!', W / 2, H / 2 - 20, 32, '#ffd23f', 'center', '#ff4fd8');
     }
   }
 
   function drawHud() {
     hctx.clearRect(0, 0, W, H);
     hudButtons = [];
-    if (mode === 'menu') drawMenuHud();
-    else if (mode === 'levels') drawLevelsHud();
-    else if (mode === 'build') drawBuildHud();
-    else drawRaceHud();
+    if (mode === 'build') drawBuildHud();
+    else if (mode === 'race') drawRaceHud();
+    else return;    // the menus are HTML
     if (toastT > 0) {
       hctx.globalAlpha = Math.min(1, toastT * 2);
-      text(toast, W / 2, 168, 11, '#ffffff', 'center', '#ff6b2c');
+      hctx.font = font(11);
+      const tw = hctx.measureText(toast).width;
+      glass(W / 2 - tw / 2 - 12, 140, tw + 24, 22, 11);
+      text(toast, W / 2, 151, 11, '#ffffff', 'center');
       hctx.globalAlpha = 1;
     }
   }
@@ -3520,7 +3720,16 @@
     if (!r.width) return;
     renderer.setSize(r.width, r.height, false);
     camera.aspect = r.width / r.height;
+    // on the level picker the track turns round on the right, beside the grid of levels
+    if (mode === 'levels') camera.setViewOffset(r.width, r.height, -r.width * 0.22, 0, r.width, r.height);
+    else camera.clearViewOffset();
     camera.updateProjectionMatrix();
+    // the menus are a 16:9 box as big as the stage allows, with everything inside sized in em
+    const sw = stage.clientWidth, sh = stage.clientHeight;
+    const bw = Math.min(sw, sh * 16 / 9);
+    ui.style.width = bw + 'px';
+    ui.style.height = bw * 9 / 16 + 'px';
+    ui.style.fontSize = Math.max(8, Math.min(20, bw / 66)) + 'px';
   }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(view);
   else window.addEventListener('resize', resize);
@@ -3547,7 +3756,8 @@
     boostTex.offset.y -= dt * 1.5;
     beltTex.offset.y -= dt * 1.1;
     TEX.portal.rotation = -obstacleTime * 2.5;
-    if (mode === 'race') updateRace(dt);
+    if (mode === 'race' || attract) updateRace(dt);
+    if (mode === 'marbles') drawShowroom(now);
     updateParticles(dt);
     updateCamera(dt);
     for (const fn of decorAnim) fn(dt, obstacleTime);
@@ -3555,7 +3765,8 @@
     drawHud();
   }
 
-  rebuildTrack(false);
+  uiReady = true;
   setMode('menu');
+  startAttract();
   requestAnimationFrame(loop);
 })();

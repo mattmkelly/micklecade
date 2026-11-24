@@ -10,21 +10,16 @@
 <link rel="manifest" href="../../manifest.webmanifest">
 <meta name="theme-color" content="#120b28">
 <style>
-  html, body {
-    margin: 0;
-    min-height: 100%;
-    background: #0b1030;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Courier New', Courier, monospace;
-    overflow: hidden;
-    touch-action: manipulation;
+  :root {
+    --muted: #c3cbe8;
+    --glass: rgba(12, 16, 48, .66);
+    --line: rgba(255, 255, 255, .16);
+    --cyan: #5ff3ff;
+    --gold: #ffd23f;
+    --green: #5dff8a;
+    --hot: linear-gradient(135deg, #ff7a3d 0%, #ff4fd8 100%);
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-
-  /* the 3D stage has no size of its own, so the body has to be told to fill the width */
-  body { width: 100%; }
-
   * {
     -webkit-user-select: none;
     user-select: none;
@@ -32,6 +27,21 @@
     -webkit-tap-highlight-color: transparent;
     box-sizing: border-box;
   }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #0b1030;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font);
+    color: #fff;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* the 3D stage has no size of its own, so the body has to be told to fill the width */
+  body { width: 100%; height: 100vh; height: 100dvh; }
 
   /* As big as the window allows -- the back link and the how-to-play text live in the ☰ menu
      (shared/menu.js), so nothing outside the frame needs room. */
@@ -39,28 +49,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
     padding: 8px;
-    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
-    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100vh - 16px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 16px) * 16 / 9 + 16px));
     min-width: min(100%, 300px);
     touch-action: manipulation;
   }
 
-  #topbar {
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  #back {
-    color: #5ff3ff;
-    text-decoration: none;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-    text-shadow: 0 0 6px #5ff3ff;
+  /* these move into the shared menu */
+  #back { color: var(--cyan); text-decoration: none; font-size: .8rem; letter-spacing: 1px; }
+  .howto-link {
+    font: bold .8rem "Courier New", Courier, monospace !important; letter-spacing: 1px; padding: 9px 10px;
+    border: 2px solid #ffe14f !important; border-radius: 999px; color: #ffe14f !important; background: transparent;
   }
 
   /* The 3D view and the HUD canvas drawn over it. */
@@ -68,15 +68,14 @@
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
-    border: 4px solid #5ff3ff;
+    border: 4px solid var(--cyan);
     border-radius: 6px;
     box-shadow: 0 0 24px rgba(95, 243, 255, 0.45);
     background: #000;
     overflow: hidden;
     touch-action: none;
   }
-
-  #stage canvas {
+  #stage > canvas {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -84,52 +83,411 @@
     display: block;
     touch-action: none;
   }
+  /* on the menus the live 3D scene fills the whole window, with the menus floating on it */
+  body.menus #stage {
+    position: fixed; inset: 0; width: auto; aspect-ratio: auto;
+    border: none; border-radius: 0; box-shadow: none;
+  }
+  body.menus #hud { display: none; }
+  #veil {
+    position: absolute; inset: 0; pointer-events: none; display: none;
+    background:
+      radial-gradient(ellipse 80% 70% at 50% 45%, rgba(8, 10, 34, 0) 40%, rgba(8, 10, 34, .55) 100%),
+      linear-gradient(180deg, rgba(8, 10, 34, .5) 0%, rgba(8, 10, 34, 0) 26%, rgba(8, 10, 34, 0) 58%, rgba(8, 10, 34, .7) 100%);
+  }
+  body.menus #veil { display: block; }
 
-  /* name entry on the title screen, laid over the HUD */
+  /* the menus: a 16:9 box (game.js sizes it) with everything inside measured in em */
+  #ui { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .screen { display: none; position: absolute; inset: 0; pointer-events: auto; }
+  .screen.active { display: flex; }
+  .menu { flex-direction: column; gap: .9em; padding: 1em 1.4em 1.2em; animation: fade-in .25s ease-out; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(.4em); } }
+
+  button { font-family: inherit; color: #fff; border: none; background: none; cursor: pointer; padding: 0; }
+  #ui button:focus, .howto button:focus { outline: none; }
+  #ui button:focus, .howto button:focus, #nameBox:focus {
+    box-shadow: 0 0 0 .18em #fff, 0 0 1.6em .3em rgba(255, 122, 61, .75);
+  }
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 1.2em;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 1em 2.4em rgba(0, 0, 0, .35);
+  }
+  .medal {
+    display: inline-block; width: 1.1em; height: 1.1em; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 35% 30%, #fff6d0, var(--m, #ffb300) 60%, rgba(0, 0, 0, .4));
+    box-shadow: inset 0 0 0 .1em rgba(0, 0, 0, .3);
+  }
+
+  /* ---- top bar ---- */
+  .topbar { display: flex; align-items: center; gap: .8em; min-height: 3.2em; padding-left: 3.2em; }
+  .topbar h2 {
+    flex: 1; margin: 0; font-size: 1.7em; font-weight: 900; font-style: italic; letter-spacing: .01em;
+    text-shadow: 0 .08em .5em rgba(0, 0, 0, .6);
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: .5em; padding: .5em 1em; border-radius: 999px;
+    font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4em;
+    padding: .75em 1.4em; border-radius: .9em; font-size: 1em; font-weight: 900; font-style: italic; letter-spacing: .02em;
+    background: rgba(255, 255, 255, .1); border: 1px solid var(--line);
+    transition: transform .12s, background .12s;
+  }
+  .btn:hover { background: rgba(255, 255, 255, .18); }
+  .btn:active { transform: scale(.96); }
+  .btn.primary { background: var(--hot); border-color: rgba(255, 255, 255, .4); box-shadow: 0 .4em 1.2em rgba(255, 79, 216, .35); }
+  .btn.back { padding: .6em 1.1em; }
+  .btn .q { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%; background: var(--hot); font-style: normal; font-weight: 900; color: #fff; }
+
+  /* ---- home ---- */
+  .logo { margin: .4em 0 0 .6em; line-height: .86; transform: skewX(-9deg); transform-origin: left; }
+  .logo .l1 {
+    display: block; font-size: 2.5em; font-weight: 900; letter-spacing: .08em; color: #fff;
+    text-shadow: 0 .07em 0 #10204a, 0 .25em .7em rgba(0, 0, 0, .55);
+  }
+  .logo .l2 {
+    display: block; font-size: 6.6em; font-weight: 900; letter-spacing: -.01em;
+    background: linear-gradient(180deg, #e6fdff 0%, #5ff3ff 36%, #4f8bff 70%, #b45cff 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: .035em #10204a;
+    filter: drop-shadow(0 .06em 0 #10204a) drop-shadow(0 .25em .4em rgba(0, 0, 0, .5));
+  }
+  .logo .roll { display: flex; align-items: center; gap: .45em; margin: .5em 0 0 .2em; }
+  .logo .roll i { display: block; width: 1em; height: 1em; border-radius: 50%; box-shadow: inset -.18em -.18em .3em rgba(0, 0, 0, .35), inset .15em .15em .25em rgba(255, 255, 255, .6); }
+  .logo .roll i:nth-child(1) { background: #ff6b2c; width: 1.3em; height: 1.3em; }
+  .logo .roll i:nth-child(2) { background: #2f8cff; opacity: .85; }
+  .logo .roll i:nth-child(3) { background: #3ccf4e; opacity: .7; width: .8em; height: .8em; }
+  .logo .roll i:nth-child(4) { background: #9b5cff; opacity: .55; width: .6em; height: .6em; }
+  .tagline { margin: .9em 0 0 .7em; color: var(--muted); font-weight: 800; letter-spacing: .12em; font-size: .85em; text-shadow: 0 .1em .4em #000; }
+
+  .player-chip { display: flex; align-items: center; gap: .55em; padding: .3em 1em .3em .3em; border-radius: 999px; text-align: left; }
+  .player-chip canvas { width: 2.4em; height: 2.4em; }
+  .player-chip small { display: block; color: var(--muted); font-size: .7em; font-weight: 800; letter-spacing: .1em; }
+  .player-chip b { font-size: 1.05em; font-weight: 900; font-style: italic; }
+
+  .modes { margin-top: auto; display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: .8em; }
+  .mode-tile {
+    position: relative; overflow: hidden; text-align: left;
+    min-height: 9em; padding: 1em 1.1em; border-radius: 1.2em;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: .2em;
+    transition: transform .15s;
+  }
+  .mode-tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: .3em; background: var(--accent, var(--cyan)); }
+  .mode-tile:hover, .mode-tile:focus { transform: translateY(-.3em); }
+  .mode-tile svg { position: absolute; top: .9em; left: 1em; width: 2.6em; height: 2.6em; color: var(--accent, #fff); }
+  .mode-tile b { font-size: 1.5em; font-weight: 900; font-style: italic; }
+  .mode-tile small { color: var(--muted); font-size: .82em; font-weight: 700; }
+  .mode-tile.primary { background: var(--hot); border-color: rgba(255, 255, 255, .4); }
+  .mode-tile.primary::before { display: none; }
+  .mode-tile.primary svg { color: #fff; width: 3.2em; height: 3.2em; }
+  .mode-tile.primary b { font-size: 2em; }
+  .mode-tile.primary small { color: rgba(255, 255, 255, .9); }
+  .mode-tile.empty { opacity: .55; }
+  .t-build { --accent: #9fd8ff; } .t-mine { --accent: var(--green); } .t-marble { --accent: #ffb0ff; }
+
+  /* ---- my marble ---- */
+  .garage { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1.3fr; gap: 1em; }
+  .showroom { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 1em 1.2em; }
+  #showroom { position: absolute; left: 50%; top: 42%; width: 58%; height: auto; transform: translate(-50%, -50%); }
+  .show-name { position: relative; font-size: 2.2em; font-weight: 900; font-style: italic; text-shadow: 0 .08em .4em #000; }
+  .show-sub { position: relative; color: var(--muted); font-size: .85em; font-weight: 800; letter-spacing: .06em; }
+  .show-sub.locked { color: #ffb0b0; }
+  .picker { display: flex; flex-direction: column; gap: .6em; padding: .9em; min-height: 0; }
+  .label { color: var(--muted); font-size: .72em; font-weight: 800; letter-spacing: .12em; }
   #nameBox {
-    position: absolute;
-    left: 31%;
-    top: 24.5%;
-    width: 38%;
-    height: 9%;
-    font: bold clamp(12px, 2.6vw, 22px) 'Courier New', Courier, monospace;
-    letter-spacing: 2px;
-    text-align: center;
-    text-transform: uppercase;
-    color: #ffe14f;
-    background: rgba(10, 12, 40, 0.85);
-    border: 3px solid #5ff3ff;
-    border-radius: 10px;
-    outline: none;
-    -webkit-user-select: text;
-    user-select: text;
-    touch-action: manipulation;
+    width: 100%; padding: .5em .9em; border-radius: .8em;
+    font: italic 900 1.2em var(--font); letter-spacing: .06em; text-transform: uppercase;
+    color: var(--gold); background: rgba(0, 0, 0, .35); border: 1px solid var(--line); outline: none;
+    -webkit-user-select: text; user-select: text; touch-action: manipulation;
   }
-  #nameBox:focus { border-color: #ffe14f; box-shadow: 0 0 12px #ffe14f; }
-  #nameBox::placeholder { color: rgba(255, 255, 255, 0.45); }
-  #nameBox[hidden] { display: none; }
+  #nameBox::placeholder { color: rgba(255, 255, 255, .4); }
+  .chips { display: flex; flex-wrap: wrap; gap: .4em; }
+  .chips:empty { display: none; }
+  .chip {
+    padding: .35em .9em; border-radius: 999px; font-weight: 900; font-style: italic; font-size: .8em;
+    background: rgba(255, 255, 255, .08); border: 1px solid var(--line);
+  }
+  .chip.on { background: rgba(95, 243, 255, .22); border-color: var(--cyan); }
+  .grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: .55em; align-content: start; padding: .3em; }
+  .tile {
+    display: flex; flex-direction: column; align-items: center; gap: .15em; padding: .45em .3em .5em;
+    background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: .9em;
+    transition: transform .12s, background .12s;
+  }
+  .tile:hover { background: rgba(255, 255, 255, .12); }
+  .tile canvas { width: 66%; height: auto; display: block; }
+  .tile .t-name { font-weight: 900; font-style: italic; font-size: .74em; text-align: center; }
+  .tile .t-tag { color: var(--muted); font-size: .62em; font-weight: 800; letter-spacing: .05em; }
+  .tile.on { background: rgba(255, 210, 63, .16); border-color: var(--gold); }
+  .tile.on .t-tag { color: var(--gold); }
+  .tile.locked canvas { filter: grayscale(.85) brightness(.55); }
+  .tile.locked .t-tag { color: #ffb0b0; }
+  .tile.nope { animation: nope .35s; }
+  @keyframes nope { 25% { transform: translateX(-.35em); } 75% { transform: translateX(.35em); } }
+  .actions { display: flex; justify-content: flex-end; gap: .6em; }
 
-  #hint {
-    color: #ffe14f;
-    font-size: 0.72rem;
-    letter-spacing: 1px;
-    text-align: center;
-    text-shadow: 0 0 6px #ffe14f;
+  /* ---- story levels ---- */
+  .levels { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.3fr 1fr; gap: 1em; }
+  .level-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: .45em; padding: .8em; align-content: start; align-self: start; }
+  .lv {
+    position: relative; aspect-ratio: 1 / 1.1; border-radius: .75em; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2em;
+    background: rgba(255, 255, 255, .08); border: 1px solid var(--line);
+    font-weight: 900; font-style: italic; transition: transform .12s, background .12s;
   }
+  .lv::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: .25em; background: var(--w, var(--cyan)); }
+  .lv:hover { background: rgba(255, 255, 255, .15); }
+  .lv b { font-size: 1.25em; line-height: 1; }
+  .lv .medal { width: .8em; height: .8em; }
+  .lv .none { width: .8em; height: .8em; border-radius: 50%; border: .12em dashed rgba(255, 255, 255, .3); }
+  .lv.locked { opacity: .4; }
+  .lv.sel { background: rgba(255, 210, 63, .22); border-color: var(--gold); transform: scale(1.1); z-index: 1; }
+  .lv canvas { position: absolute; right: .15em; top: .35em; width: .9em; height: .9em; }
+  .lv-side { display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
+  .lv-card { padding: 1em 1.2em; display: flex; flex-direction: column; gap: .5em; }
+  .lv-kicker { color: var(--muted); font-weight: 800; letter-spacing: .12em; font-size: .78em; }
+  .lv-name { font-size: 1.9em; font-weight: 900; font-style: italic; line-height: 1; }
+  .lv-row { display: flex; align-items: center; gap: .55em; font-weight: 800; font-size: .9em; flex-wrap: wrap; }
+  .lv-row:empty { display: none; }
+  .lv-row canvas { width: 2.4em; height: 2.4em; border-radius: .5em; }
+  .world-chip { display: inline-flex; align-items: center; gap: .4em; padding: .25em .7em; border-radius: 999px; background: rgba(0, 0, 0, .3); font-size: .85em; }
+  .world-chip i { width: .7em; height: .7em; border-radius: 50%; background: var(--w); }
+  .lv-card .btn.primary { margin-top: .2em; font-size: 1.3em; padding: .6em 1em; }
+  .lv-locked { color: #ffb0b0; font-weight: 800; text-align: center; padding: .6em; border-radius: .9em; background: rgba(0, 0, 0, .3); }
+  .lv-locked[hidden], #btn-play[hidden] { display: none; }
+  .legend { display: flex; justify-content: center; gap: 1.4em; color: var(--muted); font-size: .75em; font-weight: 800; letter-spacing: .08em; text-shadow: 0 .1em .3em #000; }
+  .legend kbd {
+    display: inline-grid; place-items: center; min-width: 1.8em; height: 1.8em; margin-right: .4em; padding: 0 .4em;
+    border-radius: .5em; background: rgba(255, 255, 255, .14); font: inherit; color: #fff;
+  }
+
+  /* ---- results (over the race) ---- */
+  #screen-results { align-items: center; justify-content: center; background: rgba(8, 10, 34, .35); }
+  .results { display: grid; grid-template-columns: 1fr 1.1fr; gap: .4em 2em; padding: 1.2em 1.8em 1.3em; width: min(94%, 56em); }
+  .res-head { grid-column: 1 / -1; text-align: center; }
+  #result-kicker { color: var(--muted); font-weight: 800; letter-spacing: .12em; font-size: .8em; }
+  #result-title { margin: .05em 0 0; font-size: 2.8em; font-weight: 900; font-style: italic; text-shadow: 0 .08em .5em rgba(0, 0, 0, .5); }
+  .podium { display: flex; align-items: flex-end; justify-content: center; gap: .4em; padding-top: .4em; }
+  .pod { display: flex; flex-direction: column; align-items: center; width: 7.6em; }
+  .pod canvas { width: 58%; height: auto; position: relative; z-index: 1; filter: drop-shadow(0 .3em .3em rgba(0, 0, 0, .45)); }
+  .pod .pname { font-weight: 900; font-style: italic; font-size: .85em; margin: .2em 0 .25em; text-shadow: 0 .1em .3em #000; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pod.me .pname { color: var(--gold); }
+  .pod .block { width: 100%; display: flex; justify-content: center; padding-top: .2em; border-radius: .6em .6em .2em .2em; font-weight: 900; font-size: 1.7em; }
+  .p1 .block { height: 3.1em; background: linear-gradient(#ffe36a, #c99400); color: #5a3a00; }
+  .p2 .block { height: 2.2em; background: linear-gradient(#f2f6fa, #96a3b2); color: #2a3440; }
+  .p3 .block { height: 1.5em; background: linear-gradient(#ffb060, #b0601e); color: #4a2000; }
+  #result-body { display: flex; flex-direction: column; justify-content: center; gap: .35em; font-weight: 800; font-size: .9em; letter-spacing: .03em; }
+  .standings { border-collapse: collapse; margin: .2em 0; font-size: .95em; font-variant-numeric: tabular-nums; }
+  .standings td { padding: .15em .8em .15em 0; text-align: left; }
+  .standings td:last-child { text-align: right; padding-right: 0; color: var(--muted); }
+  .standings tr.me td { color: var(--gold); }
+  .standings .sw { display: inline-block; width: .8em; height: .8em; border-radius: 50%; margin-right: .45em; vertical-align: middle; }
+  .result-big { font-size: 2.2em; font-weight: 900; color: var(--green); font-variant-numeric: tabular-nums; text-shadow: 0 0 .5em rgba(93, 255, 138, .45); }
+  .result-line { display: flex; align-items: center; gap: .45em; }
+  .result-line.dim { color: var(--muted); }
+  .unlock { display: flex; align-items: center; gap: .5em; color: #ffb0ff; }
+  .unlock canvas { width: 2.2em; height: 2.2em; animation: pulse .6s ease-in-out infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.12); } }
+  .res-actions { grid-column: 1 / -1; display: flex; justify-content: center; gap: .6em; margin-top: .8em; }
+
+  /* ---- how to play ---- */
+  .howto {
+    position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 1em;
+    background: rgba(6, 8, 26, .72); font-size: clamp(9px, min(1.45vw, 2.58vh), 20px);
+    animation: fade-in .2s ease-out;
+  }
+  .howto[hidden] { display: none; }
+  .howto-panel { width: min(100%, 62em); max-height: 100%; overflow: auto; padding: 1.4em 1.8em 1.5em; display: flex; flex-direction: column; gap: 1em; }
+  .howto-panel h1 { margin: 0; text-align: center; font-size: 2.4em; font-weight: 900; font-style: italic; }
+  .howto-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8em; }
+  .how {
+    display: grid; grid-template-columns: 3.4em 1fr; grid-template-rows: auto auto 1fr; column-gap: .8em; row-gap: .25em;
+    padding: .9em 1em; border-radius: 1em; background: rgba(255, 255, 255, .07); border: 1px solid var(--line);
+  }
+  .how svg { grid-row: 1 / 3; width: 3.4em; height: 3.4em; }
+  .how b { font-size: 1.15em; font-weight: 900; font-style: italic; align-self: end; }
+  .how p { margin: 0; color: var(--muted); font-size: .85em; font-weight: 700; line-height: 1.3; }
+  .how .keys { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35em; margin-top: .45em; align-self: end; }
+  .how .keys span {
+    display: inline-flex; align-items: center; gap: .35em; padding: .25em .55em; border-radius: .5em;
+    background: rgba(0, 0, 0, .3); font-size: .72em; font-weight: 800; color: var(--muted); letter-spacing: .04em;
+  }
+  .how .keys kbd { font: inherit; color: #fff; }
+  .howto-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8em; }
+  .howto-modes div { padding: .6em .9em; border-radius: .9em; background: rgba(0, 0, 0, .28); font-size: .85em; font-weight: 700; color: var(--muted); }
+  .howto-modes b { display: block; color: #fff; font-style: italic; font-size: 1.1em; }
+  .howto-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; color: var(--muted); font-size: .85em; font-weight: 700; }
 </style>
 </head>
-<body>
+<body class="menus">
   <div id="wrap">
-    <div id="topbar">
-      <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
-    </div>
+    <!-- both move into the shared menu -->
+    <a id="back" class="link" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+    <div id="topbar"><button id="btn-howto" class="howto-link" type="button">HOW TO PLAY</button></div>
+
     <div id="stage">
       <canvas id="view"></canvas>
+      <div id="veil"></div>
       <canvas id="hud" width="480" height="270"></canvas>
-      <input id="nameBox" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="TYPE YOUR NAME" hidden>
+      <div id="ui">
+
+        <!-- HOME: the marbles race down a story track behind it -->
+        <div id="screen-home" class="screen menu">
+          <div class="topbar">
+            <div style="flex:1"></div>
+            <button id="btn-home-howto" class="pill glass btn"><i class="q">?</i>HOW TO PLAY</button>
+            <button id="btn-player" class="player-chip glass">
+              <canvas id="player-chip-cv" width="96" height="96"></canvas>
+              <span><small>PLAYER</small><b id="player-name">YOU</b></span>
+            </button>
+            <div class="pill glass"><i class="medal"></i><span class="medal-count">0/27</span></div>
+          </div>
+          <div class="logo">
+            <span class="l1">MARBLE</span>
+            <span class="l2">RUMBLE</span>
+            <div class="roll"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="tagline" id="tagline">27 LEVELS &nbsp;&middot;&nbsp; 27 PIECES &nbsp;&middot;&nbsp; 4 WORLDS</div>
+          <div class="modes">
+            <button id="mode-story" class="mode-tile glass primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h13l-2.5 4.5L18 13H5" fill="currentColor" fill-opacity=".35"/><path d="M9 4v9M13 4v9M5 8.5h13" stroke-width="1.2"/></svg>
+              <b>STORY MODE</b><small id="story-sub">Level 1 of 27</small>
+            </button>
+            <button id="mode-build" class="mode-tile glass t-build">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" fill-opacity=".35"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="8.5" y="3" width="7" height="7" rx="1.5" fill="currentColor" fill-opacity=".35"/></svg>
+              <b>BUILD</b><small>Make your own marble run</small>
+            </button>
+            <button id="mode-mine" class="mode-tile glass t-mine">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6c5 0 6 5 11 5s5-3 7-3"/><path d="M3 13c5 0 6 5 11 5s5-3 7-3"/><circle cx="6" cy="6" r="2.5" fill="currentColor" fill-opacity=".5"/></svg>
+              <b>RACE MY RUN</b><small id="mine-sub">Race the run you built</small>
+            </button>
+            <button id="mode-marble" class="mode-tile glass t-marble">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8" fill="currentColor" fill-opacity=".3"/><path d="M6 9c4 2 8 2 12 0M6 15c4-2 8-2 12 0"/><circle cx="9" cy="8.5" r="1.3" fill="#fff" stroke="none"/></svg>
+              <b>MY MARBLE</b><small id="marble-sub">Pick your marble &amp; name</small>
+            </button>
+          </div>
+        </div>
+
+        <!-- MY MARBLE: name and marble -->
+        <div id="screen-marbles" class="screen menu">
+          <div class="topbar">
+            <button id="btn-marbles-back" class="btn back">BACK</button>
+            <h2>PICK YOUR MARBLE</h2>
+            <div class="pill glass"><i class="medal"></i><span class="medal-count">0/27</span></div>
+          </div>
+          <div class="garage">
+            <div class="showroom glass">
+              <canvas id="showroom" width="320" height="320"></canvas>
+              <div class="show-name" id="show-name">CLASSIC</div>
+              <div class="show-sub" id="show-sub"></div>
+            </div>
+            <div class="picker glass">
+              <div class="label">YOUR NAME</div>
+              <input id="nameBox" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="TYPE YOUR NAME">
+              <div id="name-chips" class="chips"></div>
+              <div class="label">YOUR MARBLE</div>
+              <div id="marble-grid" class="grid"></div>
+              <div class="actions">
+                <button id="btn-marbles-done" class="btn primary">DONE</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STORY MODE: pick a level; its track turns round beside the grid -->
+        <div id="screen-levels" class="screen menu">
+          <div class="topbar">
+            <button id="btn-levels-back" class="btn back">BACK</button>
+            <h2>STORY MODE</h2>
+            <div class="pill glass"><i class="medal"></i><span class="medal-count">0/27</span></div>
+          </div>
+          <div class="levels">
+            <div id="level-grid" class="level-grid glass"></div>
+            <div class="lv-side">
+              <div class="lv-card glass">
+                <div class="lv-kicker" id="lv-kicker">LEVEL 1</div>
+                <div class="lv-name" id="lv-name">FIRST ROLL</div>
+                <div class="lv-row" id="lv-new"></div>
+                <div class="lv-row"><span class="world-chip" id="lv-world"><i></i><span>PARK</span></span><span id="lv-best"></span></div>
+                <div class="lv-row" id="lv-prize"></div>
+                <button id="btn-play" class="btn primary">PLAY &#9654;</button>
+                <div class="lv-locked" id="lv-locked" hidden></div>
+              </div>
+            </div>
+          </div>
+          <div class="legend"><span><kbd>&#9664; &#9654;</kbd>PICK</span><span><kbd>A</kbd>PLAY</span><span><kbd>B</kbd>BACK</span></div>
+        </div>
+
+        <!-- RESULTS: over the race once you cross the line -->
+        <div id="screen-results" class="screen menu">
+          <div class="results glass">
+            <div class="res-head">
+              <div id="result-kicker"></div>
+              <h1 id="result-title">FINISHED!</h1>
+            </div>
+            <div id="podium" class="podium"></div>
+            <div id="result-body"></div>
+            <div id="res-actions" class="res-actions"></div>
+          </div>
+        </div>
+
+      </div>
     </div>
     <div id="hint"></div>
   </div>
+
+  <!-- HOW TO PLAY: its own page, opened from the title screen or the menu -->
+  <div id="howto" class="howto" hidden>
+    <div class="howto-panel glass">
+      <h1>HOW TO PLAY</h1>
+      <div class="howto-grid">
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="17" stroke="#5ff3ff" stroke-width="4"/><circle cx="24" cy="24" r="4" fill="#5ff3ff"/><path d="M24 7v9M24 32v9M7 24h9M32 24h9" stroke="#5ff3ff" stroke-width="4"/></svg>
+          <b>ROLL</b><p>Lean your marble left, right, faster or slower.</p>
+          <div class="keys"><span>KEYS <kbd>ARROWS</kbd></span><span>PAD <kbd>STICK</kbd></span><span>TOUCH <kbd>DRAG</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="16" r="8" fill="#ff6b2c" stroke="#fff" stroke-width="2.5"/><path d="M10 42h28M17 34l7-7 7 7" stroke="#ffe14f" stroke-width="4"/></svg>
+          <b>JUMP</b><p>Hop over gaps, hammers and spinners.</p>
+          <div class="keys"><span>KEYS <kbd>SPACE</kbd></span><span>PAD <kbd>A</kbd></span><span>TOUCH <kbd>TAP / JUMP</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M24 5l5.6 11.4 12.6 1.8-9.1 8.9 2.1 12.5L24 33.7l-11.2 5.9 2.1-12.5-9.1-8.9 12.6-1.8z" fill="#ffd23f" stroke="#a86800" stroke-width="2.5"/></svg>
+          <b>STARS</b><p>Grab the stars along the track for a bigger score.</p>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="28" width="12" height="14" rx="2" fill="#7ee08a"/><rect x="18" y="18" width="12" height="24" rx="2" fill="#9fd8ff"/><rect x="31" y="8" width="12" height="34" rx="2" fill="#ffcc33"/></svg>
+          <b>BUILD</b><p>Pick a piece, then tap it again to add it to your run. Then hit RACE!</p>
+          <div class="keys"><span>KEYS <kbd>&larr; &rarr;</kbd> <kbd>SPACE</kbd> <kbd>R</kbd></span><span>PAD <kbd>A</kbd> ADD <kbd>Y</kbd> RACE</span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="28" r="13" fill="#ffd23f" stroke="#a86800" stroke-width="3"/><path d="M17 4l7 11 7-11" stroke="#ff4f6d" stroke-width="4"/><path d="M24 22v12" stroke="#a86800" stroke-width="4"/></svg>
+          <b>MEDALS</b><p>Any finish clears a level. Come 1st for GOLD, and win new marbles!</p>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="17" fill="#14306a" stroke="#c8a8ff" stroke-width="3"/><circle cx="18" cy="19" r="4" fill="#ffe14f"/><path d="M8 30c8-5 20-5 32 0" stroke="#7ee08a" stroke-width="4"/></svg>
+          <b>WORLDS</b><p>Park, Wild West, Kid's Room and Outer Space (floaty!).</p>
+          <div class="keys"><span>BUILDER <kbd>&uarr; &darr;</kbd> CHANGES WORLD</span></div>
+        </div>
+      </div>
+      <div class="howto-modes">
+        <div><b>STORY MODE</b>27 levels. Each one brings a brand new piece!</div>
+        <div><b>BUILD</b>Snap pieces together into your very own marble run.</div>
+        <div><b>RACE MY RUN</b>Race ZIPPY, PICKLE and GRAPE on the run you built.</div>
+      </div>
+      <div class="howto-foot">
+        <span>Want buttons on the screen? Turn on TOUCH CONTROLS in the &#9776; menu.</span>
+        <button id="btn-howto-close" class="btn primary">GOT IT!</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/three.min.js"></script>
   <script src="../../shared/gamepad.js"></script>
