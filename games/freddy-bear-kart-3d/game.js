@@ -3494,7 +3494,7 @@
   }
 
   // ---------- Menus: title, pick racers, pick a track, Grand Prix ----------
-  let titleSel = 0, trackSel = 0, spin = 0, flow = 'race', pickIdx = 0, rowSel = 0, demoTrack = -1;
+  let titleSel = 0, trackSel = 0, spin = 0, flow = 'race', pickIdx = 0, demoTrack = -1;
   let battleKind = 'balloons';     // which battle: 'balloons' or 'coins' (same arenas)
 
   function trackList() {
@@ -3520,29 +3520,69 @@
     demoTrack = (demoTrack + 1) % BUILTIN.length;
     startRace(BUILTIN[demoTrack], { demo: true });
   }
-  // 0 RACE!  1 GRAND PRIX  2 BALLOON BATTLE  3 COIN BATTLE  4 BUILD A TRACK  5 PLAYERS
-  const TITLE_N = 6;
+  // the mode tiles: 0 RACE  1 GRAND PRIX  2 BALLOON BATTLE  3 COIN BATTLE  4 BUILD A TRACK
+  // and along the top: 5 PLAYERS  6 HOW TO PLAY  7 the driver (straight to the garage)
   function titleChoose(i) {
     titleSel = i;
     if (i === 5) { save.players = save.players === 1 ? 2 : 1; writeSave(); sfxSelect(); return; }
+    if (i === 6) { openHowto(); return; }
     sfxOk();
     if (i === 4) toBuild();
+    else if (i === 7) { garageThen = 'title'; pickIdx = 0; toRacer(); }
     else {
       const was = flow;
       flow = ['race', 'gp', 'battle', 'battle'][i];
       if (i >= 2) battleKind = i === 3 ? 'coins' : 'balloons';
       if ((was === 'battle') !== (flow === 'battle')) trackSel = 0;
+      garageThen = 'go';
       pickIdx = 0; toRacer();
     }
   }
-  function toRacer() {
+  // The garage: DRIVER -> PAINT -> HAT, one step at a time (then the same for player 2).
+  // gStep is the step, gSel the tile the keyboard / controller is on, garageThen where DONE goes.
+  let gStep = 0, gSel = 0, garageThen = 'go';
+  const G_STEPS = [
+    { key: 'racer', title: 'CHOOSE YOUR DRIVER', short: 'DRIVER' },
+    { key: 'paint', title: 'CHOOSE YOUR PAINT', short: 'PAINT' },
+    { key: 'hat', title: 'CHOOSE YOUR HAT', short: 'HAT' },
+  ];
+  const gItems = () => (gStep === 0 ? RACERS.map((d, i) => ({ id: i, name: d.name, coins: 0 })) : gStep === 1 ? PAINTS : HATS);
+  const gCurrent = () => { const l = save.look[pickIdx]; return gStep === 0 ? l.racer : gStep === 1 ? l.paint : l.hat; };
+  function gFocusCurrent() { gSel = Math.max(0, gItems().findIndex((it) => it.id === gCurrent())); }
+  function toRacer(step = 0) {
     hideAll();
     mode = 'racer';
-    rowSel = 0;
+    gStep = step;
+    gFocusCurrent();
     showroom.visible = true;
     setSong('meadow');
     showRacer();
   }
+  // tap a tile: wear it (tap the one you're wearing again to move on)
+  function garagePick(i) {
+    const it = gItems()[i], l = save.look[pickIdx];
+    if (!it) return;
+    gSel = i;
+    const taken = gStep === 0 && pickIdx === 1 && save.players === 2 && it.id === save.look[0].racer;
+    if (taken || !isUnlocked(it)) { uiNope(i); sfxUndo(); return; }
+    if (it.id === gCurrent()) { garageNext(); return; }
+    l[G_STEPS[gStep].key] = it.id;
+    writeSave();
+    showRacer();
+    showHop = spin;
+    sfxSelect();
+  }
+  function garageNext() {
+    if (gStep < G_STEPS.length - 1) { sfxSelect(); gStep++; gFocusCurrent(); return; }
+    pickNext();
+  }
+  function garageBack() {
+    sfxUndo();
+    if (gStep > 0) { gStep--; gFocusCurrent(); return; }
+    if (pickIdx > 0) { pickIdx--; gStep = G_STEPS.length - 1; gFocusCurrent(); showRacer(); return; }
+    toTitle();
+  }
+  let showHop = -9;      // when the turntable kart last did its happy hop
   function showRacer() {
     const l = save.look[pickIdx];
     models.forEach((m, i) => {
@@ -3556,29 +3596,16 @@
       }
     });
   }
-  function cycleRow(dx) {
-    const l = save.look[pickIdx];
-    if (rowSel === 0) {
-      let r = l.racer;
-      do { r = mod(r + dx, RACERS.length); } while (save.players === 2 && pickIdx === 1 && r === save.look[0].racer);
-      l.racer = r;
-    } else {
-      const list = (rowSel === 1 ? HATS : PAINTS).filter(isUnlocked), keyName = rowSel === 1 ? 'hat' : 'paint';
-      const i = Math.max(0, list.findIndex((x) => x.id === l[keyName]));
-      l[keyName] = list[mod(i + dx, list.length)].id;
-    }
-    writeSave();
-    showRacer();
-    sfxSelect();
-  }
   function pickNext() {
     sfxOk();
     if (pickIdx < save.players - 1) {
       pickIdx++;
-      rowSel = 0;
+      gStep = 0;
       if (save.look[1].racer === save.look[0].racer) save.look[1].racer = mod(save.look[0].racer + 1, RACERS.length);
+      gFocusCurrent();
       showRacer();
-    } else if (flow === 'gp') toGpIntro();
+    } else if (garageThen === 'title') toTitle();
+    else if (flow === 'gp') toGpIntro();
     else toTrack();
   }
   function toTrack() {
@@ -3916,11 +3943,23 @@
     sfxSelect();
   }
   function nav(dx, dy) {
-    if (mode === 'title') { titleSel = mod(titleSel + (dy || dx), TITLE_N); sfxSelect(); }
-    else if (mode === 'racer') {
-      if (dy) { rowSel = mod(rowSel + dy, 3); sfxSelect(); } else cycleRow(dx);
+    if (mode === 'title') {
+      // the mode tiles are a row (0-4); up goes to the buttons along the top (5-7)
+      if (titleSel <= 4) { if (dy < 0) titleSel = 5; else if (dx) titleSel = mod(titleSel + dx, 5); else return; }
+      else if (dy > 0) titleSel = 0;
+      else if (dx) titleSel = 5 + mod(titleSel - 5 + dx, 3);
+      else return;
+      sfxSelect();
+    } else if (mode === 'racer') {
+      // round the grid of tiles (four to a row)
+      const n = gItems().length, c = 4;
+      let i = gSel;
+      if (dx) i = mod(i + dx, n);
+      else if (dy) { i += dy * c; if (i < 0 || i >= n) return; }
+      gSel = i; sfxSelect();
     } else if (mode === 'track') {
       if (dx) {
+        if (uiShelf) { uiShelf.step(dx); return; }
         const list = trackList();
         trackSel = mod(trackSel + dx, list.length);
         buildWorld(list[trackSel].def);
@@ -3932,7 +3971,7 @@
   }
   function primary() {
     if (mode === 'title') titleChoose(titleSel);
-    else if (mode === 'racer') pickNext();
+    else if (mode === 'racer') garagePick(gSel);
     else if (mode === 'track') raceSelected();
     else if (mode === 'gpintro') { sfxOk(); startGP(); }
     else if (mode === 'build') edApply();
@@ -3940,8 +3979,8 @@
     else if (mode === 'cup') { sfxOk(); hideAll(); startGP(); }   // the lit-up PLAY AGAIN button
   }
   function back() {
-    if (mode === 'racer') { sfxUndo(); if (pickIdx > 0) { pickIdx--; rowSel = 0; showRacer(); } else toTitle(); }
-    else if (mode === 'track' || mode === 'gpintro') { sfxUndo(); pickIdx = save.players - 1; toRacer(); }
+    if (mode === 'racer') garageBack();
+    else if (mode === 'track' || mode === 'gpintro') { sfxUndo(); pickIdx = save.players - 1; toRacer(G_STEPS.length - 1); }
     else if (mode === 'build') { sfxUndo(); commitName(); toTitle(); }
     else if (mode === 'race') { sfxUndo(); leaveRace(); }
     else if (mode === 'cup') { sfxUndo(); toTitle(); }
@@ -3973,10 +4012,12 @@
     if (e.target && e.target.closest && e.target.closest('input, textarea')) return;
     unlockAudio();
     const c = e.code;
-    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'Tab'].includes(c)) e.preventDefault();
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'Tab', 'Enter'].includes(c)) e.preventDefault();
     const was = keys[c];
     keys[c] = true;
     if (was) return;
+    if (howtoOpen) { if (c === 'Space' || c === 'Enter' || c === 'Escape' || c === 'Backspace') closeHowto(); return; }
+    if (window.MickleMenu && MickleMenu.isOpen()) return;
     if (c === 'KeyM') { setMusic(!save.music); return; }
     if (mode === 'race' && race && !race.results) {
       if (paused) {
@@ -4076,6 +4117,8 @@
   function pollPad() {
     const B = Pad360.BTN, P2 = Pad360.pad(1);
     const P = (b) => Pad360.pressed(b) || P2.pressed(b);
+    if (howtoOpen) { if (P(B.A) || P(B.B) || P(B.START) || P(B.BACK)) closeHowto(); return; }
+    if (mode === 'racer' && P(B.START)) { garageNext(); return; }      // START: done with this step
     if (mode === 'race' && race && !race.results) {       // driving is read in humanInput
       if (paused) {
         const d = Pad360.dyPressed() || P2.dyPressed();
@@ -4099,9 +4142,10 @@
   }
 
   // ---------- HUD ----------
-  const FONT = "'Courier New', Courier, monospace";
+  // the same chunky, slanted letters as the menus
+  const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   function text(str, x, y, px, color, align = 'left', outline) {
-    hctx.font = 'bold ' + px + 'px ' + FONT;
+    hctx.font = 'italic 900 ' + px + 'px ' + FONT;
     hctx.textAlign = align;
     hctx.textBaseline = 'middle';
     if (outline) {
@@ -4166,20 +4210,6 @@
   }
   const fmtTime = (s) => Math.floor(s / 60) + ':' + (s % 60).toFixed(2).padStart(5, '0');
   const CUP = ['#ffd23f', '#d8dde6', '#e09050'];
-  function drawCup(x, y, s, place) {
-    hctx.fillStyle = CUP[place - 1] || '#8fe36b';
-    hctx.beginPath();
-    hctx.moveTo(x - 12 * s, y - 14 * s); hctx.lineTo(x + 12 * s, y - 14 * s);
-    hctx.quadraticCurveTo(x + 12 * s, y + 4 * s, x, y + 5 * s);
-    hctx.quadraticCurveTo(x - 12 * s, y + 4 * s, x - 12 * s, y - 14 * s);
-    hctx.fill();
-    hctx.fillRect(x - 2.5 * s, y + 4 * s, 5 * s, 7 * s);
-    hctx.fillRect(x - 9 * s, y + 10 * s, 18 * s, 4 * s);
-    hctx.lineWidth = 2.5 * s; hctx.strokeStyle = CUP[place - 1] || '#8fe36b';
-    hctx.beginPath(); hctx.arc(x - 12 * s, y - 7 * s, 5 * s, PI * 0.5, PI * 1.5); hctx.stroke();
-    hctx.beginPath(); hctx.arc(x + 12 * s, y - 7 * s, 5 * s, -PI * 0.5, PI * 0.5); hctx.stroke();
-    text(String(place), x, y - 5 * s, 11 * s, '#120b28', 'center');
-  }
 
   // the road of the track, drawn small, with dots for the karts
   function miniMap(x, y, w, karts) {
@@ -4288,100 +4318,10 @@
     hctx.restore();
   }
 
-  function drawTitle() {
-    const g = hctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, 'rgba(12,10,40,0.7)'); g.addColorStop(0.5, 'rgba(12,10,40,0)'); g.addColorStop(1, 'rgba(12,10,40,0.7)');
-    hctx.fillStyle = g; hctx.fillRect(0, 0, W, H);
-    text('FREDDY BEAR', W / 2, 34, 32, '#ffe14f', 'center', '#120b28');
-    text('KART 3D', W / 2, 70, 38, '#ff7a1e', 'center', '#120b28');
-    // RACE! under the right thumb, the others under the left
-    goBtn('RACE!', () => titleChoose(0), { go: titleSel === 0, color: '#ffe14f', px: 16 });
-    button('GRAND PRIX', 8, 126, 130, 26, () => titleChoose(1), { go: titleSel === 1, color: '#ff9a2e', px: 12 });
-    button('BALLOON BATTLE', 8, 160, 130, 26, () => titleChoose(2), { go: titleSel === 2, color: '#ff7ab8', px: 11 });
-    button('COIN BATTLE', 8, 194, 130, 26, () => titleChoose(3), { go: titleSel === 3, color: '#ffd23f', px: 11 });
-    button('BUILD A TRACK', 8, 230, 130, 30, () => titleChoose(4), { go: titleSel === 4, color: '#5ff3ff', px: 12 });
-    button(save.players === 2 ? 'PLAYERS: 2 (SPLIT SCREEN)' : 'PLAYERS: 1', 148, 238, 188, 22, () => titleChoose(5),
-      { sel: titleSel === 5, color: '#8fe36b', px: 9 });
-    coinIcon(440, 16, 6);
-    text(String(save.coins), 452, 16.5, 12, '#ffe14f', 'left', '#120b28');
-    text('A MICKLEKIDS GAME', W / 2, 94, 8, '#ffffff', 'center', '#120b28');
-  }
-
-  function statPips(label, v, x, y) {
-    text(label, x, y, 8, '#ffffff', 'left', '#120b28');
-    const n = clamp(Math.round((v - 0.86) / 0.3 * 4) + 1, 1, 5);
-    for (let i = 0; i < 5; i++) {
-      rr(x + 36 + i * 11, y - 4, 9, 8, 2);
-      hctx.fillStyle = i < n ? '#ffe14f' : 'rgba(255,255,255,0.2)'; hctx.fill();
-    }
-  }
   function nextUnlock(list) {
     const next = list.filter((x) => !x.gold && !isUnlocked(x)).sort((a, b) => a.coins - b.coins)[0];
     return next ? next.name + ' AT ' + next.coins + ' COINS' : '';
   }
-  function drawRacer() {
-    const l = save.look[pickIdx], d = RACERS[l.racer];
-    const who = save.players === 2 ? 'PLAYER ' + (pickIdx + 1) + ': ' : '';
-    text(who + 'PICK YOUR RACER', W / 2, 18, 15, pickIdx ? '#8fe36b' : '#ffe14f', 'center', '#120b28');
-    coinIcon(440, 16, 6);
-    text(String(save.coins), 452, 16.5, 12, '#ffe14f', 'left', '#120b28');
-    panel(18, 44, 108, 54);
-    statPips('SPEED', d.top * 1.05 - 0.05, 26, 58);
-    statPips('ZOOM', d.acc, 26, 72);
-    statPips('TURN', d.turn, 26, 86);
-    button('◀', 8, 108, 40, 48, () => { rowSel = 0; cycleRow(-1); }, { px: 20 });
-    button('▶', 432, 108, 40, 48, () => { rowSel = 0; cycleRow(1); }, { px: 20 });
-    const hat = HATS.find((h) => h.id === l.hat) || HATS[0], paint = PAINTS.find((p) => p.id === l.paint) || PAINTS[0];
-    const rows = [d.name, 'HAT: ' + hat.name, 'KART: ' + paint.name];
-    rows.forEach((s, i) => {
-      const y = 166 + i * 19, sel = rowSel === i;
-      if (i === 0) {
-        text(s, W / 2, y, 20, sel ? '#ffe14f' : '#ffffff', 'center', '#120b28');
-        hudButtons.push({ x: 140, y: y - 10, w: 200, h: 20, fn: () => { rowSel = 0; cycleRow(1); } });
-      } else {
-        button((sel ? '◀ ' : '') + s + (sel ? ' ▶' : ''), 150, y - 8, 180, 16, () => { rowSel = i; cycleRow(1); },
-          { px: 9, sel, color: i === 1 ? '#ff9ad6' : '#4fd0ff' });
-      }
-    });
-    const nu = nextUnlock(rowSel === 2 ? PAINTS : HATS);
-    if (nu) text('NEXT: ' + nu, W / 2, 222, 7, '#ffffff', 'center', '#120b28');
-    backBtn('BACK', back);
-    goBtn(pickIdx < save.players - 1 ? 'NEXT PLAYER' : 'THIS ONE!', pickNext);
-  }
-
-  function drawTrackPick() {
-    const list = trackList(), t = list[trackSel], battle = flow === 'battle', coins = battle && battleKind === 'coins';
-    text(battle ? (coins ? 'COIN' : 'BALLOON') + ' BATTLE: PICK AN ARENA' : 'PICK A TRACK', W / 2, 22, battle ? 15 : 18, coins ? '#ffd23f' : battle ? '#ff7ab8' : '#ffe14f', 'center', '#120b28');
-    button('◀', 8, 108, 40, 48, () => nav(-1, 0), { px: 20 });
-    button('▶', 432, 108, 40, 48, () => nav(1, 0), { px: 20 });
-    panel(110, 176, 260, 50);
-    text(t.name, W / 2, 190, 16, '#ffffff', 'center');
-    const best = save.best[t.key], place = save.cups[t.key];
-    text(coins ? 'STACK UP THE MOST COINS IN ' + BATTLE_T / 60 + ' MINUTES!' : battle ? 'POP THE MOST BALLOONS IN ' + BATTLE_T / 60 + ' MINUTES!' : best ? 'BEST ' + fmtTime(best) : (THEMES[t.def.theme] || THEMES.meadow).name + ' · ' + LAPS + ' LAPS',
-      W / 2, 212, battle ? 9 : 10, '#5ff3ff', 'center');
-    if (place && place <= 3) drawCup(352, 194, 0.6, place);
-    text((trackSel + 1) + ' / ' + list.length, W / 2, 166, 8, '#ffffff', 'center', '#120b28');
-    backBtn('BACK', back);
-    goBtn(battle ? 'BATTLE!' : 'START!', primary, { px: 15 });
-    button('SPEED: ' + SPEEDS[save.speed].name, 100, 235, 116, 26, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
-  }
-
-  function drawGpIntro() {
-    hctx.fillStyle = 'rgba(12,10,40,0.35)'; hctx.fillRect(0, 0, W, H);
-    text('GRAND PRIX', W / 2, 26, 24, '#ff9a2e', 'center', '#120b28');
-    panel(120, 42, 240, 180);
-    text(BUILTIN.length + ' RACES IN A ROW', W / 2, 56, 11, '#ffe14f', 'center');
-    BUILTIN.forEach((d, i) => text((i + 1) + '. ' + d.name, 150, 76 + i * 16, 11, '#ffffff'));
-    text('POINTS: ' + POINTS.join(' '), W / 2, 76 + BUILTIN.length * 16 + 6, 9, '#5ff3ff', 'center');
-    text('MOST POINTS WINS THE GOLD CUP', W / 2, 76 + BUILTIN.length * 16 + 20, 8, '#ffffff', 'center');
-    const best = save.gp['s' + save.speed];
-    if (best) { drawCup(338, 66, 0.6, best); text('BEST', 338, 86, 7, '#ffffff', 'center'); }
-    if (!save.gold) text('WIN IT TO UNLOCK THE GOLDEN KART!', W / 2, 76 + BUILTIN.length * 16 + 34, 8, '#ffd23f', 'center');
-    backBtn('BACK', back);
-    goBtn('START!', primary, { px: 15 });
-    button('SPEED: ' + SPEEDS[save.speed].name, 100, 235, 116, 26, () => setSpeed(save.speed + 1), { px: 9, color: ['#8fe36b', '#ffe14f', '#ff7a6b'][save.speed] });
-  }
-
   // one player's part of the race screen; two players get half the height each
   function drawView(k, x0, y0, w, h, i) {
     const r = race, small = h < H, s = small ? 0.62 : 1;
@@ -4523,7 +4463,7 @@
     const k0 = r.view[0];
     touch.setIcon('item', k0.item ? itemSvg(k0.item, k0.uses) : ICON.item);
     touch.lit('item', !!k0.item || !!r.results);
-    if (r.results) return drawResults();
+    if (r.results) { drawConfetti(r.confetti); return; }   // (the results are an HTML panel)
     if (r.view.length > 1) {
       drawView(r.view[0], 0, 0, W, H / 2, 0);
       drawView(r.view[1], 0, H / 2, W, H / 2, 1);
@@ -4538,14 +4478,7 @@
     drawConfetti(r.confetti);
     if (r.demo) return;
     if (!paused) { pauseButton(360, 3, 28, 22); return; }
-    // paused: only the pause panel's buttons take taps
-    hudButtons = [];
-    hctx.fillStyle = 'rgba(8,6,28,0.62)'; hctx.fillRect(0, 0, W, H);
-    text('PAUSED', W / 2, 104, 30, '#ffe14f', 'center', '#120b28');
-    // RESUME under the right thumb, QUIT under the left, START AGAIN in the middle
-    goBtn(PAUSE_ITEMS[0], () => pauseChoose(0), { go: pauseSel === 0, color: '#5ff3ff' });
-    button(PAUSE_ITEMS[1], 172, 138, 136, 30, () => pauseChoose(1), { go: pauseSel === 1, px: 12, color: '#5ff3ff' });
-    backBtn(PAUSE_ITEMS[2], () => pauseChoose(2), { go: pauseSel === 2, color: '#ff9a8a', px: 9 });
+    hudButtons = [];      // paused: the pause panel (HTML) takes the taps
   }
   // the pause button: two solid white bars in a dark rounded square, like on a remote
   function pauseButton(x, y, w, h) {
@@ -4563,75 +4496,6 @@
       hctx.fillStyle = c.c;
       hctx.fillRect(c.x, c.y, c.s, c.s * 1.6);
     }
-  }
-
-  function drawResults() {
-    const r = race, isGp = r.from === 'gp', mine = r.results.filter((x) => x.pi != null);
-    hctx.fillStyle = 'rgba(12,10,40,0.45)'; hctx.fillRect(0, 0, W, H);
-    panel(96, 8, 288, 218);
-    const best = Math.min(...mine.map((x) => x.place));
-    const title = isGp ? 'RACE ' + (gp.idx + 1) + ' OF ' + BUILTIN.length : r.battle && best === 1 ? (mine.length > 1 ? 'P' + (mine.find((x) => x.place === 1).pi + 1) + ' WINS!' : 'YOU WIN!')
-      : best <= 3 ? ORD[best - 1] + ' PLACE!' : r.coinMode ? 'GOOD STACKING!' : r.battle ? 'GOOD POPPING!' : 'NICE DRIVING!';
-    text(title, W / 2, 26, 18, '#ffe14f', 'center');
-    r.results.forEach((x, i) => {
-      const y = 50 + i * 20;
-      if (x.pi != null) { rr(104, y - 9, 272, 18, 5); hctx.fillStyle = 'rgba(255,225,79,0.22)'; hctx.fill(); }
-      text(ORD[i], 112, y, 10, i < 3 ? CUP[i] : '#ffffff');
-      if (r.battle && x.place === 1 && x.score > 0) crownIcon(140, y - 1, 0.55);
-      hctx.beginPath(); hctx.arc(150, y, 5, 0, TAU); hctx.fillStyle = hex(x.color); hctx.fill();
-      const tag = x.pi == null ? '' : r.view.length > 1 ? ' P' + (x.pi + 1) : ' (YOU)';
-      text(x.name + tag, 160, y, 10, x.pi != null ? '#ffe14f' : '#ffffff');
-      if (isGp) {
-        text('+' + x.pts, 318, y, 10, '#8fe36b', 'right');
-        text(String(gp.points[x.ri] || 0), 366, y, 10, '#5ff3ff', 'right');
-      } else if (r.coinMode) text(x.score + (x.score === 1 ? ' COIN' : ' COINS'), 366, y, 10, '#ffd23f', 'right');
-      else if (r.battle) text(x.score + (x.score === 1 ? ' POP' : ' POPS'), 366, y, 10, '#ff9ad6', 'right');
-      else text(x.time ? fmtTime(x.time) : '', 366, y, 10, '#5ff3ff', 'right');
-    });
-    if (isGp) text('POINTS  TOTAL', 366, 38, 7, '#ffffff', 'right');
-    let y = 176;
-    if (r.battle) { text(r.coinMode ? 'YOU KEEP EVERY COIN IN YOUR STACK!' : '+1 COIN FOR EVERY POP', W / 2, y, 8, '#ffffff', 'center'); y += 12; }
-    if (r.newBest) { text('NEW BEST TIME!', W / 2, y, 10, '#8fe36b', 'center'); y += 14; }
-    if (r.coinsWon) {
-      coinIcon(W / 2 - 52, y, 5);
-      text('+' + r.coinsWon + ' COINS (' + save.coins + ')', W / 2 - 44, y + 0.5, 10, '#ffd23f');
-      y += 14;
-    }
-    if (r.unlocked.length) text('NEW: ' + r.unlocked.join(', ') + '!', W / 2, y, 10, '#ff9ad6', 'center');
-    if (isGp) {
-      backBtn('QUIT CUP', back);
-      goBtn(gp.idx < BUILTIN.length - 1 ? 'NEXT RACE' : 'SEE THE CUP!', primary);
-    } else {
-      backBtn(r.from === 'build' ? 'BUILDER' : r.battle ? 'ARENAS' : 'TRACKS', back);
-      goBtn(r.battle ? 'AGAIN!' : 'RACE AGAIN', primary);
-    }
-    drawConfetti(r.confetti);
-  }
-
-  function drawCupScreen() {
-    const c = cup;
-    text('GRAND PRIX!', W / 2, 24, 24, '#ffe14f', 'center', '#120b28');
-    panel(10, 40, 128, 136);
-    c.standings.forEach((s, i) => {
-      const y = 54 + i * 20;
-      text(ORD[i], 16, y, 9, i < 3 ? CUP[i] : '#ffffff');
-      text(RACERS[s.ri].name, 40, y, 8, s.pi >= 0 ? '#ffe14f' : '#ffffff');
-      text(String(s.pts), 132, y, 9, '#5ff3ff', 'right');
-    });
-    // one trophy panel each -- two players get them stacked so they don't overlap the podium
-    const mine = c.standings.filter((s) => s.pi >= 0).sort((a, b) => a.pi - b.pi);
-    const two = mine.length > 1;
-    mine.forEach((s, i) => {
-      const x = 386, y = two ? 42 + i * 84 : 44, h = two ? 78 : 92;
-      panel(x - 46, y, 92, h);
-      if (s.place <= 3) drawCup(x, y + (two ? 32 : 38), two ? 1.0 : 1.3, s.place);
-      else text('GREAT TRY!', x, y + (two ? 32 : 38), 10, '#8fe36b', 'center');
-      text(two ? 'P' + (s.pi + 1) + ' ' + ORD[s.place - 1] : ORD[s.place - 1] + ' PLACE', x, y + h - 12, 10, '#ffffff', 'center');
-    });
-    if (c.unlocked.length) text('NEW: ' + c.unlocked.join(', ') + '!', W / 2, 206, 11, '#ff9ad6', 'center', '#120b28');
-    backBtn('MENU', back);
-    goBtn('PLAY AGAIN', () => { sfxOk(); hideAll(); startGP(); });
-    drawConfetti(c.confetti);
   }
 
   const brushIcon = {
@@ -4809,12 +4673,9 @@
   function drawHud() {
     hudButtons = [];
     hctx.clearRect(0, 0, W, H);
-    if (mode === 'title') drawTitle();
-    else if (mode === 'racer') drawRacer();
-    else if (mode === 'track') drawTrackPick();
-    else if (mode === 'gpintro') drawGpIntro();
-    else if (mode === 'race') drawRace();
-    else if (mode === 'cup') drawCupScreen();
+    // (the title, garage, track, Grand Prix and cup screens are HTML panels: see renderUI)
+    if (mode === 'race') drawRace();
+    else if (mode === 'cup') drawConfetti(cup.confetti);
     else if (mode === 'build') drawBuild();
     if (showSpeed) {
       if (!gpuName) {
@@ -4831,6 +4692,374 @@
       text(gpuName, 4, H - 7, 7, '#8fe36b');
     }
   }
+
+  // ---------- Menus: frosted-glass HTML panels over the live 3D scene ----------
+  // Like Freddy Bear Kart (the isometric one): the karts keep racing behind the title, the
+  // modes are big tiles, the garage goes DRIVER -> PAINT -> HAT with a picture on every tile,
+  // tracks are cards you swipe through, and results stand the top three on a podium. The
+  // race HUD and the track builder stay on the canvas. The panels are rebuilt only when what
+  // they show changes (uiSig), and every tap goes through data-act (uiAct).
+  const ui = document.getElementById('ui');
+  if (FAST) document.body.classList.add('fast');
+  // the panels are sized in em, and 1em follows the stage's width (like the isometric game's 1.45vw)
+  function uiFont() { const w = stage.clientWidth; if (w) ui.style.fontSize = clamp(w / 69, 7, 20).toFixed(2) + 'px'; }
+  if (window.ResizeObserver) new ResizeObserver(uiFont).observe(stage); else window.addEventListener('resize', uiFont);
+  uiFont();
+
+  // ---- how to play: its own page over everything (a race underneath waits, paused) ----
+  let howtoOpen = false;
+  const howtoEl = document.getElementById('howto');
+  function openHowto() {
+    unlockAudio();
+    if (window.MickleMenu) MickleMenu.close();
+    if (mode === 'race' && race && !race.results && !paused) setPaused(true);
+    howtoOpen = true;
+    howtoEl.hidden = false;
+    sfxSelect();
+  }
+  function closeHowto() {
+    if (!howtoOpen) return;
+    howtoOpen = false;
+    howtoEl.hidden = true;
+    sfxSelect();
+  }
+  document.getElementById('btn-howto').addEventListener('click', openHowto);
+  document.getElementById('btn-howto-close').addEventListener('click', closeHowto);
+
+  // ---- pictures of the karts: the real 3D models, snapped once each and kept ----
+  // Drawn by the main renderer into the corner of the 3D canvas just before a frame is drawn
+  // (so nobody sees it), then copied off into an <img>. No second WebGL context for the tablet.
+  const thumbScene = new THREE.Scene();
+  thumbScene.background = new THREE.Color(0x241a52);
+  thumbScene.add(new THREE.HemisphereLight(0xffffff, 0x5a5a8a, 2.1));
+  const thumbSun = new THREE.DirectionalLight(0xffffff, 1.7);
+  thumbSun.position.set(4, 7, 6);
+  thumbScene.add(thumbSun);
+  const thumbCam = new THREE.PerspectiveCamera(30, 4 / 3, 0.1, 100);
+  const thumbCache = {};
+  const TH_W = 200, TH_H = 150;
+  function kartThumb(ri, look) {
+    const key = ri + '|' + (look ? look.paint + '|' + look.hat : '-');
+    if (thumbCache[key]) return thumbCache[key];
+    if (!viewW) return '';
+    const m = models[ri];
+    const was = { parent: m.g.parent, vis: m.g.visible, pos: m.g.position.clone(), q: m.g.quaternion.clone(), sc: m.g.scale.clone(),
+      tilt: m.tilt.rotation.clone(), hat: m.hat, col: m.paint.color.getHex(), em: m.paint.emissive.getHex(), rb: m.rainbow,
+      flame: m.flame.visible, bubble: m.bubble.visible };
+    thumbScene.add(m.g);
+    m.g.visible = true; m.flame.visible = false; m.bubble.visible = false;
+    m.g.position.set(0, 0, 0); m.g.rotation.set(0, -0.62, 0); m.g.scale.setScalar(1); m.tilt.rotation.set(0, 0, 0);
+    applyLook(m, look);
+    if (m.rainbow) m.paint.color.setHSL(0.9, 0.85, 0.55);
+    thumbCam.position.set(0, 2.5, 7.4);
+    thumbCam.lookAt(0, 1.05, 0);
+    const pr = renderer.getPixelRatio(), w = TH_W / pr, h = TH_H / pr;
+    renderer.setScissorTest(true);
+    renderer.setScissor(0, 0, w, h);
+    renderer.setViewport(0, 0, w, h);
+    thumbCam.aspect = w / h; thumbCam.updateProjectionMatrix();
+    renderer.render(thumbScene, thumbCam);
+    const c = document.createElement('canvas');
+    c.width = TH_W; c.height = TH_H;
+    c.getContext('2d').drawImage(view, 0, view.height - Math.round(h * pr), Math.round(w * pr), Math.round(h * pr), 0, 0, TH_W, TH_H);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, viewW, viewH);
+    // ...and everything back the way it was
+    if (m.hat && m.hat !== was.hat) m.hat.visible = false;
+    m.hat = was.hat;
+    if (m.hat) m.hat.visible = true;
+    m.paint.color.setHex(was.col); m.paint.emissive.setHex(was.em); m.rainbow = was.rb;
+    if (was.parent) was.parent.add(m.g); else thumbScene.remove(m.g);
+    m.g.visible = was.vis; m.flame.visible = was.flame; m.bubble.visible = was.bubble;
+    m.g.position.copy(was.pos); m.g.quaternion.copy(was.q); m.g.scale.copy(was.sc); m.tilt.rotation.copy(was.tilt);
+    return (thumbCache[key] = c.toDataURL());
+  }
+
+  // ---- pictures of the tracks and arenas, drawn flat from above ----
+  const trackThumbs = {};
+  function trackThumb(def) {
+    const key = def.name + '|' + (def.cells ? def.cells.join(';') + JSON.stringify(def.extras || {}) : '') + def.theme;
+    if (trackThumbs[key]) return trackThumbs[key];
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = 200;
+    const g = c.getContext('2d'), th = THEMES[def.theme] || THEMES.meadow;
+    const bg = g.createLinearGradient(0, 0, 0, c.height);
+    bg.addColorStop(0, th.space ? '#1b1244' : th.groundB); bg.addColorStop(1, th.space ? '#070418' : th.groundA);
+    g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
+    if (th.space) { g.fillStyle = '#ffffff'; for (let i = 0; i < 60; i++) g.fillRect((i * 97) % 320, (i * 57) % 200, 1.5, 1.5); }
+    if (def.arena) {
+      const R = def.R, s = 84 / R, cx = 160, cy = 100;
+      g.beginPath();
+      if (def.shape === 'square') g.rect(cx - R * s, cy - R * s, R * 2 * s, R * 2 * s); else g.arc(cx, cy, R * s, 0, TAU);
+      g.fillStyle = hex(def.colors[0]); g.fill();
+      g.lineWidth = 6; g.strokeStyle = hex(def.colors[2]); g.stroke();
+      g.fillStyle = hex(def.colors[1]);
+      def.pieces.forEach((q) => {
+        if (q.kind === 'rail') return;
+        g.save(); g.translate(cx + q.x * s, cy + q.z * s); g.rotate(-q.ang);
+        g.fillRect(-q.hl * s, -q.hw * s, q.hl * 2 * s, q.hw * 2 * s);
+        g.restore();
+      });
+      g.fillStyle = 'rgba(255,255,255,0.85)';
+      def.blocks.forEach((b) => { g.beginPath(); g.arc(cx + b[0] * s, cy + b[1] * s, 5, 0, TAU); g.fill(); });
+    } else {
+      // fitted to the track itself (not the whole builder grid), so small loops still fill the card
+      const xs = def.cells.map((q) => q[0]), ys = def.cells.map((q) => q[1]);
+      const x0 = Math.min(...xs), y0 = Math.min(...ys), gw = Math.max(...xs) - x0 + 1, gh = Math.max(...ys) - y0 + 1;
+      const S = Math.min((c.width - 40) / gw, (c.height - 40) / gh, 46), ox = (c.width - gw * S) / 2 - x0 * S, oy = (c.height - gh * S) / 2 - y0 * S;
+      const P = (cell) => [ox + (cell[0] + 0.5) * S, oy + (cell[1] + 0.5) * S];
+      const pts = def.cells.map(P), n = pts.length;
+      // a smooth loop through the squares (corners rounded off, like the real road)
+      const loop = () => {
+        g.beginPath();
+        for (let i = 0; i <= n; i++) {
+          const a = pts[i % n], b = pts[(i + 1) % n], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+          if (i === 0) g.moveTo(mx, my); else g.quadraticCurveTo(a[0], a[1], mx, my);
+        }
+        g.closePath();
+      };
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      loop(); g.lineWidth = S * 0.78; g.strokeStyle = th.space ? 'rgba(79,240,255,0.9)' : 'rgba(255,255,255,0.95)'; g.stroke();
+      loop(); g.lineWidth = S * 0.58; g.strokeStyle = th.space ? '#ff7ac0' : '#565c68'; g.stroke();
+      const DOT = { boost: '#ff7a1e', jump: '#4fd0ff', items: '#b48cff', coins: '#ffd23f', mud: '#6b4626', ice: '#e8f8ff',
+                    tunnel: '#8a5a3a', bounce: '#ff5ca8', portal: '#4fb8ff', cannon: '#2a2a33', wallL: '#c26bff', wallR: '#c26bff' };
+      Object.keys(def.extras || {}).forEach((k) => {
+        const cell = def.cells[+k], col = DOT[def.extras[k]];
+        if (!cell || !col) return;
+        const [x, y] = P(cell);
+        g.beginPath(); g.arc(x, y, S * 0.2, 0, TAU); g.fillStyle = col; g.fill();
+        g.lineWidth = 2; g.strokeStyle = '#120b28'; g.stroke();
+      });
+      const [sx, sy] = P(def.cells[0]), q = S * 0.16;
+      for (let i = 0; i < 4; i++) { g.fillStyle = i % 3 ? '#111' : '#fff'; g.fillRect(sx - q + (i % 2) * q, sy - q + (i >> 1) * q, q, q); }
+    }
+    return (trackThumbs[key] = c.toDataURL());
+  }
+
+  // ---- little bits ----
+  const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const coinPill = () => `<div class="pill glass"><i class="coin"></i>${save.coins}</div>`;
+  const SPEED_COL = ['#8fe36b', '#ffe14f', '#ff7a6b'];
+  const speedSeg = () => `<div class="seg glass"><small>SPEED</small>${SPEEDS.map((s, i) =>
+    `<button data-act="speed" data-i="${i}" class="${i === save.speed ? 'on' : ''}" style="--sc:${SPEED_COL[i]}">${s.name}</button>`).join('')}</div>`;
+  const trophySvg = (col) => `<svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z" fill="${col}"/><path d="M7 6H4.5a2.5 2.5 0 0 0 3 4M17 6h2.5a2.5 2.5 0 0 1-3 4M12 14v3M8 21h8M9.5 17h5v4h-5z" fill="${col}"/></svg>`;
+  const ICONS = {
+    race: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h13l-2.5 4.5L18 13H5" fill="currentColor" fill-opacity=".35"/><path d="M9 4v9M13 4v9M5 8.5h13" stroke-width="1.2"/></svg>',
+    gp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z" fill="currentColor" fill-opacity=".35"/><path d="M7 6H4.5a2.5 2.5 0 0 0 3 4M17 6h2.5a2.5 2.5 0 0 1-3 4M12 14v3M8 21h8M9.5 17h5v4h-5z"/></svg>',
+    balloon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="9" rx="6" ry="7" fill="currentColor" fill-opacity=".35"/><path d="M12 16l-1.2 2h2.4zM12 18c0 2-2 2-1 4"/></svg>',
+    coin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="17" rx="7" ry="2.5" fill="currentColor" fill-opacity=".35"/><path d="M5 17v-3M19 17v-3"/><ellipse cx="12" cy="13" rx="7" ry="2.5" fill="currentColor" fill-opacity=".35"/><path d="M5 13v-3M19 13v-3"/><ellipse cx="12" cy="9" rx="7" ry="2.5" fill="currentColor" fill-opacity=".35"/></svg>',
+    build: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fill-opacity=".2"/><path d="M7 17V9a2 2 0 0 1 2-2h8"/><path d="M14 4l3 3-3 3"/></svg>',
+    one: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0z"/></svg>',
+    two: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3" opacity=".75"/><path d="M2 20a6 6 0 0 1 12 0zM10.5 20a6 6 0 0 1 12 0z" opacity=".9"/></svg>',
+  };
+  const pips = (v) => { const n = clamp(Math.round((v - 0.86) / 0.3 * 4) + 1, 1, 5); let s = ''; for (let i = 0; i < 5; i++) s += `<i class="${i < n ? 'on' : ''}"></i>`; return `<span class="pips">${s}</span>`; };
+  const selIf = (b) => (b ? ' sel' : '');
+
+  // ---- the screens ----
+  function homeHtml() {
+    const l = save.look[0], d = RACERS[l.racer], best = save.gp['s' + save.speed];
+    const tile = (i, cls, icon, name, sub) => `<button class="mode-tile glass ${cls}${selIf(titleSel === i)}" data-act="title" data-i="${i}">${ICONS[icon]}<b>${name}</b><small>${sub}</small></button>`;
+    return `<div class="scr"><div class="veil"></div>
+      <div class="topbar"><div class="sp"></div>
+        <button class="pill glass btn${selIf(titleSel === 6)}" data-act="title" data-i="6"><i class="q">?</i>HOW TO PLAY</button>
+        <button class="pill glass btn${selIf(titleSel === 5)}" data-act="title" data-i="5">${save.players === 2 ? ICONS.two : ICONS.one}<span>${save.players === 2 ? '2 PLAYERS<small>SPLIT SCREEN</small>' : '1 PLAYER'}</span></button>
+        <button class="driver-chip glass${selIf(titleSel === 7)}" data-act="title" data-i="7"><img src="${kartThumb(l.racer, l)}" alt=""><span><small>DRIVER</small><b>${d.name}</b></span></button>
+        ${coinPill()}
+      </div>
+      <div class="logo"><span class="l1">FREDDY BEAR</span><span class="l2">KART 3D</span><div class="speed"><i></i><i></i><i></i></div></div>
+      <div class="tagline">${BUILTIN.length} TRACKS &nbsp;&middot;&nbsp; ${RACERS.length} RACERS &nbsp;&middot;&nbsp; BATTLES &amp; A TRACK BUILDER &nbsp;&middot;&nbsp; A MICKLEKIDS GAME</div>
+      <div class="modes">
+        ${tile(0, 'primary', 'race', 'RACE', 'Pick a track and race!')}
+        ${tile(1, 't-gp', 'gp', 'GRAND PRIX', best ? 'Best: ' + ORD[best - 1] + ' place' : BUILTIN.length + ' races in a row. Win the cup!')}
+        ${tile(2, 't-bal', 'balloon', 'BALLOON BATTLE', 'Pop the most balloons!')}
+        ${tile(3, 't-coin', 'coin', 'COIN BATTLE', 'Stack up the most coins!')}
+        ${tile(4, 't-build', 'build', 'BUILD A TRACK', 'Draw your own track')}
+      </div></div>`;
+  }
+  function garageHtml() {
+    const l = save.look[pickIdx], d = RACERS[l.racer], step = G_STEPS[gStep];
+    const paint = PAINTS.find((p) => p.id === l.paint) || PAINTS[0], hat = HATS.find((h) => h.id === l.hat) || HATS[0];
+    const two = save.players === 2, last = gStep === G_STEPS.length - 1;
+    const nextLabel = !last ? 'NEXT' : pickIdx < save.players - 1 ? 'PLAYER 2' : garageThen === 'title' ? 'DONE' :
+      flow === 'gp' ? 'GRAND PRIX' : flow === 'battle' ? 'PICK AN ARENA' : 'PICK A TRACK';
+    const tiles = gItems().map((it, i) => {
+      const look = gStep === 0 ? { paint: l.paint, hat: l.hat } : gStep === 1 ? { paint: it.id, hat: l.hat } : { paint: l.paint, hat: it.id };
+      const ri = gStep === 0 ? it.id : l.racer;
+      const taken = gStep === 0 && two && pickIdx === 1 && it.id === save.look[0].racer;
+      const locked = !isUnlocked(it), on = it.id === gCurrent();
+      const tag = taken ? 'PLAYER 1' : locked ? (it.gold ? 'WIN THE CUP' : `<i class="coin"></i>${it.coins}`) : on ? '&#10003; PICKED' : '';
+      return `<button class="tile${on ? ' on' : ''}${locked ? ' locked' : ''}${taken ? ' taken' : ''}${selIf(gSel === i)}" data-act="pick" data-i="${i}">
+        <img src="${kartThumb(ri, look)}" alt=""><span class="t-name">${esc(it.name)}</span><span class="t-tag">${tag}</span></button>`;
+    }).join('');
+    const nu = gStep ? nextUnlock(gStep === 1 ? PAINTS : HATS) : '';
+    return `<div class="scr"><div class="veil"></div>
+      <div class="topbar"><h2${pickIdx ? ' style="color:#8fe36b"' : ''}>${two ? 'PLAYER ' + (pickIdx + 1) + ': ' : ''}${step.title}</h2>
+        <ol class="stepper">${G_STEPS.map((s, i) => `<li class="${i === gStep ? 'on' : i < gStep ? 'done' : ''}"><span>${i < gStep ? '&#10003;' : i + 1}</span>${s.short}</li>`).join('')}</ol>
+        ${coinPill()}</div>
+      <div class="garage">
+        <div class="showroom">
+          <div class="stats"><span>SPEED</span>${pips(d.top * 1.05 - 0.05)}<span>ZOOM</span>${pips(d.acc)}<span>TURN</span>${pips(d.turn)}</div>
+          <div class="show-name">${d.name}</div><div class="show-sub">${paint.name} PAINT &nbsp;&middot;&nbsp; ${hat.name}</div>
+        </div>
+        <div class="picker glass"><div class="grid">${tiles}</div>
+          ${nu ? `<div class="next-unlock">NEXT: ${nu}</div>` : ''}
+          <div class="actions"><button class="btn" data-act="back">BACK</button><button class="btn primary" data-act="next">${nextLabel}</button></div>
+        </div>
+      </div></div>`;
+  }
+  function trackHtml() {
+    const list = trackList(), battle = flow === 'battle', coins = battle && battleKind === 'coins';
+    const title = battle ? (coins ? 'COIN BATTLE: PICK AN ARENA' : 'BALLOON BATTLE: PICK AN ARENA') : 'PICK A TRACK';
+    const cards = list.map((t, i) => {
+      const best = save.best[t.key], place = save.cups[t.key];
+      const sub = battle ? (coins ? 'Stack up the most coins in ' : 'Pop the most balloons in ') + BATTLE_T / 60 + ' minutes!'
+        : (t.key.startsWith('my') ? 'YOUR TRACK' : (THEMES[t.def.theme] || THEMES.meadow).name) + ' &middot; ' + LAPS + ' LAPS';
+      const meta = battle ? '' : (place && place <= 3 ? trophySvg(CUP[place - 1]) : '') + (best ? 'BEST ' + fmtTime(best) : 'NO TIME YET');
+      return `<div class="card" data-i="${i}"><img src="${trackThumb(t.def)}" alt=""><div class="name">${esc(t.name)}</div>
+        <div class="sub">${sub}</div><div class="best">${meta}</div>
+        <button class="go" tabindex="-1" data-act="go-track" data-i="${i}">${battle ? 'BATTLE!' : 'RACE!'}</button></div>`;
+    }).join('');
+    return `<div class="scr"><div class="veil"></div>
+      <div class="topbar"><button class="btn" data-act="back">BACK</button><h2>${title}</h2>${battle ? '' : speedSeg()}${coinPill()}</div>
+      <div class="strip">${cards}</div>
+      <div class="legend"><span><kbd>&#9664; &#9654;</kbd>CHOOSE</span><span><kbd>A</kbd>GO</span><span><kbd>B</kbd>BACK</span></div></div>`;
+  }
+  function gpHtml() {
+    const best = save.gp['s' + save.speed];
+    return `<div class="scr center"><div class="veil dark"></div><div class="panel glass">
+      <div class="kicker">${BUILTIN.length} RACES IN A ROW</div><h1 class="big" style="color:#ffb02e">GRAND PRIX</h1>
+      <div class="gp-tracks" style="grid-template-columns:repeat(${BUILTIN.length},1fr)">${BUILTIN.map((d, i) => `<div><img src="${trackThumb(d)}" alt="">${i + 1}. ${esc(d.name)}<span>${save.best['t' + i] ? 'BEST ' + fmtTime(save.best['t' + i]) : ' '}</span></div>`).join('')}</div>
+      <div class="info"><span>POINTS <b>${POINTS.join(' &middot; ')}</b></span><span>MOST POINTS WINS THE GOLD CUP</span>
+        ${best ? `<span>BEST <b>${ORD[best - 1]}</b></span>` : ''}${save.gold ? '' : '<span class="gold">WIN IT FOR THE GOLDEN KART!</span>'}</div>
+      <div class="row-c">${speedSeg()}</div>
+      <div class="res-actions"><button class="btn" data-act="back">BACK</button><button class="btn primary" data-act="primary">START THE CUP!</button></div>
+    </div></div>`;
+  }
+  function resultsHtml() {
+    const r = race, isGp = r.from === 'gp', mine = r.results.filter((x) => x.pi != null), two = r.view.length > 1;
+    const best = Math.min(...mine.map((x) => x.place));
+    const title = r.battle && best === 1 ? (two ? 'P' + (mine.find((x) => x.place === 1).pi + 1) + ' WINS!' : 'YOU WIN!')
+      : best <= 3 ? ORD[best - 1] + ' PLACE!' : r.coinMode ? 'GOOD STACKING!' : r.battle ? 'GOOD POPPING!' : 'NICE DRIVING!';
+    const col = best <= 3 ? CUP[best - 1] : '#4ff0ff';
+    const kicker = isGp ? 'GRAND PRIX &middot; RACE ' + (gp.idx + 1) + ' OF ' + BUILTIN.length : esc(r.board || r.def.name);
+    const pod = [1, 0, 2].map((i) => {
+      const x = r.results[i];
+      if (!x) return '';
+      return `<div class="pod p${i + 1}${x.pi != null ? ' me' : ''}"><img src="${kartThumb(x.ri, x.pi != null ? save.look[x.pi] : null)}" alt="">
+        <div class="pname">${x.pi == null ? x.name : two ? 'P' + (x.pi + 1) : 'YOU'}</div><div class="block">${i + 1}</div></div>`;
+    }).join('');
+    const rows = r.results.map((x, i) => {
+      const tag = x.pi == null ? '' : two ? ' P' + (x.pi + 1) : ' (YOU)';
+      const val = isGp ? `<td class="r g">+${x.pts}</td><td class="r c">${gp.points[x.ri] || 0}</td>`
+        : r.coinMode ? `<td class="r y">${x.score} ${x.score === 1 ? 'COIN' : 'COINS'}</td>`
+        : r.battle ? `<td class="r p">${x.score} ${x.score === 1 ? 'POP' : 'POPS'}</td>`
+        : `<td class="r c">${x.time ? fmtTime(x.time) : ''}</td>`;
+      return `<tr class="${x.pi != null ? 'me' : ''}"><td style="color:${i < 3 ? CUP[i] : ''}">${ORD[i]}</td><td><span class="sw" style="background:${hex(x.color)}"></span>${x.name}${tag}</td>${val}</tr>`;
+    }).join('');
+    const lines = [];
+    if (r.battle) lines.push(`<div class="line dim">${r.coinMode ? 'YOU KEEP EVERY COIN IN YOUR STACK!' : '+1 COIN FOR EVERY POP'}</div>`);
+    if (r.newBest) lines.push('<div class="line g">NEW BEST TIME!</div>');
+    if (r.coinsWon) lines.push(`<div class="line y"><i class="coin"></i>+${r.coinsWon} COINS &nbsp;&middot;&nbsp; ${save.coins} IN ALL</div>`);
+    if (r.unlocked.length) lines.push(`<div class="line p">NEW: ${r.unlocked.join(', ')}!</div>`);
+    const backLabel = isGp ? 'QUIT CUP' : r.from === 'build' ? 'BUILDER' : r.battle ? 'ARENAS' : 'TRACKS';
+    const goLabel = isGp ? (gp.idx < BUILTIN.length - 1 ? 'NEXT RACE' : 'SEE THE CUP!') : r.battle ? 'AGAIN!' : 'RACE AGAIN';
+    return `<div class="scr center"><div class="veil dark"></div><div class="panel glass results">
+      <div class="res-head"><div class="kicker">${kicker}</div><h1 class="big" style="color:${col}">${title}</h1></div>
+      <div class="podium">${pod}</div>
+      <div class="res-body"><table class="table">${isGp ? '<tr class="dim"><td></td><td></td><td class="r">POINTS</td><td class="r">TOTAL</td></tr>' : ''}${rows}</table>${lines.join('')}</div>
+      <div class="res-actions"><button class="btn" data-act="back">${backLabel}</button><button class="btn primary" data-act="primary">${goLabel}</button></div>
+    </div></div>`;
+  }
+  function cupHtml() {
+    const c = cup, mine = c.standings.filter((s) => s.pi >= 0).sort((a, b) => a.pi - b.pi), two = mine.length > 1;
+    const rows = c.standings.map((s, i) => `<tr class="${s.pi >= 0 ? 'me' : ''}"><td style="color:${i < 3 ? CUP[i] : ''}">${ORD[i]}</td><td>${RACERS[s.ri].name}${s.pi >= 0 ? (two ? ' P' + (s.pi + 1) : ' (YOU)') : ''}</td><td class="r c">${s.pts}</td></tr>`).join('');
+    const trophies = mine.map((s) => `<div class="trophy glass">${s.place <= 3 ? trophySvg(CUP[s.place - 1]) : '<b style="color:#8fe36b;font-size:1.3em">GREAT TRY!</b>'}
+      <span>${two ? 'P' + (s.pi + 1) + ' &middot; ' : ''}${ORD[s.place - 1]} PLACE</span></div>`).join('');
+    return `<div class="scr"><div class="topbar"><h2 style="color:#ffe14f">GRAND PRIX!</h2>${coinPill()}</div>
+      <div class="cup-row"><div class="glass standings"><table class="table">${rows}</table></div><div class="trophies">${trophies}</div></div>
+      ${c.unlocked.length ? `<div class="row-c"><div class="pill glass line p">NEW: ${c.unlocked.join(', ')}!</div></div>` : ''}
+      <div class="res-actions"><button class="btn" data-act="back">MENU</button><button class="btn primary" data-act="primary">PLAY AGAIN</button></div></div>`;
+  }
+  function pauseHtml() {
+    return `<div class="scr center pause"><div class="veil dark"></div><div class="panel glass">
+      <h1 class="big" style="color:#ffe14f">PAUSED</h1>
+      ${PAUSE_ITEMS.map((p, i) => `<button class="btn${i === 0 ? ' primary' : ''}${selIf(pauseSel === i)}" data-act="pause" data-i="${i}">${p}</button>`).join('')}
+    </div></div>`;
+  }
+
+  // ---- what's on screen now (rebuilt only when this changes) ----
+  let uiLast = null, uiShelf = null, shelfTimer = 0;
+  function uiSig() {
+    const L = save.look;
+    let s = mode + '|' + save.coins + '|' + save.players + '|' + save.speed;
+    if (mode === 'title') s += '|' + titleSel + '|' + L[0].racer + L[0].paint + L[0].hat + save.gp['s' + save.speed];
+    else if (mode === 'racer') s += '|' + gStep + '|' + gSel + '|' + pickIdx + '|' + JSON.stringify(L) + garageThen + flow;
+    else if (mode === 'track') s += '|' + flow + battleKind;
+    else if (mode === 'race') s += '|' + (race ? (race.results ? 'R' : '') + (paused ? 'P' + pauseSel : '') : '');
+    else if (mode === 'cup') s += '|' + (cup ? cup.standings.length : '');
+    return s;
+  }
+  function renderUI() {
+    const sig = uiSig();
+    if (sig === uiLast) return;
+    uiLast = sig;
+    uiShelf = null;
+    let html = '';
+    if (mode === 'title') html = homeHtml();
+    else if (mode === 'racer') html = garageHtml();
+    else if (mode === 'track') html = trackHtml();
+    else if (mode === 'gpintro') html = gpHtml();
+    else if (mode === 'cup' && cup) html = cupHtml();
+    else if (mode === 'race' && race && race.results) html = resultsHtml();
+    else if (mode === 'race' && paused) html = pauseHtml();
+    ui.innerHTML = html;
+    if (mode === 'racer') {
+      const sel = ui.querySelector('.tile.sel');
+      if (sel) sel.scrollIntoView({ block: 'nearest' });
+    }
+    if (mode === 'track') {
+      // the cards: the track behind changes to whichever one is in the middle
+      uiShelf = MickleCarousel.create(ui.querySelector('.strip'), {
+        start: trackSel,
+        onSelect(i) {
+          if (i === trackSel) return;
+          trackSel = i;
+          sfxSelect();
+          clearTimeout(shelfTimer);
+          shelfTimer = setTimeout(() => {
+            if (mode !== 'track') return;
+            const t = trackList()[trackSel];
+            if (t) { buildWorld(t.def); setSong(t.def.theme); }
+          }, 300);
+        },
+        onActivate(i) { trackSel = i; raceSelected(); },
+      });
+    }
+  }
+  function uiNope(i) {
+    const b = ui.querySelectorAll('.tile')[i];
+    if (!b) return;
+    b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope');
+  }
+  function uiAct(act, i) {
+    unlockAudio();
+    if (act === 'title') titleChoose(i);
+    else if (act === 'pick') garagePick(i);
+    else if (act === 'next') garageNext();
+    else if (act === 'back') back();
+    else if (act === 'primary') primary();
+    else if (act === 'speed') setSpeed(i);
+    else if (act === 'go-track') { trackSel = i; raceSelected(); }
+    else if (act === 'pause') pauseChoose(i);
+  }
+  ui.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // (so SPACE doesn't press it again)
+    uiAct(b.dataset.act, +b.dataset.i || 0);
+  });
+  // taps on the panels never reach the game underneath (steering, the HUD's own buttons)
+  ui.addEventListener('pointerdown', (e) => { if (e.target.closest('button, .card, .glass')) e.stopPropagation(); });
 
   // ---------- Resize and drawing ----------
   function resize() {
@@ -4904,11 +5133,14 @@
     if (race) { for (let s = 0; s < steps && !paused; s++) { if (race) stepRace(dt); } }
     else if (mode === 'racer') {
       const m = models[save.look[pickIdx].racer];
+      // a happy hop when you pick something new
+      const since = spin - showHop, hop = since < 0.6 ? Math.sin(since / 0.6 * PI) : 0;
       m.g.rotation.y = spin * 0.9;
-      m.g.position.y = SHOW_Y + Math.abs(Math.sin(spin * 3)) * 0.12;
-      pose(m, spin, Math.sin(spin * 0.7) > 0.6, -0.1);
-      camera.position.set(0, SHOW_Y + 2.6, 8.2);
-      camera.lookAt(0, SHOW_Y + 1.25, 0);
+      m.g.position.y = SHOW_Y + Math.abs(Math.sin(spin * 3)) * 0.12 + hop * 1.2;
+      pose(m, spin, hop > 0.2 || Math.sin(spin * 0.7) > 0.6, -0.1);
+      // (the turntable shows through the clear panel on the left of the garage)
+      camera.position.set(5.1, SHOW_Y + 3.4, 12);
+      camera.lookAt(5.1, SHOW_Y + 0.9, 0);
       setFov(camera, 50);
     } else if (mode === 'track' || mode === 'gpintro') {
       const a = spin * 0.2;
@@ -4948,6 +5180,7 @@
     stepParticles(raw);
     models.forEach((m) => { if (m.rainbow) m.paint.color.setHSL((spin * 0.25) % 1, 0.85, 0.55); });
     tickMusic();
+    renderUI();          // (before the 3D picture: kart pictures for the menus are drawn in its corner)
     const t1 = performance.now();
     render();
     const t2 = performance.now();

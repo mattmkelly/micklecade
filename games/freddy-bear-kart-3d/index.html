@@ -10,14 +10,27 @@
 <link rel="manifest" href="../../manifest.webmanifest">
 <meta name="theme-color" content="#120b28">
 <style>
+  :root {
+    --muted: #c3bce6;
+    --glass: rgba(16, 11, 44, .66);
+    --glass-hi: rgba(32, 23, 78, .8);
+    --line: rgba(255, 255, 255, .16);
+    --pink: #ff4fd8;
+    --cyan: #4ff0ff;
+    --gold: #ffd23f;
+    --hot: linear-gradient(135deg, #ff4fd8 0%, #ff7a3d 100%);
+    --go: linear-gradient(135deg, #5cf07a 0%, #17b84a 100%);
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
   html, body {
     margin: 0;
     min-height: 100%;
-    background: #0b1030;
+    background: radial-gradient(ellipse at 50% 40%, #1a1240 0%, #0a0618 70%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: var(--font);
+    color: #fff;
     overflow: hidden;
     touch-action: manipulation;
   }
@@ -33,7 +46,7 @@
     box-sizing: border-box;
   }
 
-  /* As big as the window allows -- the back link and the how-to-play text live in the ☰ menu
+  /* As big as the window allows -- the back link and HOW TO PLAY live in the ☰ menu
      (shared/menu.js), so nothing outside the frame needs room. */
   #wrap {
     display: flex;
@@ -41,41 +54,31 @@
     align-items: center;
     gap: 8px;
     padding: 8px;
-    width: min(100%, calc((100vh - 28px) * 16 / 9 + 16px));
-    width: min(100%, calc((100dvh - 28px) * 16 / 9 + 16px));
+    width: min(100%, calc((100vh - 16px) * 16 / 9 + 16px));
+    width: min(100%, calc((100dvh - 16px) * 16 / 9 + 16px));
     min-width: min(100%, 300px);
     touch-action: manipulation;
   }
 
-  #topbar {
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+  #topbar { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #back { color: #5ff3ff; text-decoration: none; font-size: 0.8rem; letter-spacing: 1px; }
+  .mc-menu-items > a#back { color: var(--cyan); }
+  .howto-link {
+    font: bold .8rem "Courier New", Courier, monospace !important; letter-spacing: 1px; padding: 9px 10px;
+    border: 2px solid #ffe14f !important; border-radius: 999px; color: #ffe14f !important; background: transparent; cursor: pointer;
   }
 
-  #back {
-    color: #5ff3ff;
-    text-decoration: none;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-    text-shadow: 0 0 6px #5ff3ff;
-  }
-
-  /* The 3D view and the HUD canvas drawn over it. */
+  /* The 3D view, the HUD canvas drawn over it, and the menus (HTML) over both. */
   #stage {
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
-    border: 4px solid #ffb02e;
-    border-radius: 6px;
-    box-shadow: 0 0 24px rgba(255, 176, 46, 0.45);
+    border-radius: 12px;
+    box-shadow: 0 1.2em 3em rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .08);
     background: #000;
     overflow: hidden;
     touch-action: none;
   }
-
   #stage canvas {
     position: absolute;
     inset: 0;
@@ -85,31 +88,281 @@
     touch-action: none;
   }
 
-  #hint {
-    color: #ffe14f;
-    font-size: 0.72rem;
-    letter-spacing: 1px;
-    text-align: center;
-    text-shadow: 0 0 6px #ffe14f;
+  /* ---------- the menus: frosted glass over the live 3D scene ---------- */
+  #ui { position: absolute; inset: 0; z-index: 5; pointer-events: none; font-size: 14px; }
+  #ui > .scr { position: absolute; inset: 0; display: flex; flex-direction: column; gap: .9em; padding: 1em 1.4em 1.2em; pointer-events: none;
+    animation: fade-in .25s ease-out; }
+  #ui > .scr.center { align-items: center; justify-content: center; }
+  #ui button, #ui .card, #ui .glass { pointer-events: auto; }
+  #ui .veil { position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 70% at 50% 45%, rgba(10, 6, 30, 0) 40%, rgba(10, 6, 30, .55) 100%),
+      linear-gradient(180deg, rgba(10, 6, 30, .5) 0%, rgba(10, 6, 30, 0) 28%, rgba(10, 6, 30, 0) 58%, rgba(10, 6, 30, .7) 100%); }
+  #ui .veil.dark { background: rgba(8, 5, 24, .55); }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(.4em); } }
+
+  /* (a gentle reset: :where() keeps it weak, so any class below can still give a button its look) */
+  :where(#ui button) { font-family: inherit; color: #fff; border: none; background: none; cursor: pointer; padding: 0; }
+  #ui button:focus { outline: none; }
+  /* the keyboard / controller's choice: a white ring and a pink glow */
+  #ui .sel, #ui button:focus-visible { box-shadow: 0 0 0 .18em #fff, 0 0 1.6em .3em rgba(255, 79, 216, .7) !important; }
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 1.2em;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 1em 2.4em rgba(0, 0, 0, .35);
   }
+  .fast .glass { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(16, 11, 44, .82); }   /* (blur is slow on tablets) */
+  .coin {
+    display: inline-block; width: 1.1em; height: 1.1em; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 35% 30%, #fff6b0, #ffb300 60%, #a86800);
+    box-shadow: inset 0 0 0 .12em #7a4c00;
+  }
+
+  .topbar { display: flex; align-items: center; gap: .7em; min-height: 3em; padding-left: 3.2em; }
+  .topbar h2 { flex: 1; margin: 0; font-size: 1.7em; font-weight: 900; font-style: italic; letter-spacing: .01em; text-shadow: 0 .08em .5em rgba(0, 0, 0, .6); }
+  .topbar .sp { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: .5em; padding: .5em 1em; border-radius: 999px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4em;
+    padding: .75em 1.4em; border-radius: .9em; font-size: 1em; font-weight: 900; font-style: italic; letter-spacing: .02em;
+    background: rgba(16, 11, 44, .62); border: 1px solid rgba(255, 255, 255, .28);
+    transition: transform .12s, background .12s;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn.primary { background: var(--go); border-color: rgba(255, 255, 255, .45); box-shadow: 0 .4em 1.2em rgba(40, 200, 90, .35); font-size: 1.1em; }
+  .btn .q { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%; background: var(--hot); font-style: normal; font-weight: 900; }
+  .btn svg { width: 1.4em; height: 1.4em; }
+
+  /* ---- home ---- */
+  .logo { margin: .2em 0 0 .6em; line-height: .86; transform: skewX(-9deg); transform-origin: left; }
+  .logo .l1 { display: block; font-size: 2.4em; font-weight: 900; letter-spacing: .05em; text-shadow: 0 .07em 0 #2a0f5a, 0 .25em .7em rgba(0, 0, 0, .55); }
+  .logo .l2 {
+    display: block; font-size: 6.2em; font-weight: 900; letter-spacing: -.01em; white-space: nowrap;
+    background: linear-gradient(180deg, #fff7b0 0%, #ffd23f 38%, #ff8a2b 72%, #ff4f6d 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: .035em #2a0f5a;
+    filter: drop-shadow(0 .06em 0 #2a0f5a) drop-shadow(0 .25em .4em rgba(0, 0, 0, .5));
+  }
+  .logo .speed { display: flex; gap: .35em; margin: .5em 0 0 .2em; }
+  .logo .speed i { display: block; height: .45em; border-radius: 1em; background: var(--hot); }
+  .logo .speed i:nth-child(1) { width: 9em; } .logo .speed i:nth-child(2) { width: 4em; opacity: .7; } .logo .speed i:nth-child(3) { width: 1.6em; opacity: .45; }
+  .tagline { margin: .7em 0 0 .7em; color: var(--muted); font-weight: 800; letter-spacing: .12em; font-size: .85em; text-shadow: 0 .1em .4em #000; }
+  .driver-chip { display: flex; align-items: center; gap: .4em; padding: .2em 1em .2em .25em; border-radius: 999px; text-align: left; }
+  .driver-chip img { width: 3.4em; height: 2.55em; border-radius: 999px; object-fit: cover; }
+  .driver-chip small, .pill small { display: block; color: var(--muted); font-size: .7em; font-weight: 800; letter-spacing: .1em; font-style: normal; }
+  .driver-chip b { font-size: 1.05em; font-weight: 900; font-style: italic; }
+  .modes { margin-top: auto; display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr 1fr; gap: .7em; }
+  .mode-tile {
+    position: relative; overflow: hidden; text-align: left;
+    min-height: 10.5em; padding: .9em 1em; border-radius: 1.2em;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: .2em;
+    transition: transform .15s;
+  }
+  .mode-tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: .3em; background: var(--accent, var(--cyan)); }
+  .mode-tile:hover, .mode-tile.sel { transform: translateY(-.3em); }
+  .mode-tile svg { position: absolute; top: .9em; left: .9em; width: 2.3em; height: 2.3em; color: var(--accent, #fff); }
+  .mode-tile b { font-size: 1.08em; font-weight: 900; font-style: italic; line-height: 1.05; }
+  .mode-tile small { color: var(--muted); font-size: .78em; font-weight: 700; line-height: 1.25; }
+  .mode-tile.primary { background: var(--hot); border-color: rgba(255, 255, 255, .4); }
+  .mode-tile.primary::before { display: none; }
+  .mode-tile.primary svg { color: #fff; width: 3.1em; height: 3.1em; }
+  .mode-tile.primary b { font-size: 2.3em; }
+  .mode-tile.primary small { color: rgba(255, 255, 255, .92); }
+  .t-gp { --accent: var(--gold); } .t-bal { --accent: #ff7ab8; } .t-coin { --accent: #ffd23f; } .t-build { --accent: var(--cyan); }
+
+  /* ---- garage: DRIVER -> PAINT -> HAT ---- */
+  .stepper { display: flex; gap: .4em; list-style: none; margin: 0; padding: 0; }
+  .stepper li { display: flex; align-items: center; gap: .45em; padding: .4em .9em .4em .4em; border-radius: 999px;
+    background: rgba(0, 0, 0, .4); color: var(--muted); font-weight: 800; font-size: .8em; letter-spacing: .06em; }
+  .stepper li span { display: grid; place-items: center; width: 1.7em; height: 1.7em; border-radius: 50%; background: rgba(255, 255, 255, .12); font-weight: 900; }
+  .stepper li.on { background: var(--hot); color: #fff; }
+  .stepper li.on span { background: rgba(255, 255, 255, .3); }
+  .stepper li.done span { background: #4fff8f; color: #0a3a1a; }
+  .garage { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1.25fr; gap: 1em; }
+  /* the left side is a window onto the 3D turntable, so no frosting there */
+  .showroom { position: relative; display: flex; flex-direction: column; justify-content: flex-end; padding: 1em 1.2em;
+    border: 1px solid var(--line); border-radius: 1.2em; background: linear-gradient(180deg, rgba(10, 6, 30, 0) 55%, rgba(10, 6, 30, .55) 100%); }
+  .show-name { font-size: 2.2em; font-weight: 900; font-style: italic; text-shadow: 0 .08em .4em #000; }
+  .show-sub { color: var(--muted); font-size: .8em; font-weight: 800; letter-spacing: .06em; text-shadow: 0 .1em .3em #000; }
+  .stats { position: absolute; top: .9em; left: 1em; display: grid; grid-template-columns: auto auto; gap: .3em .6em; align-items: center;
+    padding: .6em .8em; border-radius: .9em; background: rgba(10, 6, 30, .55); font-size: .78em; font-weight: 900; letter-spacing: .08em; }
+  .pips { display: flex; gap: .25em; }
+  .pips i { width: 1em; height: .8em; border-radius: .2em; background: rgba(255, 255, 255, .2); }
+  .pips i.on { background: var(--gold); }
+  .picker { display: flex; flex-direction: column; gap: .7em; padding: .9em; min-height: 0; }
+  .grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: .55em; align-content: start; padding: .3em; }
+  .tile { display: flex; flex-direction: column; align-items: center; gap: .1em; padding: .3em .3em .45em;
+    background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: .9em; transition: transform .12s, background .12s; }
+  .tile img { width: 100%; aspect-ratio: 4 / 3; border-radius: .6em; display: block; background: #241a52; }
+  .tile .t-name { font-weight: 900; font-style: italic; font-size: .74em; text-align: center; line-height: 1.15; }
+  .tile .t-tag { display: flex; align-items: center; gap: .35em; color: var(--muted); font-size: .64em; font-weight: 800; letter-spacing: .05em; min-height: 1.2em; }
+  .tile.on { background: rgba(255, 210, 63, .18); border-color: var(--gold); }
+  .tile.on .t-tag { color: var(--gold); }
+  .tile.locked img, .tile.taken img { filter: grayscale(.85) brightness(.55); }
+  .tile.locked .t-tag { color: #ffd23f; }
+  .tile.nope { animation: nope .35s; }
+  @keyframes nope { 25% { transform: translateX(-.35em); } 75% { transform: translateX(.35em); } }
+  .next-unlock { color: var(--muted); font-size: .72em; font-weight: 800; letter-spacing: .06em; text-align: center; }
+  .actions { display: flex; justify-content: flex-end; gap: .6em; }
+
+  /* ---- track / arena select ---- */
+  #ui .strip { flex: 1; min-height: 0; --mc-card-w: 17em; }
+  .card { display: flex; flex-direction: column; gap: .45em; padding: .6em; cursor: pointer;
+    background: var(--glass-hi); border: 1px solid var(--line); border-radius: 1.2em; box-shadow: 0 1em 2em rgba(0, 0, 0, .4); }
+  .card img { width: 100%; aspect-ratio: 16 / 10; display: block; border-radius: .8em; }
+  .card .name { font-size: 1.2em; font-weight: 900; font-style: italic; padding: 0 .3em; }
+  .card .sub { color: var(--muted); font-size: .76em; font-weight: 700; line-height: 1.3; padding: 0 .3em; min-height: 2.6em; }
+  .card .best { display: flex; align-items: center; gap: .4em; color: var(--cyan); font-size: .78em; font-weight: 800; letter-spacing: .05em; padding: 0 .3em; min-height: 1.6em; font-variant-numeric: tabular-nums; }
+  .card .best svg { width: 1.5em; height: 1.5em; }
+  .card .go { padding: .65em; border-radius: .8em; font-weight: 900; font-style: italic; background: rgba(255, 255, 255, .1); }
+  .card.selected { border-color: rgba(255, 255, 255, .55); box-shadow: 0 0 0 .14em var(--pink), 0 1em 2.4em rgba(0, 0, 0, .5), 0 0 2.2em rgba(255, 79, 216, .45); }
+  .card.selected .go { background: var(--go); }
+  .seg { display: inline-flex; gap: .2em; padding: .25em; border-radius: 999px; }
+  .seg small { align-self: center; padding: 0 .5em 0 .6em; color: var(--muted); font-size: .7em; font-weight: 900; letter-spacing: .1em; }
+  .seg button { padding: .45em .9em; border-radius: 999px; font-weight: 900; font-style: italic; font-size: .85em; color: var(--muted); }
+  .seg button.on { color: #120b28; background: var(--sc, #8fe36b); }
+  .legend { display: flex; justify-content: center; gap: 1.4em; color: var(--muted); font-size: .75em; font-weight: 800; letter-spacing: .08em; text-shadow: 0 .1em .3em #000; }
+  .legend kbd { display: inline-grid; place-items: center; min-width: 1.8em; height: 1.8em; margin-right: .4em; padding: 0 .4em;
+    border-radius: .5em; background: rgba(255, 255, 255, .14); font: inherit; color: #fff; }
+
+  /* ---- Grand Prix, results, cup, pause ---- */
+  .panel { display: flex; flex-direction: column; gap: .7em; padding: 1.2em 1.6em 1.3em; width: min(100%, 58em); max-height: 100%; }
+  .kicker { color: var(--muted); font-weight: 800; letter-spacing: .12em; font-size: .8em; text-align: center; }
+  .big { margin: 0; text-align: center; font-size: 2.6em; font-weight: 900; font-style: italic; line-height: 1.05; text-shadow: 0 .08em .5em rgba(0, 0, 0, .5); }
+  .gp-tracks { display: grid; grid-template-columns: repeat(5, 1fr); gap: .6em; }
+  .gp-tracks div { display: flex; flex-direction: column; gap: .3em; font-size: .78em; font-weight: 900; font-style: italic; text-align: center; }
+  .gp-tracks img { width: 100%; aspect-ratio: 16 / 10; border-radius: .6em; }
+  .gp-tracks span { color: var(--muted); font-style: normal; font-size: .85em; }
+  .info { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: .4em 1.4em; color: var(--muted); font-size: .85em; font-weight: 800; letter-spacing: .04em; }
+  .info b { color: #fff; }
+  .info .gold { color: var(--gold); }
+  .row-c { display: flex; justify-content: center; align-items: center; gap: .8em; flex-wrap: wrap; }
+  .res-actions { display: flex; justify-content: space-between; gap: .6em; margin-top: .3em; }
+  .results { display: grid; grid-template-columns: 1fr 1.2fr; gap: .4em 1.8em; }
+  .results .res-head, .results .res-actions { grid-column: 1 / -1; }
+  .podium { display: flex; align-items: flex-end; justify-content: center; gap: .4em; padding-top: .3em; }
+  .pod { display: flex; flex-direction: column; align-items: center; width: 7.6em; }
+  .pod img { width: 100%; aspect-ratio: 4 / 3; margin-bottom: -.6em; position: relative; z-index: 1; border-radius: .7em; }
+  .pod .pname { position: relative; z-index: 2; font-weight: 900; font-style: italic; font-size: .82em; margin: .7em 0 .25em; text-shadow: 0 .1em .3em #000; text-align: center; }
+  .pod.me .pname { color: var(--gold); }
+  .pod .block { width: 100%; display: flex; justify-content: center; padding-top: .2em; border-radius: .6em .6em .2em .2em; font-weight: 900; font-size: 1.6em; }
+  .p1 .block { height: 2.8em; background: linear-gradient(#ffe36a, #c99400); color: #5a3a00; }
+  .p2 .block { height: 2em; background: linear-gradient(#f2f6fa, #96a3b2); color: #2a3440; }
+  .p3 .block { height: 1.4em; background: linear-gradient(#ffb060, #b0601e); color: #4a2000; }
+  .table { border-collapse: collapse; font-size: .9em; font-weight: 800; font-variant-numeric: tabular-nums; width: 100%; }
+  .table td { padding: .22em .5em .22em 0; text-align: left; white-space: nowrap; }
+  .table td.r { text-align: right; padding-right: .2em; }
+  .table td.g { color: #8fe36b; } .table td.c { color: var(--cyan); } .table td.y { color: var(--gold); } .table td.p { color: #ff9ad6; }
+  .table tr.me { color: var(--gold); }
+  .table tr.me td:first-child { border-left: .25em solid var(--gold); padding-left: .4em; }
+  .table td:first-child { padding-left: .65em; }
+  .sw { display: inline-block; width: .8em; height: .8em; border-radius: .25em; margin-right: .45em; vertical-align: -.05em; }
+  .res-body { display: flex; flex-direction: column; justify-content: center; gap: .3em; font-weight: 800; font-size: .92em; letter-spacing: .03em; }
+  .line { display: flex; align-items: center; gap: .45em; }
+  .line.y { color: var(--gold); } .line.g { color: #4fff8f; } .line.p { color: #ff9ad6; } .line.dim { color: var(--muted); }
+  .cup-row { flex: 1; min-height: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 1em; }
+  .cup-row .glass { padding: .9em 1.1em; }
+  .standings { width: 15em; }
+  .trophies { display: flex; flex-direction: column; gap: .7em; }
+  .trophy { display: flex; flex-direction: column; align-items: center; gap: .2em; width: 10em; font-weight: 900; font-style: italic; text-align: center; }
+  .trophy svg { width: 5em; height: 5em; }
+  .pause .panel { width: min(100%, 22em); align-items: stretch; font-size: 1.25em; }
+  .pause .btn { padding: .9em; }
+
+  /* ---------- HOW TO PLAY: its own page over everything ---------- */
+  .howto { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 1em;
+    background: rgba(8, 5, 24, .75); font-size: clamp(9px, min(1.45vw, 2.58vh), 20px); animation: fade-in .2s ease-out; }
+  .howto[hidden] { display: none; }
+  .howto-panel { width: min(100%, 64em); max-height: 100%; overflow: auto; padding: 1.3em 1.7em 1.4em; display: flex; flex-direction: column; gap: .9em; }
+  .howto-panel h1 { margin: 0; text-align: center; font-size: 2.3em; font-weight: 900; font-style: italic; }
+  .howto-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7em; }
+  .how { display: grid; grid-template-columns: 3.4em 1fr; grid-template-rows: auto auto 1fr; column-gap: .8em; row-gap: .25em;
+    padding: .85em 1em; border-radius: 1em; background: rgba(255, 255, 255, .07); border: 1px solid var(--line); }
+  .how svg { grid-row: 1 / 3; width: 3.4em; height: 3.4em; }
+  .how b { font-size: 1.15em; font-weight: 900; font-style: italic; align-self: end; }
+  .how p { margin: 0; color: var(--muted); font-size: .85em; font-weight: 700; line-height: 1.3; }
+  .how .keys { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35em; margin-top: .4em; align-self: end; }
+  .how .keys span { display: inline-flex; align-items: center; gap: .35em; padding: .25em .55em; border-radius: .5em;
+    background: rgba(0, 0, 0, .3); font-size: .72em; font-weight: 800; color: var(--muted); letter-spacing: .04em; }
+  .how .keys kbd { font: inherit; color: #fff; }
+  .howto-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7em; }
+  .howto-modes div { padding: .6em .9em; border-radius: .9em; background: rgba(0, 0, 0, .28); font-size: .82em; font-weight: 700; color: var(--muted); line-height: 1.3; }
+  .howto-modes b { display: block; color: #fff; font-style: italic; font-size: 1.1em; }
+  .howto-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; color: var(--muted); font-size: .82em; font-weight: 700; line-height: 1.35; }
+  .howto .btn { font-family: var(--font); color: #fff; border: none; cursor: pointer; }
+  .howto .btn:focus { outline: none; box-shadow: 0 0 0 .18em #fff, 0 0 1.6em .3em rgba(255, 79, 216, .7); }
 </style>
 </head>
 <body>
   <div id="wrap">
     <div id="topbar">
       <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
+      <button id="btn-howto" class="howto-link" type="button">HOW TO PLAY</button>
     </div>
     <div id="stage">
       <canvas id="view"></canvas>
       <canvas id="hud" width="480" height="270"></canvas>
+      <div id="ui"></div>
     </div>
-    <div id="hint">THE KART DRIVES BY ITSELF. STEER: &#9664; &#9654; / STICK / HOLD A SIDE OF THE SCREEN &middot; HOP: SPACE / A (HOLD IT WHILE TURNING TO DRIFT, LET GO FOR A BOOST) &middot; ITEM: UP / X / TAP THE ITEM BOX &middot; BRAKE: DOWN / B &middot; PRESS HOP ON GO FOR A ROCKET START &middot; TWO PLAYERS: P1 A D S, SPACE, W &mdash; P2 ARROWS, RIGHT SHIFT, UP (OR A CONTROLLER EACH) &middot; BALLOON BATTLE: EVERYONE HAS 3 BALLOONS &mdash; SNOWBALLS, HONEY, AND RAMMING SOMEONE WHILE BOOSTING POP THEM; MOST POPS IN 2 MINUTES WINS &middot; LITTLE DRIVERS: SET EACH PLAYER'S STICK (GENTLE) AND AUTO-STEER IN THIS MENU &middot; FACING THE WRONG WAY OR STUCK ON THE GRASS? PUFF THE CLOUD LIFTS YOU BACK &middot; M: MUSIC &middot; PAUSE: P / ESC / START / TAP II (RESUME, START AGAIN OR QUIT TO THE MENU)</div>
   </div>
+
+  <!-- HOW TO PLAY: its own page, opened from the title screen or the ☰ menu -->
+  <div id="howto" class="howto" hidden>
+    <div class="howto-panel glass">
+      <h1>HOW TO PLAY</h1>
+      <div class="howto-grid">
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="17" stroke="#4ff0ff" stroke-width="4"/><circle cx="24" cy="24" r="4" fill="#4ff0ff"/><path d="M7 24h13M28 24h13M24 28v13" stroke="#4ff0ff" stroke-width="4"/></svg>
+          <b>STEER</b><p>Your kart drives all by itself. You just steer!</p>
+          <div class="keys"><span>KEYS <kbd>&larr; &rarr;</kbd></span><span>PAD <kbd>STICK</kbd></span><span>TOUCH <kbd>STICK / HOLD A SIDE</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M24 36V14" stroke="#5cf07a" stroke-width="6"/><path d="M13 22l11-11 11 11" stroke="#5cf07a" stroke-width="6"/><path d="M10 42c6-3 22-3 28 0" stroke="#fff" stroke-width="3"/></svg>
+          <b>HOP &amp; DRIFT</b><p>Hop over things. Hold HOP round a bend to make sparks, let go to ZOOM!</p>
+          <div class="keys"><span>KEYS <kbd>SPACE</kbd></span><span>PAD <kbd>A</kbd></span><span>TOUCH <kbd>GREEN ARROW</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="32" height="32" rx="7" fill="#b48cff" stroke="#fff" stroke-width="3"/><path d="M19 19a5 5 0 1 1 7 4.6c-1.4.7-2 1.6-2 3.4" stroke="#fff" stroke-width="4"/><circle cx="24" cy="33" r="2.4" fill="#fff"/></svg>
+          <b>ITEM BOXES</b><p>Drive through a box. Carrots zoom, snowballs and honey bonk the others.</p>
+          <div class="keys"><span>KEYS <kbd>&uarr;</kbd></span><span>PAD <kbd>X</kbd></span><span>TOUCH <kbd>ITEM</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6h14l11 11v14L31 42H17L6 31V17z" fill="#ff4f6d" stroke="#fff" stroke-width="2.5"/><path d="M15 24h18" stroke="#fff" stroke-width="5"/></svg>
+          <b>BRAKE</b><p>Slow down for tight bends. Keep holding to back up.</p>
+          <div class="keys"><span>KEYS <kbd>&darr;</kbd></span><span>PAD <kbd>B</kbd></span><span>TOUCH <kbd>STOP SIGN</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 38h40L36 18z" fill="#4fd0ff" stroke="#fff" stroke-width="3"/><path d="M14 16c4-8 14-10 22-6" stroke="#ffd23f" stroke-width="3" stroke-dasharray="3 4"/></svg>
+          <b>JUMPS &amp; TRICKS</b><p>Press HOP just before the top of a jump for a big floaty trick and a boost!</p>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="16" fill="#ffd23f" stroke="#a86800" stroke-width="4"/><circle cx="18" cy="20" r="2.5" fill="#a86800"/><circle cx="30" cy="20" r="2.5" fill="#a86800"/><circle cx="24" cy="28" r="3" fill="#a86800"/></svg>
+          <b>COINS</b><p>Grab koala coins for new hats and kart paint. Win the Grand Prix for the GOLDEN kart!</p>
+        </div>
+      </div>
+      <div class="howto-modes">
+        <div><b>RACE</b>Pick a track. Race 3 laps against the others.</div>
+        <div><b>GRAND PRIX</b>All the tracks in a row. Most points wins the cup!</div>
+        <div><b>BATTLES</b>Pop the most balloons, or stack up the most coins, in 2 minutes.</div>
+        <div><b>BUILD A TRACK</b>Draw your own track, add jumps, portals and walls, then race it.</div>
+      </div>
+      <div class="howto-foot">
+        <span>Two players? Player 1 uses A D, S, SPACE, W and player 2 the ARROWS, RIGHT SHIFT, UP (or a controller each).<br>
+          Little drivers: set a gentle stick and AUTO-STEER in the &#9776; menu. Stuck or going the wrong way? Puff the cloud lifts you back.</span>
+        <button id="btn-howto-close" class="btn primary" type="button">GOT IT!</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/three.min.js"></script>
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/hires.js"></script>
   <script src="../../shared/scores.js"></script>
+  <script src="../../shared/carousel.js"></script>
   <script src="../../shared/touchpad.js"></script>
   <script src="../../shared/menu.js"></script>
   <script src="game.js"></script>
