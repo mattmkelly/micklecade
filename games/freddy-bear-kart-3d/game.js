@@ -308,6 +308,24 @@
       g.stroke();
     }
   }, true);
+  // the anti-gravity half-pipe: a dark glowing floor with arrows, and a purple wall with light stripes
+  const pipeFloorTex = canvasTex(128, 128, (g, w, h) => {
+    g.fillStyle = '#1f2556'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(110,230,255,0.35)'; g.lineWidth = 2;
+    for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 32, 0); g.lineTo(i * 32, h); g.moveTo(0, i * 32); g.lineTo(w, i * 32); g.stroke(); }
+    g.strokeStyle = '#6ee6ff'; g.lineWidth = 7; g.lineJoin = 'miter';
+    g.beginPath(); g.moveTo(36, 84); g.lineTo(64, 56); g.lineTo(92, 84); g.stroke();
+    g.fillStyle = '#ff5ccf'; g.fillRect(0, 0, 4, h); g.fillRect(w - 4, 0, 4, h);
+  }, true);
+  const pipeWallTex = canvasTex(128, 128, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, w, 0);
+    gr.addColorStop(0, '#4a2a9a'); gr.addColorStop(1, '#8a3ac0');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    for (let i = 0; i < 4; i++) g.fillRect(0, i * 32, w, 2);
+    g.fillStyle = '#7ff6ff'; g.fillRect(w / 2 - 4, 0, 8, h);
+    g.fillStyle = '#ffd84f'; g.fillRect(6, 0, 4, h); g.fillRect(w - 10, 0, 4, h);
+  }, true);
   const rampTex = canvasTex(64, 64, (g, w, h) => {
     g.fillStyle = '#4fd0ff'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#ffffff';
@@ -798,7 +816,7 @@
   const FENCE = ROAD + 9;     // the low fence / hedge each side
   const LAPS = 3;
   const RAMP_W = 8, RAMP_L = 3.2, RAMP_H = 1.4;
-  const WALL_PHI = 1.36;      // how far an anti-gravity wall twists the road up (about 78 degrees)
+  const PIPE_R = 5, PIPE_H = 15;   // anti-gravity half-pipe: the bend's radius and how tall the wall is
   const TUNNEL_LIM = EDGE - 0.6;   // how far from the middle a kart can get inside a tunnel
 
   // a start square and a string of moves (Right / Left / Up / Down) that comes back to it
@@ -881,6 +899,9 @@
   const bounceMat = new THREE.MeshLambertMaterial({ map: bounceTex, side: THREE.DoubleSide });
   const cannonPadMat = new THREE.MeshBasicMaterial({ map: cannonTex, side: THREE.DoubleSide });
   const targetMat = new THREE.MeshBasicMaterial({ map: targetTex, side: THREE.DoubleSide, transparent: true });
+  const pipeFloorMat = new THREE.MeshBasicMaterial({ map: pipeFloorTex, side: THREE.DoubleSide });
+  const pipeWallMat = new THREE.MeshBasicMaterial({ map: pipeWallTex, side: THREE.DoubleSide });
+  const pipeBackMat = lam(0x3a2470);
   swirlTex.center.set(0.5, 0.5);
   // portals come in pairs: in through a blue one, out of the orange one after it
   const PORTAL_COL = [0x4fb8ff, 0xff9a2e];
@@ -1463,14 +1484,15 @@
       }
     });
 
-    // Anti-gravity walls: along a run of wall squares the road twists up on its side (turning
-    // about its other edge) until it is nearly upright, then twists back down at the end. Karts
-    // keep driving on the flat road "inside" it; only what you see is twisted up the wall.
+    // Anti-gravity walls: along a run of wall squares the road becomes a half-pipe - a full-width
+    // flat floor, a bend, then a full-width wall standing up on one side - growing in at the start
+    // and shrinking away at the end. Karts keep driving on the flat road "inside" the game; what
+    // you see spreads that road across the floor and up the wall. tilt[] is how grown the pipe is.
     const tilt = new Float32Array(N), tside = new Int8Array(N);
     {
       const keys = Object.keys(def.extras || {}).map(Number).filter((i) => /^wall[LR]$/.test(def.extras[i]) && i !== startAt && !isCross(def, i))
         .sort((a, b) => a - b);
-      const n = def.cells.length, h = Math.round(CELL * 0.45 / SP), e = Math.round(10 / SP), Rl = Math.max(1, Math.round(26 / SP));
+      const n = def.cells.length, h = Math.round(CELL * 0.45 / SP), e = Math.round(16 / SP), Rl = Math.max(1, Math.round(34 / SP));
       keys.forEach((i) => {
         const kind = def.extras[i];
         if (def.extras[mod(i - 1, n)] === kind && keys.includes(mod(i - 1, n))) return;   // not the start of a run
@@ -1480,25 +1502,43 @@
         const from = sA - h - e, count = span + 2 * (h + e), w = kind === 'wallL' ? -1 : 1;
         for (let o = 0; o <= count; o++) {
           const j = mod(from + o, N);
-          const f = WALL_PHI * smooth(Math.min(o, count - o) / Rl);
+          const f = smooth(Math.min(o, count - o) / Rl);
           if (f > tilt[j]) { tilt[j] = f; tside[j] = w; }
         }
       });
       for (let j = 0; j < N; j++) {
         if (!tilt[j]) continue;
         tilt[j] *= smooth((Math.min(j, N - j) * SP - 30) / 24);     // the start line stays flat
-        bank[j] *= Math.max(0, 1 - 3 * tilt[j] / WALL_PHI);
-        if (tilt[j] > 0.05) wall[j] = Math.min(wall[j], ROAD - 1.2);
+        bank[j] *= Math.max(0, 1 - 3 * tilt[j]);
+        if (tilt[j] > 0.02) wall[j] = Math.min(wall[j], ROAD - 1.2);
         if (tilt[j] < 1e-3) tilt[j] = 0;
       }
     }
-    // where a point `lat` across the road ends up sideways once the road is twisted up a wall
-    const tiltLat = (i, lat) => {
-      const f = tilt[i];
-      if (!f) return lat;
-      const p = -tside[i] * ROAD, l = clamp(lat, -EDGE, EDGE);
-      return p + (l - p) * Math.cos(f) + (lat - l);
+    // The pipe's shape across, measured as distance `a` over the surface from the floor's far
+    // edge: floor (2*ROAD), the bend, then the wall, then a flat lip on top. Fills
+    // P = [out, up, slope]: how far it is sideways from the far edge, how high, and how steep.
+    const P = [0, 0, 0];
+    const pipeLen = (f) => 2 * ROAD + PIPE_R * f * PI / 2 + f * PIPE_H;
+    const profile = (f, a) => {
+      const th = f * PI / 2, F = 2 * ROAD, B = F + PIPE_R * th, L = B + f * PIPE_H;
+      if (a <= F) { P[0] = a; P[1] = 0; P[2] = 0; return P; }
+      if (a <= B) { const p = (a - F) / PIPE_R; P[0] = F + PIPE_R * Math.sin(p); P[1] = PIPE_R * (1 - Math.cos(p)); P[2] = p; return P; }
+      const d = Math.min(a, L) - B;
+      P[0] = F + PIPE_R * Math.sin(th) + d * Math.cos(th); P[1] = PIPE_R * (1 - Math.cos(th)) + d * Math.sin(th); P[2] = th;
+      if (a > L) { P[0] += a - L; P[2] = 0; }
+      return P;
     };
+    // where the game's flat-road point `lat` shows up: P = [sideways, extra height, slope]
+    const pipe = (i, lat) => {
+      const f = tilt[i];
+      if (!f) { P[0] = lat; P[1] = 0; P[2] = 0; return P; }
+      const w = tside[i], s = lat * w, L = pipeLen(f);
+      profile(f, s <= -ROAD ? s + ROAD : s >= ROAD ? L + s - ROAD : (s + ROAD) * L / (2 * ROAD));
+      P[0] = w * (P[0] - ROAD);
+      return P;
+    };
+    const tiltLat = (i, lat) => pipe(i, lat)[0];
+    const surfV = (i, lat) => surf(i, lat) + (tilt[i] ? pipe(i, lat)[1] : 0);
 
     // Height of the road surface. Banking lifts the outside of a bend (the inside edge stays
     // down on the ground); past the curbs it eases back down to the grass.
@@ -1508,7 +1548,6 @@
       const out = Math.abs(lat) - EDGE;
       if (out > 0 && !rail[i]) y += (hy[i] - y) * Math.min(1, out / 5);
       if (ramp && rampArr[i] && Math.abs(lat) <= RAMP_W) y += rampArr[i];
-      if (tilt[i]) y += (l + tside[i] * ROAD) * tside[i] * Math.sin(tilt[i]);
       return y;
     };
     // Height of the grass anywhere: follows the nearest road (not the bridges), and levels out far away.
@@ -1527,7 +1566,7 @@
       return sh / sw * (1 - k) + low * k - DROP;
     };
     const T = { def, sig, N, len, SP, px, pz, tx, tz, nx, nz, curv, bank, hy, rail, guard, open: !!th.space, fenceL, fenceR, surf, groundY,
-                pads: [], boxes: [], zones: [], coins: [], coinMesh: null, startAt, wall, portals: [], cannons: [], tilt, tside, tiltLat };
+                pads: [], boxes: [], zones: [], coins: [], coinMesh: null, startAt, wall, portals: [], cannons: [], tilt, tside, tiltLat, pipe, pipeLen, surfV };
 
     ground.position.y = low - DROP - (amp ? 1.2 : 0);
     if (amp && !th.space) {
@@ -1571,8 +1610,47 @@
       trackGroup.add(m);
       return m;
     }
-    const at = (lat, lift) => (j) => surf(j, lat) + lift;
-    ribbon(-ROAD, ROAD, at(-ROAD, 0.05), at(ROAD, 0.05), th.space ? 40 : 16, th.space ? rainbowMat : roadMat);
+    const at = (lat, lift) => (j) => surfV(j, lat) + lift;
+    // the road, except along the half-pipes, which get a floor and a wall of their own
+    const pipeRuns = [];
+    for (let j = 1; j < N; j++) {
+      if (!tilt[j] || tilt[j - 1]) continue;
+      let e = j;
+      while (e + 1 < N && tilt[e + 1]) e++;
+      pipeRuns.push([j - 1, Math.min(N - 1, e + 1)]);
+    }
+    {
+      let s = 0;
+      pipeRuns.forEach(([a, b]) => { if (a > s) ribbon(-ROAD, ROAD, at(-ROAD, 0.05), at(ROAD, 0.05), th.space ? 40 : 16, th.space ? rainbowMat : roadMat, s, a - s); s = b; });
+      ribbon(-ROAD, ROAD, at(-ROAD, 0.05), at(ROAD, 0.05), th.space ? 40 : 16, th.space ? rainbowMat : roadMat, s, N - s);
+    }
+    // one piece of half-pipe surface: from a0 to a1 across (see profile), `segs` strips wide
+    function pipeSheet(w, a0, a1, segs, material, from, count) {
+      const pos = [], uv = [], idx = [], cols = segs + 1;
+      for (let i = 0; i <= count; i++) {
+        const j = from + i, f = tilt[j], L = pipeLen(f);
+        const A0 = a0 === 'L' ? L : a0, A1 = a1 === 'L' ? L : a1;
+        for (let c = 0; c <= segs; c++) {
+          const a = A0 + (A1 - A0) * c / segs, s = a * 2 * ROAD / L - ROAD;
+          const y = surf(j, w * s) + 0.05;
+          profile(f, a);
+          const lat = w * (P[0] - ROAD);
+          pos.push(px[j] + nx[j] * lat, y + P[1], pz[j] + nz[j] * lat);
+          uv.push(a / 10, i * SP / 16);
+          if (i < count && c < segs) { const k = i * cols + c; idx.push(k, k + 1, k + cols, k + 1, k + cols + 1, k + cols); }
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      trackGroup.add(new THREE.Mesh(g, material));
+    }
+    pipeRuns.forEach(([a, b]) => {
+      const w = tside[a + 1];
+      pipeSheet(w, 0, 2 * ROAD, 2, pipeFloorMat, a, b - a);
+      pipeSheet(w, 2 * ROAD, 'L', 16, pipeWallMat, a, b - a);
+    });
     ribbon(-EDGE, -ROAD, at(-EDGE, 0.05), at(-ROAD, 0.05), 5, th.space ? glowCurbMat : curbMat);
     ribbon(ROAD, EDGE, at(ROAD, 0.05), at(EDGE, 0.05), 5, th.space ? glowCurbMat : curbMat);
     if (!th.space) {
@@ -1606,7 +1684,7 @@
     function fence(side, lats) {
       const ok = new Uint8Array(N);
       for (let j = 0; j < N; j++) {
-        if (rail[j] || tilt[j]) continue;
+        if (rail[j] || (tilt[j] && tside[j] === side)) continue;
         const x = px[j] + nx[j] * side * lats[j], z = pz[j] + nz[j] * side * lats[j];
         let free = true;
         for (let i = 0; i < N; i += 2) {
@@ -1642,7 +1720,7 @@
 
     function place(obj, i, lat, lift) {
       const tl = tiltLat(i, lat);
-      obj.position.set(px[i] + nx[i] * tl, surf(i, lat) + lift, pz[i] + nz[i] * tl);
+      obj.position.set(px[i] + nx[i] * tl, surfV(i, lat) + lift, pz[i] + nz[i] * tl);
       obj.rotation.y = headingAt(i);
       trackGroup.add(obj);
       return obj;
@@ -2903,6 +2981,14 @@
       mesh.position.set(k.x - Math.sin(k.h) * 3.2, k.gy + 0.14, k.z - Math.cos(k.h) * 3.2);
       scene.add(mesh);
       puddles.push({ x: mesh.position.x, y: mesh.position.y, z: mesh.position.z, owner: k, age: 0, mesh });
+      const T = world, j = mod(k.idx - Math.round(3.2 / T.SP), T.N);
+      if (!T.arena && T.tilt[j]) {
+        // dropped on a half-pipe: it sticks to the floor or wall where it's shown
+        const lat = (mesh.position.x - T.px[j]) * T.nx[j] + (mesh.position.z - T.pz[j]) * T.nz[j];
+        const v = visAt(j, lat, 0.14);
+        mesh.position.set(v[0], v[1], v[2]);
+        mesh.rotateOnWorldAxis(new THREE.Vector3(T.tx[j], 0, T.tz[j]), -T.tside[j] * v[3]);
+      }
       if (k.pi != null) sfxSplat();
     } else if (it === 'shield') {
       k.shield = 10;
@@ -2985,7 +3071,9 @@
         const j = mod(Math.round(b.idx), T.N);
         x = T.px[j] + T.nx[j] * b.lat; z = T.pz[j] + T.nz[j] * b.lat; y = T.surf(j, b.lat);
       }
-      b.mesh.position.set(x, y + 0.8, z);
+      const bj = b.arena ? -1 : mod(Math.round(b.idx), T.N);
+      if (bj >= 0 && T.tilt[bj]) { const v = visAt(bj, b.lat, 0.8); b.mesh.position.set(v[0], v[1], v[2]); }   // rolling up a half-pipe
+      else b.mesh.position.set(x, y + 0.8, z);
       b.mesh.rotation.x += dt * 12;
       for (const k of race.karts) {
         if (k !== b.owner && k.rescue <= 0 && Math.abs(k.ay - y) < 2 && (k.x - x) ** 2 + (k.z - z) ** 2 < 5.5) {
@@ -3015,17 +3103,30 @@
     swirlTex.rotation = (swirlTex.rotation - dt * 2.5) % TAU;
   }
 
-  // On an anti-gravity wall: where the kart (on the flat road inside the game) shows up on the
-  // twisted-up road, `up` above the surface. Fills k.wd = [dx, dy, dz] (shown minus real) and
-  // returns the road's sideways tilt there (0 off the walls).
+  // On an anti-gravity half-pipe: where the kart (on the flat road inside the game) shows up on
+  // the floor or wall, `up` above the surface. Fills k.wd = [dx, dy, dz] (shown minus real) and
+  // returns the surface's slope there (0 on the floor and off the pipes; k.wslope keeps it).
   function wallShift(k, up) {
     const T = world, i = k.idx, f = T.tilt ? T.tilt[i] : 0;
+    k.wslope = 0;
     if (!f) { k.wd[0] = k.wd[1] = k.wd[2] = 0; return 0; }
-    const w = T.tside[i], side = T.tiltLat(i, k.lat) - k.lat - w * Math.sin(f) * up;
+    const w = T.tside[i], P = T.pipe(i, k.lat), sl = P[2];
+    const side = P[0] - k.lat - w * Math.sin(sl) * up;
     k.wd[0] = T.nx[i] * side; k.wd[2] = T.nz[i] * side;
-    k.wd[1] = (Math.cos(f) - 1) * up;
+    k.wd[1] = P[1] + (Math.cos(sl) - 1) * up;
+    k.wslope = sl;
     return f;
   }
+  // a road point on the pipe as it's shown: [x, y, z] `lift` off the surface (and its slope)
+  const visOut = [0, 0, 0, 0];
+  function visAt(i, lat, lift) {
+    const T = world, P = T.pipe(i, lat), w = T.tside[i] || 0, sl = P[2];
+    const l = P[0] - w * Math.sin(sl) * lift;
+    visOut[0] = T.px[i] + T.nx[i] * l; visOut[2] = T.pz[i] + T.nz[i] * l;
+    visOut[1] = T.surf(i, lat) + P[1] + Math.cos(sl) * lift; visOut[3] = sl;
+    return visOut;
+  }
+  const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _Y = new THREE.Vector3(0, 1, 0), _Z = new THREE.Vector3(0, 0, 1);
   function showKart(k, dt) {
     const m = k.model, T = world, i = k.idx;
     if (!k.wd) k.wd = [0, 0, 0];
@@ -3035,7 +3136,6 @@
     const on = k.air ? 0.3 : clamp((ROAD + 6 - Math.abs(k.lat)) / 5, 0, 1);
     let pitch = Math.atan((T.hy[(i + 2) % T.N] - T.hy[mod(i - 2, T.N)]) / (4 * T.SP)) * along;
     let roll = T.bank[i] * along * on;
-    if (wf) roll += -T.tside[i] * wf * clamp(along * 2, -1, 1);
     if (T.arena && !k.air) {
       const A = T.arena, Hf = (x, z) => arenaFloor(A, x, z, k.ay + 0.5), fx = Math.sin(k.h), fz = Math.cos(k.h);
       pitch = Math.atan((Hf(k.x + fx * 1.5, k.z + fz * 1.5) - Hf(k.x - fx * 1.5, k.z - fz * 1.5)) / 3);
@@ -3044,7 +3144,15 @@
     k.dv += ((k.drift ? -k.drift * 0.38 : 0) - k.dv) * Math.min(1, dt * 8);
     k.tinyS += ((k.tiny > 0 ? 0.55 : 1) - k.tinyS) * Math.min(1, dt * 6);
     m.g.position.set(k.x + k.wd[0], k.ay + k.wd[1], k.z + k.wd[2]);
-    m.g.rotation.y = k.h + k.dv + (k.spin > 0 ? (1 - k.spin / SPIN_T) * TAU * 2 : 0);
+    const yaw = k.dv + (k.spin > 0 ? (1 - k.spin / SPIN_T) * TAU * 2 : 0);
+    if (wf) {
+      // on a half-pipe: stand on the floor or wall, and point the way you're really going there
+      // (the pipe spreads the road out sideways, so sideways moves look bigger)
+      const rh = Math.atan2(T.tx[i], T.tz[i]), rel = wrapAngle(k.h - rh), S = T.pipeLen(wf) / (2 * ROAD);
+      m.g.quaternion.setFromAxisAngle(_Y, rh)
+        .multiply(_qa.setFromAxisAngle(_Z, -T.tside[i] * k.wslope))
+        .multiply(_qb.setFromAxisAngle(_Y, Math.atan2(Math.sin(rel) * S, Math.cos(rel)) + yaw));
+    } else m.g.rotation.set(0, k.h + yaw, 0);
     m.g.scale.setScalar(k.tinyS);
     m.tilt.rotation.z = k.steer * 0.09 + roll;
     m.tilt.rotation.x = (k.air ? -clamp(k.vy, -8, 8) * 0.025 : 0) - pitch;
@@ -3055,11 +3163,14 @@
     m.bubble.visible = k.shield > 0 && (k.shield > 2 || Math.floor(k.shield * 8) % 2 === 0);
     m.g.visible = k.rescue > 0 || !!k.fly || !(k.safe > 0 && k.spin <= 0 && Math.floor(k.safe * 10) % 2 === 0);
     if (wf) {
-      const sl = T.tiltLat(i, k.lat) - k.lat;
-      m.shadow.position.set(k.x + T.nx[i] * sl, k.gy + 0.14, k.z + T.nz[i] * sl);
-    } else m.shadow.position.set(k.x, k.gy + 0.14, k.z);
-    m.shadow.visible = k.gy > -500 && !(wf && k.ay - k.gy > 6);
-    m.shadow.rotation.set(-pitch, k.h, roll);
+      const v = visAt(i, k.lat, 0.14), dx = k.x - T.px[i] - T.nx[i] * k.lat, dz = k.z - T.pz[i] - T.nz[i] * k.lat;
+      m.shadow.position.set(v[0] + dx, k.gy - T.surf(i, k.lat) + v[1], v[2] + dz);
+      m.shadow.quaternion.copy(m.g.quaternion);
+    } else {
+      m.shadow.position.set(k.x, k.gy + 0.14, k.z);
+      m.shadow.rotation.set(-pitch, k.h, roll);
+    }
+    m.shadow.visible = k.gy > -500;
     m.shadow.scale.setScalar(k.tinyS / (1 + (k.ay - k.gy) * 0.25));
     showPuff(k);
     if (k.bal) { showBalloons(k); showCrown(k); }
@@ -3090,23 +3201,26 @@
     }
     // in a tunnel, keep the camera inside it too
     const ci = mod(k.idx - Math.round(back / T.SP), T.N);
-    if (Math.min(T.wall[ci], T.wall[k.idx]) < EDGE) {
+    if (Math.min(T.wall[ci], T.wall[k.idx]) < EDGE && !(T.tilt && (T.tilt[ci] || T.tilt[k.idx]))) {   // (half-pipes keep their camera in below)
       const lat = (cx - T.px[ci]) * T.nx[ci] + (cz - T.pz[ci]) * T.nz[ci], lim = EDGE - 1.5;
       if (Math.abs(lat) > lim) { const o = lat - Math.sign(lat) * lim; cx -= T.nx[ci] * o; cz -= T.nz[ci] * o; }
     }
     let camY = Math.max(ky + 4.4 + (r.demo ? 1.5 : 0), world.groundY(cx, cz) + 2.5), upL = 0;
     let lx = k.x + fx * 5, ly = ky + 1.5, lz = k.z + fz * 5;
-    if (!T.arena && (T.tilt[ci] || T.tilt[k.idx])) {
-      // on an anti-gravity wall the camera twists over with the road
-      const f = T.tilt[ci], w = T.tside[ci] || T.tside[k.idx];
-      const latc = (cx - T.px[ci]) * T.nx[ci] + (cz - T.pz[ci]) * T.nz[ci], nl = -w * Math.sin(f), ny = Math.cos(f);
-      const side = T.tiltLat(ci, latc) - latc + nl * 4.4;
-      cx += T.nx[ci] * side; cz += T.nz[ci] * side;
-      camY = T.surf(ci, latc) + ny * (4.4 + Math.max(0, ky - k.gy));
-      upL = nl;
-      const kf = T.tilt[k.idx], kw = T.tside[k.idx] || w, kl = T.tiltLat(k.idx, k.lat) - k.lat - kw * Math.sin(kf) * 1.5;
-      lx = k.x + fx * 5 + T.nx[k.idx] * kl; lz = k.z + fz * 5 + T.nz[k.idx] * kl;
-      ly = T.surf(k.idx, k.lat) + Math.cos(kf) * 1.5 + Math.max(0, ky - k.gy);
+    if (!T.arena && !k.fly && k.gy > -500 && (T.tilt[ci] || T.tilt[k.idx])) {
+      // on an anti-gravity half-pipe the camera follows the kart up the wall, turning over with it
+      const air = Math.max(0, ky - k.gy);
+      // (sideways the pipe spreads things out, so the camera keeps closer in behind as it grows)
+      const cl = (cx - T.px[ci]) * T.nx[ci] + (cz - T.pz[ci]) * T.nz[ci], d = cl - k.lat;
+      const latc = cl - T.tilt[ci] * (d - clamp(d, -3, 3) * 0.5);
+      const v = visAt(ci, latc, 4.4 + air);
+      const along = (cx - T.px[ci]) * T.tx[ci] + (cz - T.pz[ci]) * T.tz[ci];
+      cx = v[0] + T.tx[ci] * along; cz = v[2] + T.tz[ci] * along;
+      camY += v[1] - T.surf(ci, latc) - (4.4 + air);      // (just the pipe's part: no jump on the way in)
+      const i = k.idx, ka = (k.x - T.px[i]) * T.tx[i] + (k.z - T.pz[i]) * T.tz[i];
+      const kv = visAt(i, k.lat, 1.5 + air), sl = kv[3];
+      upL = -(T.tside[i] || T.tside[ci]) * Math.sin(sl * 0.8);
+      lx = kv[0] + T.tx[i] * ka + fx * 5; lz = kv[2] + T.tz[i] * ka + fz * 5; ly += kv[1] - T.surf(i, k.lat) - (1.5 + air);
     }
     c.y += (camY - c.y) * Math.min(1, dt * 8);
     c.up = (c.up || 0) + (upL - (c.up || 0)) * Math.min(1, dt * 6);
