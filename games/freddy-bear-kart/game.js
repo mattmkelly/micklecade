@@ -589,6 +589,10 @@
   window.addEventListener('keydown', (e) => {
     if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(e.code)) e.preventDefault();
     keys[e.code] = true;
+    if (howtoOpen) {
+      if (['Escape', 'Enter', 'Space', 'NumpadEnter'].includes(e.code)) { e.preventDefault(); closeHowto(); }
+      return;
+    }
     if (screen === 'race' || e.repeat) return;
     if (e.code === 'ArrowLeft') menuNav(-1, 0);
     else if (e.code === 'ArrowRight') menuNav(1, 0);
@@ -2138,6 +2142,25 @@
     g.fillStyle = '#222'; g.fillRect(st.x - 3, st.y - 3, 3, 3); g.fillRect(st.x, st.y, 3, 3);
     return c;
   }
+  // ---- how to play: its own page over everything (a race underneath waits) ----
+  let howtoOpen = false;
+  function openHowto() {
+    ensureAudio();
+    if (window.MickleMenu) MickleMenu.close();
+    howtoOpen = true;
+    el('howto').hidden = false;
+    el('btn-howto-close').focus({ preventScroll: true });
+  }
+  function closeHowto() {
+    if (!howtoOpen) return;
+    howtoOpen = false;
+    el('howto').hidden = true;
+    if (screen !== 'race') focusFirst();
+  }
+  el('btn-howto').addEventListener('click', openHowto);
+  el('btn-home-howto').addEventListener('click', openHowto);
+  el('btn-howto-close').addEventListener('click', closeHowto);
+
   // ---- home ----
   function renderHome() {
     el('driver-name').textContent = driverOf(save.driver).name;
@@ -2469,8 +2492,10 @@
     lastT = t;
     if (typeof Pad360 !== 'undefined') {
       Pad360.poll();
-      if (screen !== 'race') pollMenuGamepad();
+      if (howtoOpen) { if (Pad360.pressed(Pad360.BTN.A) || Pad360.pressed(Pad360.BTN.B)) closeHowto(); }
+      else if (screen !== 'race') pollMenuGamepad();
     }
+    if (howtoOpen) { requestAnimationFrame(loop); return; } // everything waits while you read
     if (screen === 'race') { updateRace(dt); if (screen === 'race') render(); }
     else if (demo) {
       muted = true; updateRace(dt); muted = false;
