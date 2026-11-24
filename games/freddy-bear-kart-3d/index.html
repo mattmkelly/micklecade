@@ -294,6 +294,27 @@
   .howto-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; color: var(--muted); font-size: .82em; font-weight: 700; line-height: 1.35; }
   .howto .btn { font-family: var(--font); color: #fff; border: none; cursor: pointer; }
   .howto .btn:focus { outline: none; box-shadow: 0 0 0 .18em #fff, 0 0 1.6em .3em rgba(255, 79, 216, .7); }
+
+  /* ---------- SETTINGS: its own page too, one picture card per setting ---------- */
+  .set-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7em; }
+  .set { display: grid; grid-template-columns: 3.2em 1fr; column-gap: .8em; row-gap: .3em; align-content: start;
+    padding: .85em 1em; border-radius: 1em; background: rgba(255, 255, 255, .07); border: 1px solid var(--line); }
+  .set > svg { grid-row: 1 / 3; width: 3.2em; height: 3.2em; }
+  .set b { font-size: 1.15em; font-weight: 900; font-style: italic; align-self: end; }
+  .set p { margin: 0; color: var(--muted); font-size: .82em; font-weight: 700; line-height: 1.3; }
+  .set .opt-row { grid-column: 1 / -1; display: flex; align-items: center; gap: .5em; margin-top: .45em; }
+  .set .opt-row small { min-width: 6.4em; color: var(--muted); font-size: .72em; font-weight: 900; letter-spacing: .08em; }
+  .opts { flex: 1; display: flex; gap: .3em; padding: .25em; border-radius: 999px; background: rgba(0, 0, 0, .35); }
+  .opts button { flex: 1; padding: .55em .4em; border: none; border-radius: 999px; background: none; cursor: pointer;
+    font: italic 900 .85em var(--font); color: var(--muted); white-space: nowrap; }
+  .opts button.on { background: var(--go); color: #fff; box-shadow: 0 .2em .6em rgba(40, 200, 90, .35); }
+  .opts button:focus { outline: none; box-shadow: 0 0 0 .16em #fff, 0 0 1.2em .2em rgba(255, 79, 216, .7); }
+  .set.grown { opacity: .85; }
+  /* the ☰ menu keeps just BACK, HOW TO PLAY, SETTINGS and FULL SCREEN: TOUCH CONTROLS lives on the
+     Settings page, and when touchpad.js wants to point at it (a tap with them off) SETTINGS glows */
+  .mc-menu-items > .mt-toggle { display: none !important; }
+  .mc-menu-items:has(.mt-toggle.nudge) #btn-settings { animation: set-nudge .6s ease-in-out 4; }
+  @keyframes set-nudge { 50% { box-shadow: 0 0 16px #ffe14f; background: rgba(255, 225, 79, .25); } }
 </style>
 </head>
 <body>
@@ -301,6 +322,7 @@
     <div id="topbar">
       <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
       <button id="btn-howto" class="howto-link" type="button">HOW TO PLAY</button>
+      <button id="btn-settings" class="howto-link" type="button">SETTINGS</button>
     </div>
     <div id="stage">
       <canvas id="view"></canvas>
@@ -357,6 +379,17 @@
     </div>
   </div>
 
+  <!-- SETTINGS: its own page, opened from the title screen (the gear) or the ☰ menu; game.js fills it -->
+  <div id="settings" class="howto" hidden>
+    <div class="howto-panel glass">
+      <h1>SETTINGS</h1>
+      <div id="settings-grid" class="set-grid"></div>
+      <div class="howto-foot">
+        <span>Everything here is remembered for next time (except SHOW SPEED).</span>
+        <button id="btn-settings-close" class="btn primary" type="button">DONE</button>
+      </div>
+    </div>
+  </div>
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/three.min.js"></script>
   <script src="../../shared/gamepad.js"></script>

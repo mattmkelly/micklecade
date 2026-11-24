@@ -190,60 +190,19 @@
     save.music = on;
     writeSave();
     if (musicBus) musicBus.gain.value = on ? 0.09 : 0;
-    musicBtn.textContent = 'MUSIC: ' + (on ? 'ON' : 'OFF');
+    if (typeof renderSettings === 'function') renderSettings();
   }
-  const musicBtn = document.createElement('button');
-  musicBtn.type = 'button';
-  musicBtn.className = 'mt-toggle';
-  musicBtn.textContent = 'MUSIC: ' + (save.music ? 'ON' : 'OFF');
-  musicBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  musicBtn.addEventListener('click', (e) => { e.stopPropagation(); unlockAudio(); setMusic(!save.music); musicBtn.blur(); });
-  document.getElementById('topbar').appendChild(musicBtn);
-  // edge smoothing can only be picked when the page starts, so changing this reloads the game
-  const gfxBtn = document.createElement('button');
-  gfxBtn.type = 'button';
-  gfxBtn.className = 'mt-toggle';
-  gfxBtn.textContent = 'GRAPHICS: ' + (FAST ? 'FAST' : 'NICE');
-  gfxBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  gfxBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    save.gfx = FAST ? 'nice' : 'fast';
-    writeSave();
-    location.reload();
-  });
-  document.getElementById('topbar').appendChild(gfxBtn);
   // SHOW SPEED: a small readout (frames a second, where the time goes) for finding out why
   // a tablet is slow. Not remembered -- it is off again next time.
   let showSpeed = false, gpuName = '';
-  const speedBtn = document.createElement('button');
-  speedBtn.type = 'button';
-  speedBtn.className = 'mt-toggle';
-  speedBtn.textContent = 'SHOW SPEED: OFF';
-  speedBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  speedBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    showSpeed = !showSpeed;
-    speedBtn.textContent = 'SHOW SPEED: ' + (showSpeed ? 'ON' : 'OFF');
-    speedBtn.blur();
-  });
-  document.getElementById('topbar').appendChild(speedBtn);
   // Steering help for little drivers, set for each player: STICK makes the stick / keys / screen
   // gentler (or quicker), AUTO-STEER quietly steers along the road and back onto it.
+  // (These, MUSIC, GRAPHICS and TOUCH CONTROLS are all on the SETTINGS page: see openSettings.)
   const STICK_NAMES = ['GENTLE', 'NORMAL', 'QUICK'], ASSIST_NAMES = ['OFF', 'A LITTLE', 'LOTS'];
   [0, 1].forEach((pi) => {
     const L = save.look[pi];
     if (!(L.stick >= 0 && L.stick < 3)) L.stick = 1;
     if (!(L.assist >= 0 && L.assist < 3)) L.assist = 0;
-    [['stick', 'STICK', STICK_NAMES], ['assist', 'AUTO-STEER', ASSIST_NAMES]].forEach(([key, label, names]) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'mt-toggle';
-      const show = () => { b.textContent = 'P' + (pi + 1) + ' ' + label + ': ' + names[L[key]]; };
-      show();
-      b.addEventListener('pointerdown', (e) => e.stopPropagation());
-      b.addEventListener('click', (e) => { e.stopPropagation(); L[key] = (L[key] + 1) % 3; writeSave(); show(); b.blur(); });
-      document.getElementById('topbar').appendChild(b);
-    });
   });
 
   // ---------- three.js setup ----------
@@ -3572,11 +3531,13 @@
     startRace(BUILTIN[demoTrack], { demo: true });
   }
   // the mode tiles: 0 RACE  1 GRAND PRIX  2 BALLOON BATTLE  3 COIN BATTLE  4 BUILD A TRACK
-  // and along the top: 5 PLAYERS  6 HOW TO PLAY  7 the driver (straight to the garage)
+  // and along the top: 5 PLAYERS  6 HOW TO PLAY  7 the driver (straight to the garage)  8 SETTINGS
+  const TITLE_TOP = [6, 8, 5, 7];      // ...in the order they sit along the top
   function titleChoose(i) {
     titleSel = i;
     if (i === 5) { save.players = save.players === 1 ? 2 : 1; writeSave(); sfxSelect(); return; }
     if (i === 6) { openHowto(); return; }
+    if (i === 8) { openSettings(); return; }
     sfxOk();
     if (i === 4) toBuild();
     else if (i === 7) { garageThen = 'title'; pickIdx = 0; toRacer(); }
@@ -3996,9 +3957,9 @@
   function nav(dx, dy) {
     if (mode === 'title') {
       // the mode tiles are a row (0-4); up goes to the buttons along the top (5-7)
-      if (titleSel <= 4) { if (dy < 0) titleSel = 5; else if (dx) titleSel = mod(titleSel + dx, 5); else return; }
+      if (titleSel <= 4) { if (dy < 0) titleSel = TITLE_TOP[0]; else if (dx) titleSel = mod(titleSel + dx, 5); else return; }
       else if (dy > 0) titleSel = 0;
-      else if (dx) titleSel = 5 + mod(titleSel - 5 + dx, 3);
+      else if (dx) titleSel = TITLE_TOP[mod(TITLE_TOP.indexOf(titleSel) + dx, TITLE_TOP.length)];
       else return;
       sfxSelect();
     } else if (mode === 'racer') {
@@ -4068,6 +4029,15 @@
     keys[c] = true;
     if (was) return;
     if (howtoOpen) { if (c === 'Space' || c === 'Enter' || c === 'Escape' || c === 'Backspace') closeHowto(); return; }
+    if (settingsOpen) {
+      if (c === 'Escape' || c === 'Backspace') closeSettings();
+      else if (c === 'Space' || c === 'Enter') settingsPress();
+      else if (c === 'ArrowLeft' || c === 'KeyA') settingsNav(-1, 0);
+      else if (c === 'ArrowRight' || c === 'KeyD') settingsNav(1, 0);
+      else if (c === 'ArrowUp' || c === 'KeyW') settingsNav(0, -1);
+      else if (c === 'ArrowDown' || c === 'KeyS') settingsNav(0, 1);
+      return;
+    }
     if (window.MickleMenu && MickleMenu.isOpen()) return;
     if (c === 'KeyM') { setMusic(!save.music); return; }
     if (mode === 'race' && race && !race.results) {
@@ -4169,6 +4139,13 @@
     const B = Pad360.BTN, P2 = Pad360.pad(1);
     const P = (b) => Pad360.pressed(b) || P2.pressed(b);
     if (howtoOpen) { if (P(B.A) || P(B.B) || P(B.START) || P(B.BACK)) closeHowto(); return; }
+    if (settingsOpen) {
+      const dx = Pad360.dxPressed() || P2.dxPressed(), dy = Pad360.dyPressed() || P2.dyPressed();
+      if (dx || dy) settingsNav(dx, dx ? 0 : dy);
+      if (P(B.A)) settingsPress();
+      else if (P(B.B) || P(B.START) || P(B.BACK)) closeSettings();
+      return;
+    }
     if (mode === 'racer' && P(B.START)) { garageNext(); return; }      // START: done with this step
     if (mode === 'race' && race && !race.results) {       // driving is read in humanInput
       if (paused) {
@@ -4777,6 +4754,98 @@
   document.getElementById('btn-howto').addEventListener('click', openHowto);
   document.getElementById('btn-howto-close').addEventListener('click', closeHowto);
 
+  // ---- settings: its own page like HOW TO PLAY, one picture card per setting ----
+  // (the ☰ menu keeps just BACK TO MICKLECADE, HOW TO PLAY, SETTINGS and FULL SCREEN)
+  var settingsOpen = false;          // (var: setMusic can ask before this part has run)
+  const settingsEl = document.getElementById('settings'), settingsGrid = document.getElementById('settings-grid');
+  // touchpad.js makes its own TOUCH CONTROLS button (hidden in the menu); pressing it is how we switch
+  const touchToggle = () => [...document.querySelectorAll('.mt-toggle')].find((b) => /TOUCH/.test(b.textContent));
+  const SET_ICON = {
+    music: '<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 34V10l20-4v24" stroke="#ff7ab8" stroke-width="4"/><circle cx="13" cy="34" r="6" fill="#ff7ab8"/><circle cx="33" cy="30" r="6" fill="#ff7ab8"/></svg>',
+    touch: '<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="38" height="28" rx="5" stroke="#4ff0ff" stroke-width="3"/><circle cx="15" cy="27" r="5" fill="#4ff0ff"/><circle cx="34" cy="30" r="3.5" fill="#5cf07a"/><circle cx="34" cy="20" r="3.5" fill="#ffd83d"/></svg>',
+    steer: (col) => `<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="17" stroke="${col}" stroke-width="4"/><circle cx="24" cy="24" r="4" fill="${col}"/><path d="M7 24h13M28 24h13M24 28v13" stroke="${col}" stroke-width="4"/></svg>`,
+    gfx: '<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 36l12-14 8 9 6-6 10 11z" fill="#8fe36b" stroke="#fff" stroke-width="2.5"/><circle cx="33" cy="14" r="5" fill="#ffd23f"/></svg>',
+    speed: '<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 34a16 16 0 1 1 32 0" stroke="#c3bce6" stroke-width="4"/><path d="M24 34l8-11" stroke="#ff9a2e" stroke-width="4"/><circle cx="24" cy="34" r="3" fill="#ff9a2e"/></svg>',
+  };
+  // a row of choices: the one that's on is lit up green
+  const optRow = (label, key, names, cur) => `<div class="opt-row">${label ? `<small>${label}</small>` : ''}<div class="opts">${names.map((n, i) =>
+    `<button type="button" data-set="${key}" data-v="${i}" class="${i === cur ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
+  function renderSettings() {
+    if (!settingsOpen) return;
+    const L = save.look, tog = touchToggle();
+    const card = (cls, icon, name, text, rows) => `<div class="set ${cls}">${icon}<b>${name}</b><p>${text}</p>${rows}</div>`;
+    const steerCard = (pi) => card('', SET_ICON.steer(pi ? '#8fe36b' : '#ffe14f'), 'PLAYER ' + (pi + 1) + ' STEERING',
+      'Help for little drivers. GENTLE makes turning softer; AUTO-STEER helps keep the kart on the road.',
+      optRow('STICK', 'stick' + pi, STICK_NAMES, L[pi].stick) + optRow('AUTO-STEER', 'assist' + pi, ASSIST_NAMES, L[pi].assist));
+    const ae = document.activeElement, focused = ae && ae.dataset && ae.dataset.set ? [ae.dataset.set, ae.dataset.v] : null;
+    settingsGrid.innerHTML =
+      card('', SET_ICON.music, 'MUSIC', 'Songs while you race. (The M key works too.)', optRow('', 'music', ['ON', 'OFF'], save.music ? 0 : 1)) +
+      card('', SET_ICON.touch, 'TOUCH CONTROLS', 'A stick and buttons on the screen, for tablets and phones.', optRow('', 'touch', ['ON', 'OFF'], touch.enabled() ? 0 : 1)) +
+      card('', SET_ICON.gfx, 'GRAPHICS', 'FAST runs smoother on tablets. NICE has smoother edges. (The game restarts.)', optRow('', 'gfx', ['NICE', 'FAST'], FAST ? 1 : 0)) +
+      steerCard(0) + steerCard(1) +
+      card('grown', SET_ICON.speed, 'SHOW SPEED', 'For grown-ups: shows how fast the game is running, to find out why a tablet is slow.', optRow('', 'speed', ['OFF', 'ON'], showSpeed ? 1 : 0));
+    if (!tog) settingsGrid.querySelector('[data-set="touch"]').closest('.set').hidden = true;
+    // keep the keyboard / controller on the same button after redrawing
+    const again = focused && settingsGrid.querySelector(`[data-set="${focused[0]}"][data-v="${focused[1]}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
+  function setSetting(key, v) {
+    unlockAudio();
+    if (key === 'music') setMusic(v === 0);
+    else if (key === 'touch') { if (touch.enabled() !== (v === 0)) { const t = touchToggle(); if (t) t.click(); } }
+    else if (key === 'gfx') { const want = v === 1 ? 'fast' : 'nice'; if (want !== (FAST ? 'fast' : 'nice')) { save.gfx = want; writeSave(); location.reload(); return; } }
+    else if (key === 'speed') showSpeed = v === 1;
+    else if (/^(stick|assist)[01]$/.test(key)) { save.look[+key.slice(-1)][key.slice(0, -1)] = v; writeSave(); }
+    sfxSelect();
+    renderSettings();
+  }
+  settingsGrid.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-set]');
+    if (b) setSetting(b.dataset.set, +b.dataset.v);
+  });
+  function openSettings() {
+    unlockAudio();
+    if (window.MickleMenu) MickleMenu.close();
+    if (mode === 'race' && race && !race.results && !paused) setPaused(true);
+    settingsOpen = true;
+    settingsEl.hidden = false;
+    renderSettings();
+    sfxSelect();
+  }
+  function closeSettings() {
+    if (!settingsOpen) return;
+    settingsOpen = false;
+    settingsEl.hidden = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    sfxSelect();
+  }
+  // keyboard / controller on the settings page: the arrows move to the nearest button that way
+  function settingsNav(dx, dy) {
+    const list = [...settingsEl.querySelectorAll('.opts button, #btn-settings-close')].filter((b) => b.offsetParent !== null);
+    const cur = document.activeElement;
+    if (!list.includes(cur)) { const on = list.find((b) => b.classList.contains('on')) || list[0]; if (on) on.focus({ preventScroll: true }); return; }
+    const r = cur.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let best = null, bestScore = Infinity;
+    for (const f of list) {
+      if (f === cur) continue;
+      const q = f.getBoundingClientRect(), ex = q.left + q.width / 2 - cx, ey = q.top + q.height / 2 - cy;
+      const along = dx ? ex * dx : ey * dy;
+      if (along <= 4) continue;
+      const score = along + (dx ? Math.abs(ey) : Math.abs(ex)) * 2.5;
+      if (score < bestScore) { bestScore = score; best = f; }
+    }
+    if (best) { best.focus({ preventScroll: true }); sfxSelect(); }
+  }
+  function settingsPress() {
+    const b = document.activeElement;
+    if (b && settingsEl.contains(b) && b.tagName === 'BUTTON') b.click(); else settingsNav(0, 1);
+  }
+  document.getElementById('btn-settings').addEventListener('click', openSettings);
+  document.getElementById('btn-settings-close').addEventListener('click', closeSettings);
+  // taps on the page never reach the game underneath
+  [settingsEl, howtoEl].forEach((el) => el.addEventListener('pointerdown', (e) => e.stopPropagation()));
+  settingsEl.addEventListener('click', (e) => { if (e.target === settingsEl) closeSettings(); });
+
   // ---- pictures of the karts: the real 3D models, snapped once each and kept ----
   // Drawn by the main renderer into the corner of the 3D canvas just before a frame is drawn
   // (so nobody sees it), then copied off into an <img>. No second WebGL context for the tablet.
@@ -4940,6 +5009,7 @@
     balloon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="9" rx="6" ry="7" fill="currentColor" fill-opacity=".35"/><path d="M12 16l-1.2 2h2.4zM12 18c0 2-2 2-1 4"/></svg>',
     coin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="17" rx="7" ry="2.5" fill="currentColor" fill-opacity=".35"/><path d="M5 17v-3M19 17v-3"/><ellipse cx="12" cy="13" rx="7" ry="2.5" fill="currentColor" fill-opacity=".35"/><path d="M5 13v-3M19 13v-3"/><ellipse cx="12" cy="9" rx="7" ry="2.5" fill="currentColor" fill-opacity=".35"/></svg>',
     build: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fill-opacity=".2"/><path d="M7 17V9a2 2 0 0 1 2-2h8"/><path d="M14 4l3 3-3 3"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
     one: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0z"/></svg>',
     two: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3" opacity=".75"/><path d="M2 20a6 6 0 0 1 12 0zM10.5 20a6 6 0 0 1 12 0z" opacity=".9"/></svg>',
   };
@@ -4953,6 +5023,7 @@
     return `<div class="scr"><div class="veil"></div>
       <div class="topbar"><div class="sp"></div>
         <button class="pill glass btn${selIf(titleSel === 6)}" data-act="title" data-i="6"><i class="q">?</i>HOW TO PLAY</button>
+        <button class="pill glass btn${selIf(titleSel === 8)}" data-act="title" data-i="8" aria-label="Settings">${ICONS.gear}<span>SETTINGS</span></button>
         <button class="pill glass btn${selIf(titleSel === 5)}" data-act="title" data-i="5">${save.players === 2 ? ICONS.two : ICONS.one}<span>${save.players === 2 ? '2 PLAYERS<small>SPLIT SCREEN</small>' : '1 PLAYER'}</span></button>
         <button class="driver-chip glass${selIf(titleSel === 7)}" data-act="title" data-i="7"><img src="${kartThumb(l.racer, l)}" alt=""><span><small>DRIVER</small><b>${d.name}</b></span></button>
         ${coinPill()}
