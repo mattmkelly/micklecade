@@ -15,7 +15,7 @@
   const SAVE_KEY = 'mathMountain.save';
 
   // ---------- save ----------
-  let save = { stars: {}, quiz: {}, read: null, grade: 0 };
+  let save = { stars: {}, quiz: {}, read: null, grade: null };
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s === 'object') save = Object.assign(save, s); } catch (e) { /* no storage */ }
   function store() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* full or blocked */ } }
 
@@ -72,7 +72,7 @@
       .replace(/(\d) : (\d)/g, '$1 to $2').replace(/(\d+) R(\d+)/g, '$1 remainder $2').replace(/→/g, ' becomes ').replace(/✓/g, '')
       .replace(/\s+/g, ' ').trim();
   }
-  function readOn() { return save.read === null ? (cur.grade || 1) <= 2 : save.read; }
+  function readOn() { return save.read === null ? (cur.grade == null ? 1 : cur.grade) <= 2 : save.read; }
   function say(html, force) {
     if (!('speechSynthesis' in window)) return;
     if (!force && !readOn()) return;
@@ -116,10 +116,11 @@
   const cheer = () => CHEERS[Math.floor(Math.random() * CHEERS.length)];
 
   // ---------- state ----------
-  let cur = { name: 'title', grade: save.grade || 0 };
-  const grade = () => GRADES[(cur.grade || 1) - 1];
+  let cur = { name: 'title', grade: save.grade };
+  const gradeOf = (n) => GRADES.find((g) => g.n === n) || GRADES[1];
+  const grade = () => gradeOf(cur.grade);
   const topicStars = (id) => save.stars[id] || 0;
-  const gradeStars = (g) => GRADES[g - 1].topics.reduce((t, tp) => t + topicStars(tp.id), 0) + ((save.quiz['g' + g] || {}).stars || 0);
+  const gradeStars = (g) => gradeOf(g).topics.reduce((t, tp) => t + topicStars(tp.id), 0) + ((save.quiz['g' + g] || {}).stars || 0);
   const starStr = (n, of = 3) => Array.from({ length: of }, (_, i) => (i < n ? '★' : '<span class="off">★</span>')).join('');
   const topBar = (back, title, right = '') => `<div class="top"><button class="pill nav" data-act="back">◀ ${back}</button><div class="tt">${title}</div><div class="tr">${right}</div></div>`;
   const speakBtn = () => `<button class="icon-btn nav" data-act="speak" aria-label="Read it to me">\u{1F50A}</button>`;
@@ -133,10 +134,10 @@
 
   // ---------- TITLE ----------
   function goTitle() {
-    cur = { name: 'title', grade: save.grade || 0 };
+    cur = { name: 'title', grade: save.grade };
     const btns = GRADES.map((g) => {
       const st = gradeStars(g.n), max = g.topics.length * 3 + 3;
-      return `<button class="grade nav" data-act="grade" data-g="${g.n}" style="--c:${g.color}"${save.grade === g.n ? ' data-default' : ''}><b>GRADE ${g.n}</b><span>${g.blurb}</span><em>★ ${st}/${max}</em></button>`;
+      return `<button class="grade nav" data-act="grade" data-g="${g.n}" style="--c:${g.color}"${save.grade === g.n ? ' data-default' : ''}><b>${g.n ? 'GRADE ' + g.n : 'KINDER'}</b><span>${g.blurb}</span><em>★ ${st}/${max}</em></button>`;
     }).join('');
     const ro = save.read === null ? 'AUTO' : save.read ? 'ON' : 'OFF';
     show(`<div class="title-scr">
@@ -167,7 +168,7 @@
     const tip = next === 0 ? 'Start at camp 1! Each camp teaches one idea, then you practice it.'
       : next > 0 ? `Next stop: camp ${next + 1}, ${g.topics[next].name}! Or try the Summit Quiz any time.`
       : 'You visited every camp! Now climb to the Summit Quiz and see how far you get.';
-    show(`${topBar('GRADES', 'GRADE ' + g.n, `<span class="score-chip">★ ${gradeStars(g.n)}/${g.topics.length * 3 + 3}</span>`)}
+    show(`${topBar('GRADES', g.label, `<span class="score-chip">★ ${gradeStars(g.n)}/${g.topics.length * 3 + 3}</span>`)}
       <svg class="map-mtn" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
         <path d="M-5 92 L40 52 L62 40 L84 30 L102 18 L118 32 L132 44 L165 70 L165 92 Z" fill="#818cf8" opacity=".85"/>
         <path d="M-5 92 L28 68 L56 54 L80 46 L102 18 L124 50 L150 64 L165 72 L165 92 Z" fill="#6366f1"/>
@@ -247,7 +248,7 @@
     const right = quiz
       ? `<span class="score-chip">${cur.streak >= 2 ? '\u{1F525}' + cur.streak + ' &nbsp;' : ''}${cur.score}</span>${speakBtn()}`
       : `<div class="dots">${dots}</div>${speakBtn()}`;
-    const title = quiz ? `\u{1F3C6} Grade ${cur.grade} Summit Quiz` : `${cur.topic.icon} ${cur.topic.name}`;
+    const title = quiz ? `\u{1F3C6} ${grade().n ? 'Grade ' + grade().n : 'Kindergarten'} Summit Quiz` : `${cur.topic.icon} ${cur.topic.name}`;
     const n = q.choices.length;
     const answers = q.choices.map((c, k) => `<button class="ans nav${q.small || c.length > 14 ? ' small' : ''}" data-act="ans" data-k="${k}"><span class="k">${k + 1}</span>${c}</button>`).join('');
     const climb = quiz ? `<div class="climb"><div class="fill" style="height:${(cur.n / QUIZ_N) * 100}%"></div><span class="flag">\u{1F6A9}</span><div class="me" style="bottom:${(cur.n / QUIZ_N) * 100}%">${pipSVG()}</div></div>` : '';
@@ -363,7 +364,7 @@
       const rec = save.quiz['g' + g.n] || {}, newBest = cur.score > (rec.best || 0);
       save.quiz['g' + g.n] = { best: Math.max(rec.best || 0, cur.score), stars: Math.max(rec.stars || 0, stars) };
       store();
-      if (cur.score > 0 && window.MickleScores) MickleScores.record('math-mountain', cur.score, { category: 'GRADE ' + g.n, order: g.n });
+      if (cur.score > 0 && window.MickleScores) MickleScores.record('math-mountain', cur.score, { category: g.label, order: g.n });
       title = cur.right === QUIZ_N ? 'PERFECT CLIMB!' : 'YOU REACHED THE SUMMIT!';
       lines = `<div class="big-score">${cur.score}</div><p>${cur.right} of ${QUIZ_N} right · best streak ${cur.best}${newBest ? ' · <b style="color:#16a34a">NEW BEST!</b>' : ' · best ' + save.quiz['g' + g.n].best}</p>`;
       btns = `<button class="go nav" data-act="quiz" data-default>CLIMB AGAIN</button><button class="go blue nav" data-act="back">MAP</button>`;

@@ -83,7 +83,7 @@
   .go.ghost { background: rgba(255,255,255,.9); color: #1e3a8a; text-shadow: none; box-shadow: 0 .2em 0 rgba(30,58,138,.35); }
 
   /* ---- top bar ---- */
-  .top { position: absolute; left: 0; right: 0; top: 0; height: 3.4em; display: flex; align-items: center; gap: .8em; padding: .5em 3.6em .5em .7em; }
+  .top { position: absolute; z-index: 4; left: 0; right: 0; top: 0; height: 3.4em; display: flex; align-items: center; gap: .8em; padding: .5em 3.6em .5em .7em; }
   .top .tt { flex: 1; font-weight: 900; font-size: 1.35em; color: #fff; text-shadow: 0 .08em .25em rgba(30,58,138,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top .tr { display: flex; align-items: center; gap: .5em; font-weight: 900; color: #fff; text-shadow: 0 .08em .25em rgba(30,58,138,.6); }
   .icon-btn { width: 2.4em; height: 2.4em; border-radius: 50%; font-size: 1.05em; background: rgba(255,255,255,.9); box-shadow: 0 .15em 0 rgba(30,58,138,.35); display: grid; place-items: center; }
@@ -100,12 +100,12 @@
   .logo { margin: 0; font-size: 4.2em; line-height: .92; font-weight: 900; letter-spacing: .01em; color: #fff;
     text-shadow: 0 .05em 0 #1d4ed8, 0 .1em 0 #1e3a8a, 0 .2em .4em rgba(30,58,138,.5); }
   .logo-row p { margin: .4em 0 0; font-weight: 800; color: #1e3a8a; font-size: 1.15em; }
-  .grades { display: grid; grid-template-columns: repeat(6, 1fr); gap: .7em; width: 100%; max-width: 50em; }
+  .grades { display: grid; grid-template-columns: repeat(7, 1fr); gap: .55em; width: 100%; max-width: 51em; }
   .grade {
     display: flex; flex-direction: column; align-items: center; gap: .25em; padding: .8em .4em .7em; border-radius: 1.1em;
     background: linear-gradient(#fff, #eef2ff); border-top: .45em solid var(--c); box-shadow: 0 .3em 0 rgba(30,58,138,.3);
   }
-  .grade b { font-size: 1.45em; font-weight: 900; color: #1e293b; }
+  .grade b { font-size: 1.3em; white-space: nowrap; font-weight: 900; color: #1e293b; }
   .grade span { font-size: .78em; font-weight: 700; color: #475569; text-align: center; line-height: 1.25; min-height: 2.5em; }
   .grade em { font-style: normal; font-weight: 900; color: #b45309; font-size: .95em; }
   .grade:active { transform: translateY(.15em); box-shadow: 0 .15em 0 rgba(30,58,138,.3); }
@@ -231,7 +231,7 @@
       <div id="screen"></div>
       <canvas id="fx"></canvas>
     </div>
-    <p id="hint">Pick a grade, then climb the mountain! Each camp teaches one idea: LEARN it with Pip, then PRACTICE 6 problems (they get harder as you go). At the top is the SUMMIT QUIZ: 12 questions from every camp, with quick bonuses, streaks and a bonus round. Tap an answer, press 1-4, or use the D-pad + A. B or Esc goes back. The speaker button reads it out loud.</p>
+    <p id="hint">Pick a grade (Kindergarten to 6th), then climb the mountain! Each camp teaches one idea: LEARN it with Pip, then PRACTICE 6 problems (they get harder as you go). At the top is the SUMMIT QUIZ: 12 questions from every camp, with quick bonuses, streaks and a bonus round. Tap an answer, press 1-4, or use the D-pad + A. B or Esc goes back. The speaker button reads it out loud.</p>
   </div>
   <script src="../../shared/fullscreen.js"></script>
   <script src="../../shared/gamepad.js"></script>

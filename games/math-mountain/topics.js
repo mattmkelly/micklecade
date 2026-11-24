@@ -380,7 +380,157 @@
     return SV('0 0 240 92', s);
   }
 
+  // ---------- Kindergarten pictures ----------
+  // one little object (apple, star, fish, duck) centred on cx, cy
+  function obj(kind, cx, cy, k) {
+    const p = `class="pop" style="animation-delay:${(k * 0.05).toFixed(2)}s"`;
+    if (kind === 'apple') return `<g ${p}><circle cx="${cx}" cy="${cy + 1}" r="9" fill="#ef4444" stroke="#991b1b" stroke-width="1.2"/><path d="M${cx} ${cy - 7}v-4" stroke="#78350f" stroke-width="2" stroke-linecap="round"/><ellipse cx="${cx + 4}" cy="${cy - 10}" rx="4" ry="2" fill="#22c55e"/><circle cx="${cx - 3}" cy="${cy - 2}" r="2" fill="#fff" opacity=".5"/></g>`;
+    if (kind === 'star') { let d = ''; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 4.5 : 10.5; d += (i ? 'L' : 'M') + (cx + r * Math.cos(a)).toFixed(1) + ' ' + (cy + r * Math.sin(a)).toFixed(1); } return `<path ${p} d="${d}Z" fill="#facc15" stroke="#a16207" stroke-width="1.2" stroke-linejoin="round"/>`; }
+    if (kind === 'fish') return `<g ${p}><ellipse cx="${cx - 1}" cy="${cy}" rx="8" ry="5.5" fill="#38bdf8" stroke="#0369a1" stroke-width="1.2"/><path d="M${cx + 6} ${cy}l6 -5v10z" fill="#38bdf8" stroke="#0369a1" stroke-width="1.2" stroke-linejoin="round"/><circle cx="${cx - 4}" cy="${cy - 1.5}" r="1.4" fill="#0f172a"/></g>`;
+    return `<g ${p}><ellipse cx="${cx}" cy="${cy + 3}" rx="9" ry="6" fill="#fde047" stroke="#a16207" stroke-width="1.2"/><circle cx="${cx - 4}" cy="${cy - 4}" r="5" fill="#fde047" stroke="#a16207" stroke-width="1.2"/><path d="M${cx - 9} ${cy - 4}l-4 1.5l4 1.5z" fill="#f97316"/><circle cx="${cx - 5}" cy="${cy - 5}" r="1.1" fill="#0f172a"/></g>`;
+  }
+  const KINDS = ['apple', 'star', 'fish', 'duck'];
+  const KNAME = { apple: 'APPLES', star: 'STARS', fish: 'FISH', duck: 'DUCKS' };
+  // n objects in rows of 5 (like a ten frame), or a messy scatter
+  function vObjs(n, kind, o = {}) {
+    let s = '';
+    if (o.scatter) {
+      const spots = []; let tries = 0;
+      while (spots.length < n && tries++ < 3000) { const x = 12 + Math.random() * 150, y = 12 + Math.random() * 70; if (spots.every((q) => Math.hypot(q[0] - x, q[1] - y) > 23)) spots.push([x, y]); }
+      if (spots.length === n) { spots.forEach((q, i) => { s += obj(kind, q[0], q[1], i); }); return SV('-2 -4 176 98', s); }
+    }
+    const cols = Math.min(n, 5), rows = Math.ceil(n / 5);
+    for (let i = 0; i < n; i++) s += obj(kind, (i % 5) * 26 + 12, Math.floor(i / 5) * 26 + 13, i);
+    return SV(`-2 -2 ${cols * 26 + 2} ${rows * 26 + 2}`, s);
+  }
+  // two groups to add: a and b of the same kind with a + between
+  function vKAdd(a, b, kind) {
+    let s = '', k = 0;
+    const grp = (n, x0) => { for (let i = 0; i < n; i++) s += obj(kind, x0 + (i % 5) * 24 + 12, Math.floor(i / 5) * 24 + 13, k++); return Math.min(n, 5) * 24; };
+    const wa = grp(a, 0), rows = Math.max(Math.ceil(a / 5), Math.ceil(b / 5));
+    s += T(wa + 14, rows * 12 + 1, '+', 26, '#475569');
+    const wb = grp(b, wa + 28);
+    return SV(`-2 -2 ${wa + 28 + wb + 4} ${rows * 24 + 4}`, s);
+  }
+  // total objects, the last `gone` faded and crossed out
+  function vKTake(total, gone, kind) {
+    let s = '';
+    for (let i = 0; i < total; i++) {
+      const cx = (i % 5) * 26 + 12, cy = Math.floor(i / 5) * 26 + 13, off = i >= total - gone;
+      s += `<g opacity="${off ? 0.4 : 1}">${obj(kind, cx, cy, i)}</g>` + (off ? `<path d="M${cx - 9} ${cy - 9}L${cx + 9} ${cy + 9}M${cx + 9} ${cy - 9}L${cx - 9} ${cy + 9}" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>` : '');
+    }
+    return SV(`-2 -2 ${Math.min(total, 5) * 26 + 2} ${Math.ceil(total / 5) * 26 + 2}`, s);
+  }
+  // two rows to compare, lined up so each one has a partner
+  function vRows(a, ka, b, kb) {
+    let s = '';
+    for (let i = 0; i < a; i++) s += obj(ka, i * 24 + 12, 13, i);
+    for (let i = 0; i < b; i++) s += obj(kb, i * 24 + 12, 45, a + i);
+    return SV(`-2 -2 ${Math.max(a, b) * 24 + 4} 62`, s);
+  }
+  const SHAPES = {
+    CIRCLE: '<circle cx="50" cy="50" r="38"/>',
+    SQUARE: '<rect x="14" y="14" width="72" height="72" rx="3"/>',
+    TRIANGLE: '<path d="M50 10L90 84H10Z"/>',
+    RECTANGLE: '<rect x="4" y="26" width="92" height="50" rx="3"/>',
+    HEXAGON: '<path d="M30 14H70L90 50L70 86H30L10 50Z"/>',
+    OVAL: '<ellipse cx="50" cy="50" rx="44" ry="28"/>',
+  };
+  const SHAPE_COLORS = ['#f472b6', '#60a5fa', '#4ade80', '#facc15', '#fb923c', '#a78bfa'];
+  const vShape = (name) => SV('0 0 100 100', `<g fill="${pick(SHAPE_COLORS)}" stroke="#1e293b" stroke-width="3" stroke-linejoin="round">${SHAPES[name]}</g>`);
+  const vShapeRow = (names) => SV(`0 0 ${names.length * 110} 100`, names.map((n, i) => `<g transform="translate(${i * 110} 0)" fill="${SHAPE_COLORS[i % 6]}" stroke="#1e293b" stroke-width="3" stroke-linejoin="round">${SHAPES[n]}</g>`).join(''));
+
   const big = (s) => `<div class="big">${s}</div>`;
+
+  // ======================================================================
+  //   KINDERGARTEN
+  // ======================================================================
+  const GK = [
+    {
+      id: 'gk-count', name: 'How Many?', icon: '\u{1F34E}',
+      lesson: [
+        { t: 'Let\u2019s <b>count</b>! Touch each apple one time and say a number: 1, 2, 3, 4, <b>5</b>.', v: vObjs(5, 'apple') },
+        { t: 'The <b>last number</b> you say tells how many. 1, 2, 3, 4, 5, 6, 7. There are <b>7</b> stars!', v: vObjs(7, 'star') },
+        { t: 'Rows of 5 make counting easy. A full row is <b>5</b>, then count on: 6, 7, 8. That\u2019s <b>8</b> fish!', v: vObjs(8, 'fish') },
+      ],
+      gen(d) {
+        const kind = pick(KINDS);
+        if (d > 0.6 && Math.random() < 0.4) {
+          const m = R(1, d > 0.8 ? 16 : 7);
+          return Q({ q: `What comes next?<br>${m}, ${m + 1}, ${m + 2}, ${BL}`, ans: m + 3, wrong: [m + 4, m + 2, m + 1], min: 1, hint: 'Count on by one more.', why: `After ${m + 2} comes <b>${m + 3}</b>.` });
+        }
+        const n = R(1, d < 0.35 ? 5 : d < 0.7 ? 10 : 15);
+        return Q({ q: `How many ${KNAME[kind].toLowerCase()}?`, vis: vObjs(n, kind, { scatter: d > 0.5 && n <= 10 }), ans: n, wrong: [n + 1, n - 1, n + 2], min: 1, hint: 'Touch each one and count. The last number you say is how many.', why: `Count them: ${Array.from({ length: n }, (_, i) => i + 1).join(', ')}. There are <b>${n}</b>.` });
+      },
+    },
+    {
+      id: 'gk-more', name: 'More or Fewer', icon: '\u2696\uFE0F',
+      lesson: [
+        { t: 'Which row has <b>MORE</b>? Line them up and look: the apples go further. <b>5 apples</b> is more than 3 stars.', v: vRows(5, 'apple', 3, 'star') },
+        { t: '<b>FEWER</b> means not as many. 2 fish is <b>fewer</b> than 4 ducks.', v: vRows(2, 'fish', 4, 'duck') },
+        { t: 'If every one has a partner, they are the <b>SAME</b>. 4 and 4 are the same!', v: vRows(4, 'star', 4, 'apple') },
+      ],
+      gen(d) {
+        const [ka, kb] = shuffle(KINDS.slice()).slice(0, 2);
+        if (d > 0.6 && Math.random() < 0.4) {
+          const a = R(1, 10); let b; do { b = R(1, 10); } while (b === a);
+          return Q({ q: 'Which number is <b>BIGGER</b>?', ans: String(Math.max(a, b)), wrong: [String(a), String(b)], count: 2, hint: 'Which number comes later when you count?', why: `When you count, ${Math.max(a, b)} comes after ${Math.min(a, b)}, so <b>${Math.max(a, b)}</b> is bigger.` });
+        }
+        const a = R(1, d < 0.4 ? 5 : 8), b = Math.random() < 0.2 ? a : R(1, d < 0.4 ? 5 : 8);
+        const askMore = d < 0.35 || Math.random() < 0.55;
+        const A = KNAME[ka], B = KNAME[kb];
+        const ans = a === b ? 'SAME' : (askMore ? (a > b ? A : B) : (a < b ? A : B));
+        const why = a === b ? `${a} and ${b}: they are the <b>SAME</b>.` : `There are ${a} ${A.toLowerCase()} and ${b} ${B.toLowerCase()}. <b>${ans}</b> has ${askMore ? 'more' : 'fewer'}.`;
+        return Q({ q: `Which has <b>${askMore ? 'MORE' : 'FEWER'}</b>?`, vis: vRows(a, ka, b, kb), ans, wrong: [A, B, 'SAME'], count: 3, fixed: true, small: true, hint: 'Count each row, or match them up in pairs.', why });
+      },
+    },
+    {
+      id: 'gk-shapes', name: 'Shapes', icon: '\u{1F537}',
+      lesson: [
+        { t: 'A <b>CIRCLE</b> is round, with no corners. A <b>TRIANGLE</b> has 3 sides and 3 corners.', v: vShapeRow(['CIRCLE', 'TRIANGLE']) },
+        { t: 'A <b>SQUARE</b> has 4 sides that are all the same. A <b>RECTANGLE</b> has 4 sides too: 2 long and 2 short.', v: vShapeRow(['SQUARE', 'RECTANGLE']) },
+        { t: 'A <b>HEXAGON</b> has 6 sides, like a honeycomb. An <b>OVAL</b> is round and stretched, like an egg.', v: vShapeRow(['HEXAGON', 'OVAL']) },
+      ],
+      gen(d) {
+        const easy = ['CIRCLE', 'SQUARE', 'TRIANGLE', 'RECTANGLE'], all = easy.concat(['HEXAGON', 'OVAL']);
+        const SIDES = { TRIANGLE: 3, SQUARE: 4, RECTANGLE: 4, HEXAGON: 6 };
+        if (d > 0.55 && Math.random() < 0.45) {
+          const nm = pick(['TRIANGLE', 'SQUARE', 'RECTANGLE', 'HEXAGON']);
+          return Q({ q: 'How many <b>sides</b> does this shape have?', vis: vShape(nm), ans: SIDES[nm], wrong: [SIDES[nm] + 1, SIDES[nm] - 1, SIDES[nm] + 2], hint: 'Touch each straight side and count.', why: `A ${nm.toLowerCase()} has <b>${SIDES[nm]}</b> sides.` });
+        }
+        const pool = d < 0.4 ? easy : all, nm = pick(pool);
+        // never offer a near-twin as a wrong answer (a square IS a kind of rectangle)
+        const twin = { CIRCLE: 'OVAL', OVAL: 'CIRCLE', SQUARE: 'RECTANGLE', RECTANGLE: 'SQUARE' };
+        const wrong = shuffle(pool.filter((x) => x !== nm && x !== twin[nm])).slice(0, 3);
+        const tips = { CIRCLE: 'round with no corners', OVAL: 'round and stretched, like an egg', TRIANGLE: '3 sides and 3 corners', SQUARE: '4 sides, all the same length', RECTANGLE: '4 sides: 2 long and 2 short', HEXAGON: '6 sides' };
+        return Q({ q: 'What shape is this?', vis: vShape(nm), ans: nm, wrong, small: true, hint: 'Count the sides and corners. Is it round?', why: `It is a <b>${nm}</b>: ${tips[nm]}.` });
+      },
+    },
+    {
+      id: 'gk-add', name: 'Adding Fun', icon: '\u2795',
+      lesson: [
+        { t: '<b>Adding</b> puts groups together. 2 ducks and 1 more duck. Count them all: <b>3</b> ducks!', v: vKAdd(2, 1, 'duck') },
+        { t: 'We write it like this: <b>2 + 1 = 3</b>. The + sign means "and". The = sign means "makes".', v: big('2 + 1 = 3') },
+        { t: '3 apples and 2 apples: count them all, 1, 2, 3, 4, 5. <b>3 + 2 = 5</b>.', v: vKAdd(3, 2, 'apple') },
+      ],
+      gen(d) {
+        const kind = pick(KINDS), s = R(2, d < 0.4 ? 5 : 10), a = R(1, s - 1), b = s - a;
+        return Q({ q: d < 0.3 ? `${a} and ${b} more. How many in all?` : `${a} + ${b} = ${BL}`, vis: d < 0.8 ? vKAdd(a, b, kind) : '', ans: s, wrong: [s + 1, s - 1, s + 2], min: 1, hint: `Count all of them. Or start at ${Math.max(a, b)} and count on ${Math.min(a, b)} more.`, why: `${a} and ${b} make <b>${s}</b>. ${a} + ${b} = ${s}.` });
+      },
+    },
+    {
+      id: 'gk-take', name: 'Taking Away', icon: '\u2796',
+      lesson: [
+        { t: 'There were 4 fish. 1 swam away! Now there are <b>3</b> fish.', v: vKTake(4, 1, 'fish') },
+        { t: 'We write it: <b>4 \u2212 1 = 3</b>. The \u2212 sign means "take away".', v: big('4 \u2212 1 = 3') },
+        { t: '5 stars, take away 2. Count the ones that are left: 1, 2, 3. <b>5 \u2212 2 = 3</b>.', v: vKTake(5, 2, 'star') },
+      ],
+      gen(d) {
+        const kind = pick(KINDS), a = R(2, d < 0.4 ? 5 : 10), b = R(1, a - 1), r = a - b;
+        return Q({ q: d < 0.3 ? `${a} ${KNAME[kind].toLowerCase()}, take away ${b}. How many are left?` : `${a} \u2212 ${b} = ${BL}`, vis: d < 0.8 ? vKTake(a, b, kind) : '', ans: r, wrong: [r + 1, r - 1, a + b], hint: 'Count the ones that are NOT crossed out.', why: `${a} take away ${b} leaves <b>${r}</b>. ${a} \u2212 ${b} = ${r}.` });
+      },
+    },
+  ];
 
   // ======================================================================
   //   GRADE 1
@@ -1019,6 +1169,7 @@
   ];
 
   const GRADES = [
+    { n: 0, color: '#2dd4bf', blurb: 'Count \u00b7 Shapes \u00b7 Add', topics: GK },
     { n: 1, color: '#f472b6', blurb: 'Tens · Adding · Time', topics: G1 },
     { n: 2, color: '#fb923c', blurb: 'Hundreds · Coins · Groups', topics: G2 },
     { n: 3, color: '#eab308', blurb: 'Times · Sharing · Fractions', topics: G3 },
@@ -1027,5 +1178,6 @@
     { n: 6, color: '#8b5cf6', blurb: 'Ratios · % · Negatives · x', topics: G6 },
   ];
 
+  GRADES.forEach((g) => { g.label = g.n ? 'GRADE ' + g.n : 'KINDERGARTEN'; });
   global.MathMountain = { GRADES, F, R, pick, shuffle };
 })(window);
