@@ -1039,6 +1039,11 @@
 
   window.addEventListener('keydown', (e) => {
     ensureAudio();
+    if (howtoOpen) {
+      if (['Escape', 'Enter', 'NumpadEnter', 'Space', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) closeHowto(); }
+      return;
+    }
+    if (state === 'title' && (e.code === 'KeyH' || e.key === '?')) { e.preventDefault(); openHowto(); return; }
     if (state === 'play') {
       if (C.paused && C.why === 'pause') {   // the pause menu has the keys
         const pk = {
@@ -1083,7 +1088,7 @@
 
   // the whole page takes taps (links excepted); in play only the highway's columns do anything
   window.addEventListener('pointerdown', (e) => {
-    if (e.target && e.target.closest && e.target.closest('a')) return;
+    if (e.target && e.target.closest && e.target.closest('a, button, #howto')) return;
     ensureAudio();
     const p = toCanvas(e);
     if (state === 'play') {
@@ -1116,6 +1121,11 @@
   function pollPad() {
     if (!window.Pad360) return;
     const P = Pad360;
+    if (howtoOpen) {
+      if (P.pressed(P.BTN.A) || P.pressed(P.BTN.B) || P.pressed(P.BTN.START)) closeHowto();
+      return;
+    }
+    if (state === 'title' && P.pressed(P.BTN.Y)) { openHowto(); return; }
     if (state === 'play') {
       if (C.paused && C.why === 'pause') {
         const dx = P.dxPressed(), dy = P.dyPressed();
@@ -2380,6 +2390,9 @@
     // SYNC: fix up the timing on a tablet whose sound comes out late
     glossyButton(W - 74, 6, 66, 16, '\u23F1 SYNC', '#4ff0ff', false);
     hot.push({ x: W - 78, y: 2, w: 74, h: 24, fn: goSync });
+    // HOW TO PLAY: its own page (also H / ? or Y on a controller)
+    glossyButton(W - 172, 6, 90, 16, '? HOW TO PLAY', '#ffe14f', false);
+    hot.push({ x: W - 176, y: 2, w: 96, h: 24, fn: openHowto });
   }
 
   function starRow(x, y, n, of, size, gap) {
@@ -3179,6 +3192,32 @@
     showVolume();
     if (actx && liveTarget) liveTarget.master.gain.setTargetAtTime(VOLUMES[save.volume], actx.currentTime, 0.05);
   }
+  // ---- HOW TO PLAY: its own page over the game (the title button, H / ?, Y, or the ☰ menu) ----
+  // Opened mid-song (from the menu), the song stays paused and the pause menu waits underneath.
+  const howtoEl = document.getElementById('howto');
+  let howtoOpen = false;
+  function openHowto() {
+    if (!howtoEl || howtoOpen) return;
+    if (window.MickleMenu && MickleMenu.isOpen()) MickleMenu.close();
+    if (state === 'play' && C.on) {
+      if (!C.paused) openPause();
+      else if (C.why === 'menu') { C.why = 'pause'; pauseSel = 0; }
+    }
+    howtoOpen = true;
+    howtoEl.hidden = false;
+    // restart the little highway each time it opens
+    howtoEl.querySelectorAll('.hw-puck, .hw-pad, .hw-pop').forEach((n) => { n.style.animationName = 'none'; void n.offsetWidth; n.style.animationName = ''; });
+    document.getElementById('btn-howto-close').focus({ preventScroll: true });
+  }
+  function closeHowto() {
+    if (!howtoOpen) return;
+    howtoOpen = false;
+    howtoEl.hidden = true;
+  }
+  const howtoBtn = document.getElementById('btn-howto');
+  if (howtoBtn) howtoBtn.addEventListener('click', () => { ensureAudio(); openHowto(); });
+  document.getElementById('btn-howto-close').addEventListener('click', closeHowto);
+
   const syncBtn = document.getElementById('syncbtn');
   if (syncBtn) syncBtn.addEventListener('click', () => { goSync(); });
   if (volBtn) {

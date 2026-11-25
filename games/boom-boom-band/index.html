@@ -64,9 +64,9 @@
     touch-action: none;
   }
 
-  /* SOUND: QUIET / MEDIUM / LOUD and SYNC TIMING -- menu.js moves them into the ☰ menu */
+  /* SOUND: QUIET / MEDIUM / LOUD, SYNC TIMING and HOW TO PLAY -- menu.js moves them into the ☰ menu */
   #syncbtn { border-color: #4ff0ff !important; color: #4ff0ff !important; }
-  #vol, #syncbtn {
+  #vol, #syncbtn, .howto-link {
     font: bold 0.8rem 'Courier New', Courier, monospace;
     letter-spacing: 1px;
     padding: 9px 10px;
@@ -79,28 +79,180 @@
     white-space: nowrap;
   }
 
-  #hint {
-    color: #4ff0ff;
-    font-size: 0.72rem;
-    letter-spacing: 1px;
-    text-align: center;
-    text-shadow: 0 0 6px #4ff0ff;
+  /* the menu moves this HOW TO PLAY button into its panel */
+  .howto-link { border-color: #ff4fd8 !important; color: #ff4fd8 !important; }
+
+  /* ---- HOW TO PLAY: its own page over the game ---- */
+  .howto {
+    position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+    padding: 1em; background: rgba(8, 3, 26, .76); color: #fff;
+    font-size: clamp(9px, min(1.45vw, 2.58vh), 20px);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    animation: hw-fade .2s ease-out;
+  }
+  .howto[hidden] { display: none; }
+  @keyframes hw-fade { from { opacity: 0; } }
+  @keyframes hw-rise { from { opacity: 0; transform: translateY(1.2em) scale(.97); } }
+  @keyframes hw-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-.25em) rotate(4deg); } }
+  .howto-panel {
+    width: min(100%, 62em); max-height: 100%; overflow: auto; padding: 1.3em 1.7em 1.4em;
+    display: flex; flex-direction: column; gap: .9em; border-radius: 1.4em;
+    background: linear-gradient(160deg, rgba(58, 20, 112, .97), rgba(16, 7, 40, .97));
+    border: 2px solid rgba(255, 79, 216, .7);
+    box-shadow: 0 1.5em 4em rgba(0, 0, 0, .5), 0 0 2em rgba(255, 79, 216, .3), inset 0 1px 0 rgba(255, 255, 255, .12);
+    animation: hw-rise .35s cubic-bezier(.2, 1.3, .4, 1);
+  }
+  .hw-head { display: flex; align-items: center; justify-content: center; gap: .8em; }
+  .hw-head svg { width: 3.6em; height: 3.6em; flex: none; animation: hw-bob 1s ease-in-out infinite; }
+  .hw-head h1 {
+    margin: 0; font: 900 2.3em 'Arial Black', 'Helvetica Neue', Impact, sans-serif; letter-spacing: .03em; line-height: 1;
+    background: linear-gradient(#fff, #fff6b0 50%, #ffd23d); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 .08em 0 #ff4fd8);
+  }
+  .hw-head p { margin: .3em 0 0; color: rgba(255, 255, 255, .75); font-weight: 600; font-size: 1em; }
+
+  /* the top strip: a little highway whose notes land on the pads, and what to do */
+  .hw-top { display: grid; grid-template-columns: auto 1fr; gap: 1.4em; align-items: center;
+    padding: .9em 1.1em; border-radius: 1.1em; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); }
+  .hw-stage { perspective: 14em; }
+  .hw-road {
+    position: relative; width: 13em; height: 9em; transform: rotateX(28deg); transform-origin: 50% 100%;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .25em; padding: 0 .3em;
+    background: linear-gradient(rgba(79, 240, 255, .05), rgba(180, 92, 255, .25));
+    border-left: 2px solid #4ff0ff; border-right: 2px solid #4ff0ff; border-radius: .3em .3em 0 0;
+  }
+  .hw-lane { position: relative; border-left: 1px dashed rgba(255, 255, 255, .12); }
+  .hw-lane:first-child { border-left: 0; }
+  .hw-puck {
+    position: absolute; left: 50%; top: 0; width: 1.8em; height: 1.1em; margin-left: -.9em; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #fff, var(--c) 45%, color-mix(in srgb, var(--c) 55%, #000));
+    box-shadow: 0 0 .6em var(--c); opacity: 0;
+  }
+  .hw-pad {
+    position: absolute; left: 50%; bottom: .3em; width: 2.6em; height: 1.4em; margin-left: -1.3em; border-radius: 50%;
+    border: .22em solid var(--c); background: #1a1030;
+  }
+  .hw-pop { position: absolute; left: 50%; bottom: 2.2em; transform: translateX(-50%); opacity: 0; white-space: nowrap;
+    font: 900 .7em 'Arial Black', Impact, sans-serif; color: #ffe14f; text-shadow: 0 0 .4em #ff4fd8; }
+  @keyframes hw-fall { 0% { top: -1em; opacity: 0; } 8% { opacity: 1; } 60% { top: 6.9em; opacity: 1; } 64%, 100% { top: 6.9em; opacity: 0; } }
+  @keyframes hw-hit { 0%, 58%, 80%, 100% { background: #1a1030; box-shadow: none; transform: scale(1); }
+    61% { background: #fff; box-shadow: 0 0 1.4em .4em var(--c); transform: scale(1.18); } }
+  @keyframes hw-say { 0%, 59% { opacity: 0; transform: translate(-50%, .4em); } 63% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; } 95%, 100% { opacity: 0; transform: translate(-50%, -.8em); } }
+  .howto:not([hidden]) .hw-puck { animation: hw-fall 2.4s linear infinite; animation-delay: var(--d); }
+  .howto:not([hidden]) .hw-pad { animation: hw-hit 2.4s linear infinite; animation-delay: var(--d); }
+  .howto:not([hidden]) .hw-pop { animation: hw-say 2.4s linear infinite; animation-delay: var(--d); }
+  .hw-key { display: flex; flex-direction: column; gap: .55em; font-weight: 700; color: rgba(255, 255, 255, .8); font-size: .95em; line-height: 1.3; }
+  .hw-key b { color: #fff; font-weight: 900; }
+  .hw-key .lead { font-size: 1.15em; color: #fff; }
+  .hw-judge { display: flex; flex-wrap: wrap; gap: .4em; }
+  .hw-judge span { padding: .25em .7em; border-radius: 999px; background: rgba(0, 0, 0, .3); font-weight: 900; font-size: .85em; }
+
+  .hw-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7em; }
+  .how {
+    display: flex; flex-direction: column; gap: .3em; padding: .8em .9em; border-radius: 1em;
+    background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1);
+  }
+  .how svg { width: 2.4em; height: 2.4em; }
+  .how b { font-size: 1.05em; font-weight: 900; }
+  .how p { margin: 0; color: rgba(255, 255, 255, .72); font-size: .82em; font-weight: 600; line-height: 1.3; flex: 1; }
+  .keys { display: flex; flex-wrap: wrap; gap: .3em; margin-top: .3em; }
+  .keys span { padding: .2em .5em; border-radius: .45em; background: rgba(0, 0, 0, .3); font-size: .68em; font-weight: 800;
+    color: rgba(255, 255, 255, .6); letter-spacing: .03em; }
+  .keys kbd { font: inherit; color: #fff; }
+
+  /* the three difficulties and their buttons */
+  .hw-levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6em; }
+  .hw-levels > div { padding: .5em .7em; border-radius: .9em; background: rgba(0, 0, 0, .28); border-top: .22em solid var(--c);
+    font-size: .76em; font-weight: 700; color: rgba(255, 255, 255, .65); line-height: 1.45; }
+  .hw-levels b { display: flex; align-items: center; gap: .5em; color: #fff; font-weight: 900; font-size: 1.3em; margin-bottom: .15em; }
+  .hw-levels b i { display: inline-flex; gap: .18em; }
+  .hw-levels b i u { width: .65em; height: .65em; border-radius: 50%; background: var(--p); text-decoration: none; }
+  .hw-levels kbd { font: inherit; color: #fff; font-weight: 900; }
+  .hw-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em;
+    color: rgba(255, 255, 255, .72); font-size: .88em; font-weight: 700; }
+  .hw-go {
+    font: 900 1.15em 'Arial Black', 'Helvetica Neue', Impact, sans-serif; color: #fff; cursor: pointer; flex: none;
+    padding: .5em 1.8em; border: 1px solid rgba(255, 255, 255, .35); border-radius: 999px; letter-spacing: .03em;
+    background: linear-gradient(#ff7be3, #d1239f); box-shadow: 0 .2em 0 rgba(0, 0, 0, .3);
+  }
+  .hw-go:active { transform: translateY(.12em); box-shadow: 0 .08em 0 rgba(0, 0, 0, .3); }
+  .hw-go:focus { outline: none; box-shadow: 0 0 0 .18em #ffe14f, 0 0 1.4em .3em rgba(255, 79, 216, .6); }
+  @media (max-height: 480px) {
+    .howto { padding: .5em; }
+    .howto-panel { gap: .5em; padding: .7em 1.2em .8em; }
+    .hw-head svg { width: 2.5em; height: 2.5em; }
+    .hw-head h1 { font-size: 1.8em; }
+    .hw-top, .how { padding: .55em .8em; }
+    .how svg { width: 1.7em; height: 1.7em; }
+    .hw-road { height: 7.5em; }
+    .hw-levels > div { padding: .3em .6em; }
+    .hw-go { padding: .4em 1.6em; }
+  }
+  @media (max-aspect-ratio: 4/3) {
+    .hw-grid { grid-template-columns: repeat(2, 1fr); }
+    .hw-levels { grid-template-columns: 1fr; }
+    .hw-top { grid-template-columns: 1fr; justify-items: center; }
+    .hw-foot { flex-direction: column; text-align: center; }
   }
 </style>
 </head>
 <body>
   <div id="wrap">
     <a id="back" href="../../launcher/index.html">&larr; BACK TO MICKLECADE</a>
-    <div id="topbar"><button id="vol" type="button">&#9834; SOUND: MEDIUM</button><button id="syncbtn" class="bbb-btn" type="button">&#9201; SYNC TIMING</button></div>
+    <div id="topbar"><button id="vol" type="button">&#9834; SOUND: MEDIUM</button><button id="syncbtn" class="bbb-btn" type="button">&#9201; SYNC TIMING</button><button id="btn-howto" class="howto-link" type="button">? HOW TO PLAY</button></div>
     <canvas id="game" width="480" height="270"></canvas>
-    <div id="hint">
-      <p>HIT EACH DRUM PAD JUST AS ITS NOTE LANDS ON IT!</p>
-      <p>EASY: F J K (OR &larr; &darr; &rarr;)<br>MEDIUM: D F J K (OR &larr; &darr; &uarr; &rarr;)<br>HARD: D F SPACE J K</p>
-      <p>CONTROLLER: X A B (+ D-PAD LEFT / RIGHT)</p>
-      <p>TABLET: TAP THE PADS &mdash; ANYWHERE IN A PAD'S COLUMN COUNTS</p>
-      <p>10 IN A ROW SENDS AN ENERGY WAVE!</p>
-      <p>PAUSE: ESC, P, START OR THE &#10074;&#10074; BUTTON &mdash; EVERY 3 STARS UNLOCKS A NEW SONG OR KIT</p>
-      <p>NOTES FEEL LATE ON A TABLET? TRY SYNC TIMING</p>
+  </div>
+  <!-- HOW TO PLAY: its own page, opened from the title screen or the menu -->
+  <div id="howto" class="howto" hidden>
+    <div class="howto-panel" role="dialog" aria-label="How to play">
+      <div class="hw-head">
+        <svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -40 L-8 -6 M30 -40 L8 -6" stroke="#ffe14f" stroke-width="6" stroke-linecap="round"/><circle cx="-30" cy="-40" r="6" fill="#fff6b0"/><circle cx="30" cy="-40" r="6" fill="#fff6b0"/><path d="M-40 0 v26 a40 14 0 0 0 80 0 v-26" fill="#ff4fd8"/><path d="M-40 6 l20 18 l20 -18 l20 18 l20 -18" stroke="#ffe14f" stroke-width="3" fill="none"/><ellipse cx="0" cy="0" rx="40" ry="14" fill="#ece7ff" stroke="#4ff0ff" stroke-width="4"/></svg>
+        <div><h1>HOW TO PLAY</h1><p>Notes slide down the road. Hit each drum pad as its note lands!</p></div>
+      </div>
+      <div class="hw-top">
+        <div class="hw-stage" aria-hidden="true"><div class="hw-road">
+          <div class="hw-lane" style="--c:#ffd23d;--d:0s"><span class="hw-puck"></span><span class="hw-pad"></span><span class="hw-pop">PERFECT!</span></div>
+          <div class="hw-lane" style="--c:#3d8bff;--d:.6s"><span class="hw-puck"></span><span class="hw-pad"></span><span class="hw-pop">GREAT!</span></div>
+          <div class="hw-lane" style="--c:#3ddc5a;--d:1.2s"><span class="hw-puck"></span><span class="hw-pad"></span><span class="hw-pop">PERFECT!</span></div>
+          <div class="hw-lane" style="--c:#ff4a4a;--d:1.8s"><span class="hw-puck"></span><span class="hw-pad"></span><span class="hw-pop">PERFECT!</span></div>
+        </div></div>
+        <div class="hw-key">
+          <div class="lead">Watch the notes come down the road. When one lands on a pad, <b>hit that pad!</b></div>
+          <div>On a tablet, tap anywhere in the pad&rsquo;s column. On a keyboard or controller, press the pad&rsquo;s button.</div>
+          <div>The closer you are, the more points:</div>
+          <div class="hw-judge"><span style="color:#ffe14f">PERFECT</span><span style="color:#4ff0ff">GREAT</span><span style="color:#b9ffb0">OK</span></div>
+          <div>Missed one? No points are taken away &mdash; just catch the next one.</div>
+        </div>
+      </div>
+      <div class="hw-grid">
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 30c6-12 10-12 14 0s8 12 14 0 8-12 12 0" stroke="#4ff0ff" stroke-width="3.5"/><path d="M4 30c6-12 10-12 14 0s8 12 14 0 8-12 12 0" stroke="#fff" stroke-width="1.2" opacity=".7"/><path d="M14 10l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z" fill="#ffe14f"/></svg>
+          <b>ENERGY WAVE</b><p>Hit 10 in a row and a wave rolls out! More waves at 25, 50, 75 and 100. Your points multiply as your streak grows, up to &times;5.</p>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M24 4l6 12 13 2-9.5 9 2.3 13L24 34l-11.8 6 2.3-13L5 18l13-2z" fill="#ffe14f" stroke="#ffb02e" stroke-width="2.5"/><rect x="18" y="20" width="12" height="10" rx="2" fill="#3a1470"/><path d="M20.5 20v-2.5a3.5 3.5 0 0 1 7 0V20" stroke="#3a1470" stroke-width="2.2"/></svg>
+          <b>STARS &amp; UNLOCKS</b><p>Every song earns 1 to 5 stars. Every 3 stars opens a new song or a new drum kit!</p>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="19" fill="rgba(255,255,255,.12)" stroke="#fff" stroke-width="2.5"/><rect x="17" y="15" width="5" height="18" rx="1.5" fill="#fff"/><rect x="26" y="15" width="5" height="18" rx="1.5" fill="#fff"/></svg>
+          <b>PAUSE</b><p>Take a break, start over, swap to a different kit, or pick another song.</p>
+          <div class="keys"><span>TAP <kbd>&#10074;&#10074;</kbd></span><span>KEYS <kbd>ESC &middot; P</kbd></span><span>PAD <kbd>START</kbd></span></div>
+        </div>
+        <div class="how">
+          <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="27" r="16" fill="rgba(79,240,255,.15)" stroke="#4ff0ff" stroke-width="2.5"/><path d="M24 27V17M24 27l7 4" stroke="#fff" stroke-width="3"/><path d="M19 5h10M24 5v6" stroke="#4ff0ff" stroke-width="3"/></svg>
+          <b>SYNC TIMING</b><p>Notes feel late on a tablet? Press SYNC on the title screen and tap along with the clicks.</p>
+        </div>
+      </div>
+      <div class="hw-levels">
+        <div style="--c:#3ddc5a"><b>EASY <i><u style="--p:#3d8bff"></u><u style="--p:#3ddc5a"></u><u style="--p:#ff4a4a"></u></i></b>3 pads &middot; a wave saves your next miss<br>KEYS <kbd>F J K</kbd> or <kbd>&larr; &darr; &rarr;</kbd> &middot; PAD <kbd>X A B</kbd></div>
+        <div style="--c:#ffd23d"><b>MEDIUM <i><u style="--p:#ffd23d"></u><u style="--p:#3d8bff"></u><u style="--p:#3ddc5a"></u><u style="--p:#ff4a4a"></u></i></b>4 pads<br>KEYS <kbd>D F J K</kbd> or <kbd>&larr; &darr; &uarr; &rarr;</kbd> &middot; PAD <kbd>&#9664; X A B</kbd></div>
+        <div style="--c:#ff4a4a"><b>HARD <i><u style="--p:#ffd23d"></u><u style="--p:#b45cff"></u><u style="--p:#3d8bff"></u><u style="--p:#3ddc5a"></u><u style="--p:#ff4a4a"></u></i></b>5 pads<br>KEYS <kbd>D F SPACE J K</kbd> &middot; PAD <kbd>&#9664; &#9654; X A B</kbd></div>
+      </div>
+      <div class="hw-foot">
+        <span>Pick a song, pick a kit, and rock out! Every song plays once through.</span>
+        <button id="btn-howto-close" class="hw-go" type="button">GOT IT!</button>
+      </div>
     </div>
   </div>
   <script src="../../shared/fullscreen.js"></script>
