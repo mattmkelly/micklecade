@@ -95,6 +95,9 @@
   .grades .lbl { font-weight: 900; color: #0f4c5c; margin-right: .2em; font-size: .95em; }
   .gchip { width: 2.5em; height: 2.5em; border-radius: .8em; font-weight: 900; font-size: 1.2em; color: #0f4c5c;
     background: #fff; box-shadow: 0 .15em 0 rgba(0,0,0,.15); }
+  .grades.many { flex-wrap: wrap; row-gap: .3em; padding: .35em .5em; }
+  .grades.many .gchip { width: 2.35em; height: 2.1em; font-size: 1.05em; }
+  .unlock { margin: .3em 0; padding: .35em .9em; border-radius: 999px; background: linear-gradient(#fde68a, #f59e0b); color: #78350f; font-weight: 900; }
   .gchip.sel { background: linear-gradient(#fcd34d, #f59e0b); color: #5b3a00; transform: scale(1.08); box-shadow: 0 .15em 0 #b45309; }
   .modes { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: .8em; min-height: 0; }
   .mode {
@@ -132,7 +135,19 @@
   .stop.sel { box-shadow: 0 0 0 .25em #f59e0b, 0 .25em 0 rgba(0,0,0,.25); }
   .stop .stars { position: absolute; top: 2.9em; left: 50%; transform: translateX(-50%); font-size: .75em; white-space: nowrap; letter-spacing: -.1em; }
   @keyframes pulse { 50% { transform: scale(1.1); } }
-  .goal { position: absolute; font-size: 3em; margin: -.6em 0 0 -.5em; z-index: 1; filter: drop-shadow(0 .1em .1em rgba(0,0,0,.25)); }
+  .goal {
+    position: absolute; width: 4.4em; height: 4.4em; margin: -2.2em 0 0 -2.2em; border-radius: 50%;
+    display: grid; place-items: center; z-index: 2; padding: 0;
+    background: radial-gradient(circle at 35% 30%, #fff, #cbd5e1); border: .22em solid #fff;
+    box-shadow: 0 .25em 0 rgba(0,0,0,.25);
+  }
+  .goal span { font-size: 2.4em; line-height: 1; filter: drop-shadow(0 .06em .06em rgba(0,0,0,.3)); }
+  .goal .lbl { position: absolute; bottom: -1.1em; left: 50%; transform: translateX(-50%); font-size: .8em; font-weight: 900; color: #fff; background: #1e3a5f; padding: .05em .6em; border-radius: 999px; white-space: nowrap; letter-spacing: -.05em; }
+  .goal.locked { opacity: .7; }
+  .goal.open { background: radial-gradient(circle at 35% 30%, #fef3c7, #f59e0b); animation: pulse 1.6s ease-in-out infinite; }
+  .goal.won { background: radial-gradient(circle at 35% 30%, #fef9c3, #eab308); box-shadow: 0 0 0 .2em #fde047, 0 0 1.2em .3em rgba(250, 204, 21, .6), 0 .25em 0 rgba(0,0,0,.25); }
+  .goal.sel { box-shadow: 0 0 0 .25em #f59e0b, 0 .25em 0 rgba(0,0,0,.25); }
+  .card .cupbig { font-size: 4.5em; line-height: 1; animation: yay 1s ease-in-out infinite; }
   .wiggler { position: absolute; width: 4.6em; height: 3.8em; margin: -4.9em 0 0 -2.6em; z-index: 3; pointer-events: none; transition: left .6s ease-in-out, top .6s ease-in-out; }
   .wiggler svg { width: 100%; height: 100%; animation: hop 1.4s ease-in-out infinite; }
   @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.35em); } }
@@ -379,7 +394,7 @@
     <div class="howto-panel" role="dialog" aria-label="How to play">
       <div class="hw-head"><span id="hw-wiggle"></span><div><h1>HOW TO PLAY</h1><p>Read with Wiggle the bookworm! Pick your grade, then pick a way to play.</p></div></div>
       <div class="hw-grid">
-        <div class="hw trail"><div class="i">🗺️</div><b>TRAIL</b><p>Walk Wiggle along a trail of 12 stops. Each stop is a short reading round. 📖 stops are little stories with questions. Finish a stop to open the next one and win up to 3 stars.</p></div>
+        <div class="hw trail"><div class="i">🗺️</div><b>TRAIL</b><p>Walk Wiggle along a trail of 12 stops. Each stop is a short reading round. 📖 stops are little stories with questions. Finish a stop to open the next one and win up to 3 stars. After stop 12, try the 🏆 GRADE CUP: 10 questions from the whole grade. Get 7 right to win it!</p></div>
         <div class="hw arcade"><div class="i">🎮</div><b>ARCADE</b><p>Quick word games against the clock: pop the right balloon, catch the fireflies that fit the rule, and hook word cars onto the train in the right order.</p></div>
         <div class="hw garden"><div class="i">🌻</div><b>GARDEN</b><p>Answer questions to earn seeds 🌱, then spend them on flowers, trees, animals and houses for Wiggle's garden. Stars and arcade points earn seeds too!</p></div>
       </div>
@@ -397,7 +412,9 @@
   <script src="../../shared/gamepad.js"></script>
   <script src="../../shared/scores.js"></script>
   <script src="../../shared/menu.js" data-frame="#stage" data-at="1,0"></script>
-  <script src="content.js?v=5"></script>
-  <script src="game.js?v=5"></script>
+  <script src="../../shared/grades.js"></script>
+  <script src="content.js?v=7"></script>
+  <script src="content-hs.js?v=1"></script>
+  <script src="game.js?v=7"></script>
 </body>
 </html>

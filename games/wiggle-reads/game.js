@@ -63,10 +63,31 @@
   const save = (function () {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { s = {}; }
-    return Object.assign({ grade: 0, voice: true, seeds: 15, trail: {}, trailAt: {}, best: {}, garden: [] }, s);
+    return Object.assign({ grade: 0, voice: true, seeds: 15, trail: {}, trailAt: {}, best: {}, garden: [], cup: {}, decks: {} }, s);
   })();
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* storage can throw */ } }
-  const G = () => save.grade;
+  // A deck deals every item of a list once, in a shuffled order, before any item comes back.
+  // Decks are saved, so coming back tomorrow carries on where the deck left off.
+  let deckSave = 0;
+  function deal(id, n) {
+    let d = save.decks[id];
+    if (!d || d.n !== n || !d.left || !d.left.length) {
+      const last = d && d.last;
+      const left = shuffle(Array.from({ length: n }, (_, i) => i));
+      // don't let the last item of one round be the first of the next
+      if (n > 1 && left[left.length - 1] === last) left.unshift(left.pop());
+      d = save.decks[id] = { n, left };
+    }
+    const i = d.left.pop();
+    d.last = i;
+    clearTimeout(deckSave);
+    deckSave = setTimeout(persist, 400);
+    return i;
+  }
+  const dealFrom = (id, arr) => arr[deal(id, arr.length)];
+  // grades 7-12 stay hidden until a learning game's top level is finished (shared/grades.js)
+  const shownN = () => (window.MickleGrades && MickleGrades.unlocked() ? GR.length : 7);
+  const G = () => Math.min(save.grade, shownN() - 1);
   const young = () => save.grade <= 2;
   function addSeeds(n) { save.seeds = Math.min(99999, save.seeds + n); persist(); }
 
@@ -274,8 +295,8 @@
   }
 
   const MAKERS = {
-    letter(s) {
-      const T = pick(LETTERS.split(''));
+    letter(s, g) {
+      const T = dealFrom(g + '|letter|' + s.mode, LETTERS.split(''));
       if (s.mode === 'case') {
         const t = T.toLowerCase();
         return finish({ prompt: 'Find the small letter!', say: 'Find the small letter for ' + T, big: { word: T, huge: true },
@@ -287,17 +308,17 @@
         choices: [T].concat(lookalikes(T, LOOK_UP, LETTERS.split(''), 3)).map((c) => ({ t: c })),
         tip: 'Look for ' + T + '.' });
     },
-    firstSound() {
+    firstSound(s, g) {
       const all = itemsOf(C.PICS_FIRST);
-      const it = pick(all), L = it.w[0];
+      const it = dealFrom(g + '|first', all), L = it.w[0];
       const pool = Array.from(new Set(all.map((x) => x.w[0]))).filter((c) => c !== L);
       return finish({ prompt: 'What letter does it start with?', say: it.w + '. What letter does ' + it.w + ' start with?', autoSay: true,
         big: { emo: it.e }, choices: [L].concat(sample(pool, 2)).map((c) => ({ t: c })),
         tip: it.w + ' starts with ' + L + '.' });
     },
-    rhyme() {
+    rhyme(s, g) {
       const groups = C.RHYMES.map(itemsOf);
-      const gi = Math.floor(Math.random() * groups.length);
+      const gi = deal(g + '|rhyme', groups.length);
       const [a, b] = sample(groups[gi], 2);
       const used = new Set([a.e, b.e, a.w, b.w]);
       const wrong = [];
@@ -309,24 +330,24 @@
       return finish({ prompt: 'Which one rhymes with ' + a.w + '?', big: { emo: a.e, word: a.w },
         choices: [b].concat(wrong).map((x) => ({ t: x.w, e: x.e })), tip: a.w + ' and ' + b.w + ' rhyme!' });
     },
-    readPic(s) {
-      const pool = itemsOf(s.items), it = pick(pool);
+    readPic(s, g) {
+      const pool = itemsOf(s.items), it = dealFrom(g + '|' + s.name, pool);
       const wrong = sample(pool.filter((x) => x.e !== it.e && x.w !== it.w), 2);
       return finish({ prompt: 'Read the word. Tap its picture!', big: { word: it.w },
         choices: [it].concat(wrong).map((x) => ({ e: x.e, w: x.w })), tip: 'Sound it out slowly: ' + it.w.split('').join('-') + '.' });
     },
-    hearWord(s) {
-      const it = pick(itemsOf(s.items));
+    hearWord(s, g) {
+      const it = dealFrom(g + '|' + s.name, itemsOf(s.items));
       const vi = it.w.search(/[aeiou]/);
       const wrong = shuffle('aeiou'.split('').filter((v) => v !== it.w[vi])).slice(0, 2)
         .map((v) => it.w.slice(0, vi) + v + it.w.slice(vi + 1));
       return finish({ prompt: 'Which word did you hear?', say: it.w, autoSay: true, big: { emo: it.e },
         choices: [it.w].concat(wrong).map((t) => ({ t })), tip: 'Listen for the middle sound: ' + it.w + '.' });
     },
-    chunk(s) {
+    chunk(s, g) {
       const chunks = s.chunks.split(' ');
       const pool = itemsOf(s.items).filter((x) => chunks.some((c) => x.w.indexOf(c) >= 0));
-      const it = pick(pool);
+      const it = dealFrom(g + '|' + s.name, pool);
       const c = chunks.find((k) => it.w.indexOf(k) >= 0);
       const i = it.w.indexOf(c);
       const html = esc(it.w.slice(0, i)) + '<u>' + esc(c) + '</u>' + esc(it.w.slice(i + c.length));
@@ -335,23 +356,23 @@
         big: { emo: it.e, html }, choices: [c].concat(sample(chunks.filter((k) => k !== c), n)).map((t) => ({ t })),
         tip: it.w + ' is spelled with "' + c + '".' });
     },
-    sight(s) {
+    sight(s, g) {
       const words = s.words.split(' ');
-      const t = pick(words);
+      const t = dealFrom(g + '|' + s.name, words);
       const n = G() === 0 ? 2 : 3;
       const near = shuffle(words.filter((w) => w !== t && (w[0] === t[0] || Math.abs(w.length - t.length) <= 1)));
       const rest = shuffle(words.filter((w) => w !== t && near.indexOf(w) < 0));
       return finish({ prompt: voiceOn() ? 'Tap the word you hear!' : 'Find the word: ' + t, say: t, autoSay: true,
         choices: [t].concat(near.concat(rest).slice(0, n)).map((x) => ({ t: x })), tip: 'Look for "' + t + '".' });
     },
-    syll(s) {
-      const w = pick(s.words.split(' '));
+    syll(s, g) {
+      const w = dealFrom(g + '|' + s.name, s.words.split(' '));
       const parts = w.split('-'), word = parts.join('');
       return finish({ prompt: 'How many syllables? Clap it!', say: word, autoSay: true, big: { word }, keepOrder: true,
         choices: [parts.length].concat([1, 2, 3, 4].filter((n) => n !== parts.length)).map((n) => ({ t: String(n) })),
         tip: parts.join(' · ') + ' = ' + parts.length });
     },
-    qa(s) { return qaLine(pick(s.lines), s.say); },
+    qa(s, g) { return qaLine(dealFrom(g + '|' + s.name, s.lines), s.say); },
   };
   // fix the syllable order to 1 2 3 4 after finish() put the right one first
   const syllMaker = MAKERS.syll;
@@ -400,6 +421,12 @@
     return st.q.map((line, i) => { const q = qaLine(line); q.passage = st; q.firstOfStory = i === 0; q.skill = 'STORY'; return q; });
   }
   function orderLines(g) { return GR[g].order.split('\n').map((s) => s.trim()).filter(Boolean); }
+  function orderPair(g) {
+    const lines = orderLines(g), a = dealFrom(g + '|order', lines);
+    let b = dealFrom(g + '|order', lines);
+    if (b === a) b = dealFrom(g + '|order', lines);
+    return [a, b];
+  }
   function orderQ(line) {
     const m = line.match(/^(.*?[.?!])\s*(\S*)$/);
     const sentence = m ? m[1] : line, hint = m ? m[2] : '';
@@ -676,8 +703,8 @@
         h('h1', { class: 'logo', html: 'WIGGLE<b>READS</b>' }),
         h('p', { class: 'tagline', text: 'Letter sounds, sight words & stories' })),
       h('div', { class: 't-right' },
-        h('div', { class: 'grades' }, h('span', { class: 'lbl', text: 'GRADE' }),
-          GR.map((gr, i) => h('button', { class: 'gchip' + (i === g ? ' sel' : ''), text: gr.name, 'aria-label': gr.title,
+        h('div', { class: 'grades' + (shownN() > 7 ? ' many' : '') }, h('span', { class: 'lbl', text: 'GRADE' }),
+          GR.slice(0, shownN()).map((gr, i) => h('button', { class: 'gchip' + (i === g ? ' sel' : ''), text: gr.name, 'aria-label': gr.title,
             onclick: () => { save.grade = i; persist(); sfx.tap(); title(); say(gr.title); } }))),
         h('div', { class: 'modes' },
           h('button', { class: 'mode trail', onclick: () => { sfx.tap(); trail(); } },
@@ -711,10 +738,16 @@
     { name: 'MOUNTAINS', bg: 'linear-gradient(#93c5fd, #dbeafe 30%, #a7f3d0 31%, #4ade80)', path: '#e7e5e4', edge: '#78716c', deco: '⛰️🌲🦅🏔️🌲⛰️🐐🌲🦌' },
     { name: 'DESERT', bg: 'linear-gradient(#fdba74, #fed7aa 30%, #fde68a 31%, #f59e0b)', path: '#fffbeb', edge: '#b45309', deco: '🌵🦎🐪🌵☀️🌵🦂🐪🌵' },
     { name: 'SNOWLAND', bg: 'linear-gradient(#bfdbfe, #e0f2fe 30%, #f8fafc 31%, #e2e8f0)', path: '#bae6fd', edge: '#60a5fa', deco: '❄️⛄🐧🌲❄️🐻‍❄️🌲⛄🐧' },
-    { name: 'SPACE', bg: 'radial-gradient(circle at 70% 20%, #4338ca, #1e1b4b 55%, #0b0a24)', path: '#fde68a', edge: '#a78bfa', deco: '🪐⭐🚀🌙✨☄️⭐🛸🌟' },
+    { name: 'SPACE', bg: 'radial-gradient(circle at 70% 20%, #4338ca, #1e1b4b 55%, #0b0a24)', path: '#fde68a', edge: '#a78bfa', deco: '🪐⭐🚀🌙✨☄️⭐🛸🌟', dark: true },
+    { name: 'CITY', bg: 'linear-gradient(#fbcfe8, #fce7f3 30%, #cbd5e1 31%, #94a3b8)', path: '#f8fafc', edge: '#475569', deco: '🏙️🚕🏢🌳🚲🏙️🚌🏢🌆' },
+    { name: 'JUNGLE', bg: 'linear-gradient(#bbf7d0, #dcfce7 30%, #22c55e 31%, #15803d)', path: '#fef08a', edge: '#713f12', deco: '🌴🦜🐒🌺🦎🌴🐸🌿🐆' },
+    { name: 'OCEAN DEEP', bg: 'linear-gradient(#0e7490, #155e75 30%, #164e63 31%, #083344)', path: '#a5f3fc', edge: '#22d3ee', deco: '🐙🐠🐚🦈🐡🐋🐬🐢🦑', dark: true },
+    { name: 'VOLCANO', bg: 'linear-gradient(#fecaca, #fee2e2 30%, #78716c 31%, #44403c)', path: '#fed7aa', edge: '#ea580c', deco: '🌋🔥⛰️🏔️🌋🦖🔥⛰️🌋', dark: true },
+    { name: 'NORTHERN LIGHTS', bg: 'linear-gradient(#064e3b, #1e1b4b 40%, #312e81 41%, #1e293b)', path: '#bbf7d0', edge: '#34d399', deco: '🌌❄️🦌🌲✨🐺🌲❄️🦉', dark: true },
+    { name: 'LIBRARY', bg: 'linear-gradient(#fde68a, #fef3c7 30%, #b45309 31%, #78350f)', path: '#fffbeb', edge: '#451a03', deco: '📚🕯️📜🖋️🦉📚🗝️📖🕰️', dark: true },
   ];
   const PTS = [[40, 185], [105, 165], [165, 188], [230, 168], [295, 185], [360, 162], [428, 140], [395, 98], [325, 110], [255, 88], [185, 104], [115, 80]];
-  const GOAL = [52, 60];
+  const GOAL = [46, 82];
   const DECO = [[14, 52], [205, 46], [300, 52], [455, 70], [462, 205], [262, 136], [140, 135], [62, 128], [378, 137]];
   const at = (p) => 'left:' + (p[0] / 4.8) + '%;top:' + (p[1] / 2.7) + '%';
   function smoothPath(pts) {
@@ -745,7 +778,7 @@
     const stars = save.trail[g] || (save.trail[g] = []);
     const unlocked = (i) => i === 0 || (stars[i - 1] || 0) > 0;
     let sel = save.trailAt[g];
-    if (sel == null || !unlocked(sel)) { sel = 0; while (sel < 11 && stars[sel]) sel++; }
+    if (sel == null || sel > 12 || !unlocked(sel)) { sel = 0; while (sel < 11 && stars[sel]) sel++; if (sel === 11 && stars[11] && !save.cup[g]) sel = 12; }
     const scr = $('#s-trail');
     scr.innerHTML = '';
     scr.style.background = th.bg;
@@ -757,9 +790,19 @@
       '<path d="' + d + '" fill="none" stroke="' + th.edge + '" stroke-width="1.6" stroke-dasharray="4 7" stroke-linecap="round" opacity=".6"/></svg>');
     const decos = Array.from(th.deco.match(/\p{Extended_Pictographic}(?:‍\p{Extended_Pictographic}|️)*/gu) || []);
     DECO.forEach((p, i) => scr.append(h('div', { class: 'deco', text: decos[i % decos.length], style: at(p) })));
-    scr.append(h('div', { class: 'goal', text: total >= 36 ? '🏆' : stars[11] ? '🏆' : '🏁', style: at(GOAL) }));
+    // the Grade Cup at the end of the trail: opens once stop 12 is done
+    const cupOpen = unlocked(12), cupStars = save.cup[g] || 0;
+    const goal = h('button', { class: 'goal ' + (cupStars ? 'won' : cupOpen ? 'open' : 'locked'), style: at(GOAL), 'aria-label': 'Grade Cup',
+      onclick: () => {
+        if (!cupOpen) { sfx.oops(); flashTip('Finish all 12 stops to open the Grade Cup!'); return; }
+        if (sel === 12) { startCup(); return; }
+        sfx.tap(); choose(12);
+      } },
+    h('span', { text: cupOpen ? '🏆' : '🏁' }),
+    h('div', { class: 'lbl', text: cupStars ? '⭐'.repeat(cupStars) : 'CUP' }));
+    scr.append(goal);
     const wig = h('div', { class: 'wiggler', html: wiggleSVG() });
-    const info = h('div', { class: 'info' }), go = h('button', { class: 'chunky', text: 'GO ▶', onclick: () => startStop(sel) });
+    const info = h('div', { class: 'info' }), go = h('button', { class: 'chunky', text: 'GO ▶', onclick: () => (sel === 12 ? startCup() : startStop(sel)) });
     const stopEls = stops.map((s, i) => {
       const st = stars[i] || 0;
       const cls = 'stop' + (s.type === 'story' ? ' story' : '') + (st ? ' done' : unlocked(i) ? ' open' : ' locked');
@@ -777,15 +820,22 @@
     function choose(i) {
       sel = i; save.trailAt[g] = i; persist();
       stopEls.forEach((b, k) => b.classList.toggle('sel', k === i));
-      wig.style.cssText = at(PTS[i]);
+      goal.classList.toggle('sel', i === 12);
       info.innerHTML = '';
+      if (i === 12) {
+        wig.style.cssText = at([GOAL[0] + 42, GOAL[1] + 16]);
+        info.append(h('b', { text: '🏆 GRADE ' + GR[g].name + ' CUP' }),
+          h('small', { text: cupStars ? 'You won it! Best: ' + '⭐'.repeat(cupStars) + '  Play again for more seeds!' : CUP_N + ' questions from the whole grade. Get ' + CUP_WIN + ' right to win!' }));
+        return;
+      }
+      wig.style.cssText = at(PTS[i]);
       info.append(h('b', { text: 'STOP ' + (i + 1) + ': ' + stopName(g, stops[i]) }),
         h('small', { text: stars[i] ? 'Best: ' + '⭐'.repeat(stars[i]) + '  Play again for more seeds!' : 'Tap GO to start!' }));
     }
     scr.append(wig);
     scr.append(hudBar('GRADE ' + GR[g].name + ' · ' + th.name + ' TRAIL', title,
       [h('span', { class: 'pill', text: '⭐ ' + total + ' / 36' }), h('span', { class: 'pill', text: '🌱 ' + save.seeds })]));
-    if (g === 6) scr.querySelector('.hud .title').style.color = '#fff';
+    if (th.dark) scr.querySelector('.hud .title').style.color = '#fff';
     scr.append(h('div', { class: 'tbar' }, h('div', { style: 'width:3.2em;height:2.7em', html: wiggleSVG() }), info, go));
     choose(sel);
   }
@@ -795,8 +845,8 @@
     let list;
     if (s.type === 'story') {
       const st = GR[g].stories;
-      const si = (save.trail[g] || [])[i] ? Math.floor(Math.random() * st.length) : s.idx % st.length;
-      list = storyQs(g, si).concat(sample(orderLines(g), 2).map(orderQ));
+      const si = (save.trail[g] || [])[i] ? deal(g + '|stories', st.length) : s.idx % st.length;
+      list = storyQs(g, si).concat(orderPair(g).map(orderQ));
     } else {
       const skills = GR[g].skills;
       const main = skills[s.idx];
@@ -815,7 +865,7 @@
     arr[i] = Math.max(arr[i] || 0, n);
     const seeds = n * 3 + 2;
     addSeeds(seeds);
-    if (i < 11) save.trailAt[g] = i + 1;
+    save.trailAt[g] = Math.min(12, i + 1);
     persist();
     sfx.win();
     [0, 1, 2].forEach((k) => { if (k < n) setTimeout(() => sfx.star(k), 300 + k * 250); });
@@ -831,9 +881,77 @@
       h('div', { class: 'row' },
         h('button', { class: 'chunky blue', text: '↻ AGAIN', onclick: () => startStop(i) }),
         h('button', { class: 'chunky gold', text: '🗺️ MAP', onclick: trail }),
-        i < 11 ? h('button', { class: 'chunky', text: 'NEXT STOP ▶', onclick: () => startStop(i + 1) }) : null)));
+        i < 11 ? h('button', { class: 'chunky', text: 'NEXT STOP ▶', onclick: () => startStop(i + 1) })
+          : h('button', { class: 'chunky', text: '🏆 CUP ▶', onclick: startCup }))));
     onBack = trail;
     if (allDone) burst(overlay.firstChild);
+  }
+
+  // ---------------------------------------------------------------- GRADE CUP
+  // The final challenge after stop 12: questions from every skill in the grade, a story, and a sentence.
+  const CUP_N = 10, CUP_WIN = 7;
+  function cupQs(g) {
+    const skills = GR[g].skills, seen = new Set(), picks = [];
+    let order = shuffle(skills.slice());
+    while (picks.length < CUP_N - 3) {
+      if (!order.length) order = shuffle(skills.slice());
+      picks.push(order.pop());
+    }
+    const qs = picks.map((sk) => uniqueQs(() => makeQ(g, sk), 1, seen)[0]).filter(Boolean);
+    const st = GR[g].stories, si = deal(g + '|stories', st.length);
+    const story = storyQs(g, si).slice(0, 2);
+    const sentence = orderQ(dealFrom(g + '|order', orderLines(g)));
+    return qs.slice(0, 4).concat(story, qs.slice(4), [sentence]);
+  }
+  function startCup() {
+    sfx.tap();
+    const g = G();
+    runQuiz({ title: '🏆 GRADE ' + GR[g].name + ' CUP', list: cupQs(g), backFn: trail, onDone: cupDone });
+  }
+  function cupDone(res) {
+    const g = G();
+    const right = res.filter(Boolean).length;
+    const won = right >= CUP_WIN;
+    const n = right >= 9 ? 3 : right >= 8 ? 2 : won ? 1 : 0;
+    const first = won && !save.cup[g];
+    if (won) save.cup[g] = Math.max(save.cup[g] || 0, n);
+    const seeds = won ? 15 + n * 5 : 3;
+    addSeeds(seeds);
+    persist();
+    const row = h('div', { class: 'row' },
+      h('button', { class: 'chunky blue', text: won ? '↻ AGAIN' : '↻ TRY AGAIN', onclick: startCup }),
+      h('button', { class: 'chunky gold', text: '🗺️ MAP', onclick: trail }));
+    // winning the Grade 6 cup is Wiggle Reads' top level: it opens grades 7-12 in every learning game
+    const unlocked = won && g === 6 && !!window.MickleGrades && MickleGrades.unlock();
+    if (won && g < shownN() - 1) {
+      row.append(h('button', { class: 'chunky', text: 'GRADE ' + GR[g + 1].name + ' ▶',
+        onclick: () => { save.grade = g + 1; persist(); closeOverlay(); trail(); } }));
+    }
+    if (won) {
+      sfx.win();
+      [0, 1, 2].forEach((k) => { if (k < n) setTimeout(() => sfx.star(k), 300 + k * 250); });
+      say((first ? 'You won the grade ' + GR[g].name + ' cup! Amazing reading!' : 'You won the cup again! Amazing reading!') + (unlocked ? ' ' + MickleGrades.MSG : ''));
+      openOverlay(h('div', { class: 'card' },
+        h('div', { class: 'cupbig', text: '🏆' }),
+        h('h2', { text: 'GRADE ' + GR[g].name + ' CUP WON!' }),
+        starRow(n),
+        h('p', { text: right + ' of ' + res.length + ' right on the first try' }),
+        h('div', { class: 'seedgain', text: '+' + seeds + ' 🌱 seeds' }),
+        unlocked ? h('div', { class: 'unlock', text: '🔓 GRADES 7–12 UNLOCKED!' }) : null,
+        row));
+      burst(overlay.firstChild);
+      setTimeout(() => { if (overlay) burst(overlay.firstChild, ['#facc15', '#fde047', '#f59e0b', '#fff']); }, 700);
+    } else {
+      sfx.oops();
+      say('So close! Get ' + CUP_WIN + ' right to win the cup. You can do it!');
+      openOverlay(h('div', { class: 'card' },
+        h('div', { html: wiggleSVG('w') }),
+        h('h2', { text: 'SO CLOSE!' }),
+        h('p', { text: 'You got ' + right + ' of ' + res.length + '. Get ' + CUP_WIN + ' right on the first try to win the cup!' }),
+        h('div', { class: 'seedgain', text: '+' + seeds + ' 🌱 seeds' }),
+        row));
+    }
+    onBack = trail;
   }
 
   // ---------------------------------------------------------------- ARCADE
@@ -1208,7 +1326,7 @@
     const pill = h('span', { class: 'pill', text: '🌱 ' + save.seeds });
     const done = h('button', { class: 'chunky', text: 'DONE ✔', onclick: garden });
     runQuiz({ title: 'EARN SEEDS', backFn: garden, pill: [pill, done],
-      next: () => (++count % 7 === 0) ? orderQ(pick(orderLines(g))) : anyQ(g),
+      next: () => (++count % 7 === 0) ? orderQ(dealFrom(g + '|order', orderLines(g))) : anyQ(g),
       onAnswer: (first) => {
         const n = first ? 3 : 1;
         addSeeds(n);
@@ -1319,6 +1437,6 @@
   }
   requestAnimationFrame(loop);
 
-  window.WiggleDebug = { quiz: () => quiz, save, startStop, makeQ, anyQ, storyQs, orderQ, stopsFor, title, trail, arcade, garden, playArcade: (id) => playArcade(AGAMES.find((a) => a.id === id)), endArcade, GR };
+  window.WiggleDebug = { quiz: () => quiz, save, startStop, makeQ, anyQ, storyQs, orderQ, stopsFor, title, trail, arcade, garden, playArcade: (id) => playArcade(AGAMES.find((a) => a.id === id)), endArcade, GR, startCup, cupQs, cupDone, deal };
   title();
 })();
