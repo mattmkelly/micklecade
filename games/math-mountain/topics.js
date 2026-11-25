@@ -1108,10 +1108,10 @@
           const ans = most ? Math.max(...arr) : Math.min(...arr);
           return Q({ q: `Which number is the <b>${most ? 'BIGGEST' : 'SMALLEST'}</b>?`, ans: fmt(ans), wrong: arr.filter((v) => v !== ans).map(fmt), hint: 'Picture a number line: right is bigger, left is smaller.', why: `<b>${fmt(ans)}</b> is furthest to the ${most ? 'right' : 'left'} on the number line.` });
         }
-        if (kind === 'temp') { const a = -R(2, 9), b = R(3, 12); return Q({ q: `It is ${fmt(a)}° outside. It gets <b>${b}° warmer</b>. What is the temperature now?`, vis: d < 0.7 ? vLine(-10, 10, { from: a, to: a + b }) : '', ans: a + b, unit: '°', min: -99, wrong: [a - b, -(a + b), -a + b], hint: `Start at ${fmt(a)} and count up ${b}.`, why: `${fmt(a)} + ${b} = <b>${fmt(a + b)}°</b>.` }); }
+        if (kind === 'temp') { const a = -R(2, 9), b = R(3, 12); return Q({ q: `It is ${fmt(a)}° outside. It gets <b>${b}° warmer</b>. What is the temperature now?`, vis: d < 0.7 ? vLine(-10, 10, { mark: a, label: 'START' }) : '', ans: a + b, unit: '°', min: -99, wrong: [a - b, -(a + b), -a + b], hint: `Start at ${fmt(a)} and count up ${b}.`, why: `${fmt(a)} + ${b} = <b>${fmt(a + b)}°</b>.` }); }
         if (kind === 'add') {
           const a = Math.random() < 0.75 ? -R(1, 9) : R(1, 9), b = d < 0.5 ? R(1, 9) : a > 0 ? -R(1, 9) : (R(-9, 9) || 3), s = a + b;
-          return Q({ q: `${fmt(a)} + ${pn(b)} = ${BL}`, vis: d < 0.5 && Math.abs(s) <= 10 ? vLine(-10, 10, { from: a, to: s }) : '', ans: s, min: -99, wrong: [a - b, -s, Math.abs(a) + Math.abs(b)], hint: b > 0 ? `Start at ${fmt(a)} and move ${b} to the right.` : `Adding a negative moves LEFT. Start at ${fmt(a)}, move ${-b} left.`, why: `${fmt(a)} + ${pn(b)} = <b>${fmt(s)}</b>.` });
+          return Q({ q: `${fmt(a)} + ${pn(b)} = ${BL}`, vis: d < 0.5 && Math.abs(s) <= 10 ? vLine(-10, 10, { mark: a, label: 'START' }) : '', ans: s, min: -99, wrong: [a - b, -s, Math.abs(a) + Math.abs(b)], hint: b > 0 ? `Start at ${fmt(a)} and move ${b} to the right.` : `Adding a negative moves LEFT. Start at ${fmt(a)}, move ${-b} left.`, why: `${fmt(a)} + ${pn(b)} = <b>${fmt(s)}</b>.` });
         }
         const a = R(-9, 9), b = R(-9, 9) || 5, r = a - b;
         return Q({ q: `${fmt(a)} − ${pn(b)} = ${BL}`, ans: r, min: -99, wrong: [a + b, -r, r + 2], hint: b > 0 ? `Subtracting moves LEFT ${b}.` : `Subtracting a negative is the same as adding: ${fmt(a)} + ${-b}.`, why: b < 0 ? `Taking away a negative is adding: ${fmt(a)} + ${-b} = <b>${fmt(r)}</b>.` : `Start at ${fmt(a)} and move ${b} left: <b>${fmt(r)}</b>.` });
