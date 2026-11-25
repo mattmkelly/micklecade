@@ -96,7 +96,7 @@
   @keyframes hw-rise { from { opacity: 0; transform: translateY(1.2em) scale(.97); } }
   @keyframes hw-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-.25em) rotate(4deg); } }
   .howto-panel {
-    width: min(100%, 62em); max-height: 100%; overflow: auto; padding: 1.3em 1.7em 1.4em;
+    width: min(100%, 54em); max-height: 100%; overflow: auto; padding: 1.3em 1.7em 1.4em;
     display: flex; flex-direction: column; gap: .9em; border-radius: 1.4em;
     background: linear-gradient(160deg, rgba(58, 20, 112, .97), rgba(16, 7, 40, .97));
     border: 2px solid rgba(255, 79, 216, .7);
@@ -113,11 +113,29 @@
   .hw-head p { margin: .3em 0 0; color: rgba(255, 255, 255, .75); font-weight: 600; font-size: 1em; }
 
   /* the top strip: a little highway whose notes land on the pads, and what to do */
+  /* three pages, one at a time, with NEXT / BACK and dots */
+  .hw-page { display: none; flex-direction: column; gap: .8em; font-size: 1.12em; }
+  .hw-page.on { display: flex; animation: hw-slide .3s ease-out; }
+  @keyframes hw-slide { from { opacity: 0; transform: translateX(1.5em); } }
+  .hw-page h2 { margin: 0; text-align: center; font: 900 1.25em 'Arial Black', 'Helvetica Neue', Impact, sans-serif;
+    letter-spacing: .04em; color: #4ff0ff; text-shadow: 0 0 .5em rgba(79, 240, 255, .5); }
+  .hw-page h2 small { color: #ff4fd8; font-size: .75em; margin-right: .4em; }
+  .hw-tip { margin: 0; text-align: center; color: rgba(255, 255, 255, .75); font-weight: 700; font-size: .85em; }
+  .hw-dots { display: flex; gap: .5em; }
+  .hw-dots span { width: .8em; height: .8em; border-radius: 50%; background: rgba(255, 255, 255, .2); cursor: pointer; }
+  .hw-dots span.on { background: #ffe14f; box-shadow: 0 0 .5em #ffe14f; }
+  .hw-nav { display: flex; gap: .7em; align-items: center; }
+  .hw-back {
+    font: 900 1em 'Arial Black', 'Helvetica Neue', Impact, sans-serif; color: #4ff0ff; cursor: pointer;
+    padding: .55em 1.3em; border: 2px solid rgba(79, 240, 255, .6); border-radius: 999px; background: transparent;
+  }
+  .hw-back[hidden] { display: none; }
+  .hw-back:focus { outline: none; box-shadow: 0 0 0 .15em #ffe14f; }
   .hw-top { display: grid; grid-template-columns: auto 1fr; gap: 1.4em; align-items: center;
     padding: .9em 1.1em; border-radius: 1.1em; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); }
   .hw-stage { perspective: 14em; }
   .hw-road {
-    position: relative; width: 13em; height: 9em; transform: rotateX(28deg); transform-origin: 50% 100%;
+    position: relative; width: 15em; height: 10em; transform: rotateX(28deg); transform-origin: 50% 100%;
     display: grid; grid-template-columns: repeat(4, 1fr); gap: .25em; padding: 0 .3em;
     background: linear-gradient(rgba(79, 240, 255, .05), rgba(180, 92, 255, .25));
     border-left: 2px solid #4ff0ff; border-right: 2px solid #4ff0ff; border-radius: .3em .3em 0 0;
@@ -148,23 +166,23 @@
   .hw-judge { display: flex; flex-wrap: wrap; gap: .4em; }
   .hw-judge span { padding: .25em .7em; border-radius: 999px; background: rgba(0, 0, 0, .3); font-weight: 900; font-size: .85em; }
 
-  .hw-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7em; }
+  .hw-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .7em; }
   .how {
     display: flex; flex-direction: column; gap: .3em; padding: .8em .9em; border-radius: 1em;
     background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1);
   }
-  .how svg { width: 2.4em; height: 2.4em; }
+  .how svg { width: 2.6em; height: 2.6em; }
   .how b { font-size: 1.05em; font-weight: 900; }
-  .how p { margin: 0; color: rgba(255, 255, 255, .72); font-size: .82em; font-weight: 600; line-height: 1.3; flex: 1; }
+  .how p { margin: 0; color: rgba(255, 255, 255, .72); font-size: .9em; font-weight: 600; line-height: 1.3; flex: 1; }
   .keys { display: flex; flex-wrap: wrap; gap: .3em; margin-top: .3em; }
   .keys span { padding: .2em .5em; border-radius: .45em; background: rgba(0, 0, 0, .3); font-size: .68em; font-weight: 800;
     color: rgba(255, 255, 255, .6); letter-spacing: .03em; }
   .keys kbd { font: inherit; color: #fff; }
 
   /* the three difficulties and their buttons */
-  .hw-levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6em; }
+  .hw-levels { display: grid; grid-template-columns: 1fr; gap: .6em; }
   .hw-levels > div { padding: .5em .7em; border-radius: .9em; background: rgba(0, 0, 0, .28); border-top: .22em solid var(--c);
-    font-size: .76em; font-weight: 700; color: rgba(255, 255, 255, .65); line-height: 1.45; }
+    font-size: .9em; font-weight: 700; color: rgba(255, 255, 255, .7); line-height: 1.5; }
   .hw-levels b { display: flex; align-items: center; gap: .5em; color: #fff; font-weight: 900; font-size: 1.3em; margin-bottom: .15em; }
   .hw-levels b i { display: inline-flex; gap: .18em; }
   .hw-levels b i u { width: .65em; height: .65em; border-radius: 50%; background: var(--p); text-decoration: none; }
@@ -185,15 +203,16 @@
     .hw-head h1 { font-size: 1.8em; }
     .hw-top, .how { padding: .55em .8em; }
     .how svg { width: 1.7em; height: 1.7em; }
-    .hw-road { height: 7.5em; }
+    .hw-road { height: 8em; }
+    .hw-page { font-size: 1em; gap: .55em; }
     .hw-levels > div { padding: .3em .6em; }
     .hw-go { padding: .4em 1.6em; }
   }
   @media (max-aspect-ratio: 4/3) {
-    .hw-grid { grid-template-columns: repeat(2, 1fr); }
-    .hw-levels { grid-template-columns: 1fr; }
     .hw-top { grid-template-columns: 1fr; justify-items: center; }
-    .hw-foot { flex-direction: column; text-align: center; }
+  }
+  @media (max-aspect-ratio: 3/4) {
+    .hw-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -210,6 +229,8 @@
         <svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -40 L-8 -6 M30 -40 L8 -6" stroke="#ffe14f" stroke-width="6" stroke-linecap="round"/><circle cx="-30" cy="-40" r="6" fill="#fff6b0"/><circle cx="30" cy="-40" r="6" fill="#fff6b0"/><path d="M-40 0 v26 a40 14 0 0 0 80 0 v-26" fill="#ff4fd8"/><path d="M-40 6 l20 18 l20 -18 l20 18 l20 -18" stroke="#ffe14f" stroke-width="3" fill="none"/><ellipse cx="0" cy="0" rx="40" ry="14" fill="#ece7ff" stroke="#4ff0ff" stroke-width="4"/></svg>
         <div><h1>HOW TO PLAY</h1><p>Notes slide down the road. Hit each drum pad as its note lands!</p></div>
       </div>
+      <section class="hw-page">
+      <h2><small>1</small>WHEN TO HIT</h2>
       <div class="hw-top">
         <div class="hw-stage" aria-hidden="true"><div class="hw-road">
           <div class="hw-lane" style="--c:#ffd23d;--d:0s"><span class="hw-puck"></span><span class="hw-pad"></span><span class="hw-pop">PERFECT!</span></div>
@@ -225,6 +246,9 @@
           <div>Missed one? No points are taken away &mdash; just catch the next one.</div>
         </div>
       </div>
+      </section>
+      <section class="hw-page">
+      <h2><small>2</small>COMBOS, STARS &amp; MORE</h2>
       <div class="hw-grid">
         <div class="how">
           <svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 30c6-12 10-12 14 0s8 12 14 0 8-12 12 0" stroke="#4ff0ff" stroke-width="3.5"/><path d="M4 30c6-12 10-12 14 0s8 12 14 0 8-12 12 0" stroke="#fff" stroke-width="1.2" opacity=".7"/><path d="M14 10l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z" fill="#ffe14f"/></svg>
@@ -244,14 +268,22 @@
           <b>SYNC TIMING</b><p>Notes feel late on a tablet? Press SYNC on the title screen and tap along with the clicks.</p>
         </div>
       </div>
+      </section>
+      <section class="hw-page">
+      <h2><small>3</small>PICK YOUR LEVEL</h2>
       <div class="hw-levels">
         <div style="--c:#3ddc5a"><b>EASY <i><u style="--p:#3d8bff"></u><u style="--p:#3ddc5a"></u><u style="--p:#ff4a4a"></u></i></b>3 pads &middot; a wave saves your next miss<br>KEYS <kbd>F J K</kbd> or <kbd>&larr; &darr; &rarr;</kbd> &middot; PAD <kbd>X A B</kbd></div>
         <div style="--c:#ffd23d"><b>MEDIUM <i><u style="--p:#ffd23d"></u><u style="--p:#3d8bff"></u><u style="--p:#3ddc5a"></u><u style="--p:#ff4a4a"></u></i></b>4 pads<br>KEYS <kbd>D F J K</kbd> or <kbd>&larr; &darr; &uarr; &rarr;</kbd> &middot; PAD <kbd>&#9664; X A B</kbd></div>
         <div style="--c:#ff4a4a"><b>HARD <i><u style="--p:#ffd23d"></u><u style="--p:#b45cff"></u><u style="--p:#3d8bff"></u><u style="--p:#3ddc5a"></u><u style="--p:#ff4a4a"></u></i></b>5 pads<br>KEYS <kbd>D F SPACE J K</kbd> &middot; PAD <kbd>&#9664; &#9654; X A B</kbd></div>
       </div>
+      <p class="hw-tip">Pick a song, pick a kit, and rock out! Every song plays once through.</p>
+      </section>
       <div class="hw-foot">
-        <span>Pick a song, pick a kit, and rock out! Every song plays once through.</span>
-        <button id="btn-howto-close" class="hw-go" type="button">GOT IT!</button>
+        <div class="hw-dots" id="howto-dots"><span></span><span></span><span></span></div>
+        <div class="hw-nav">
+          <button id="btn-howto-back" class="hw-back" type="button">&#9664; BACK</button>
+          <button id="btn-howto-close" class="hw-go" type="button">NEXT &#9654;</button>
+        </div>
       </div>
     </div>
   </div>

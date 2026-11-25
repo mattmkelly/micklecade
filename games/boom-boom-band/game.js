@@ -1040,7 +1040,11 @@
   window.addEventListener('keydown', (e) => {
     ensureAudio();
     if (howtoOpen) {
-      if (['Escape', 'Enter', 'NumpadEnter', 'Space', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) closeHowto(); }
+      const hk = {
+        Escape: closeHowto, Enter: howtoNext, NumpadEnter: howtoNext, Space: howtoNext, ArrowRight: howtoNext,
+        ArrowLeft: () => showHowtoPage(howtoPage - 1), Backspace: () => showHowtoPage(howtoPage - 1),
+      }[e.code];
+      if (hk) { e.preventDefault(); if (!e.repeat) hk(); }
       return;
     }
     if (state === 'title' && (e.code === 'KeyH' || e.key === '?')) { e.preventDefault(); openHowto(); return; }
@@ -1122,7 +1126,10 @@
     if (!window.Pad360) return;
     const P = Pad360;
     if (howtoOpen) {
-      if (P.pressed(P.BTN.A) || P.pressed(P.BTN.B) || P.pressed(P.BTN.START)) closeHowto();
+      const dx = P.dxPressed();
+      if (P.pressed(P.BTN.A) || dx > 0) howtoNext();
+      else if (dx < 0) showHowtoPage(howtoPage - 1);
+      else if (P.pressed(P.BTN.B) || P.pressed(P.BTN.START)) closeHowto();
       return;
     }
     if (state === 'title' && P.pressed(P.BTN.Y)) { openHowto(); return; }
@@ -3195,7 +3202,23 @@
   // ---- HOW TO PLAY: its own page over the game (the title button, H / ?, Y, or the ☰ menu) ----
   // Opened mid-song (from the menu), the song stays paused and the pause menu waits underneath.
   const howtoEl = document.getElementById('howto');
-  let howtoOpen = false;
+  let howtoOpen = false, howtoPage = 0;
+  const howtoPages = howtoEl ? Array.from(howtoEl.querySelectorAll('.hw-page')) : [];
+  const howtoDots = howtoEl ? Array.from(howtoEl.querySelectorAll('#howto-dots span')) : [];
+  // three short pages: when to hit, combos & stars, levels & buttons
+  function showHowtoPage(i) {
+    howtoPage = clamp(i, 0, howtoPages.length - 1);
+    howtoPages.forEach((p, j) => p.classList.toggle('on', j === howtoPage));
+    howtoDots.forEach((p, j) => p.classList.toggle('on', j === howtoPage));
+    document.getElementById('btn-howto-back').hidden = howtoPage === 0;
+    document.getElementById('btn-howto-close').textContent = howtoPage === howtoPages.length - 1 ? 'GOT IT!' : 'NEXT \u25B6';
+    // restart the little highway each time its page shows
+    if (howtoPage === 0) howtoEl.querySelectorAll('.hw-puck, .hw-pad, .hw-pop').forEach((n) => { n.style.animationName = 'none'; void n.offsetWidth; n.style.animationName = ''; });
+  }
+  function howtoNext() {
+    if (howtoPage >= howtoPages.length - 1) closeHowto();
+    else showHowtoPage(howtoPage + 1);
+  }
   function openHowto() {
     if (!howtoEl || howtoOpen) return;
     if (window.MickleMenu && MickleMenu.isOpen()) MickleMenu.close();
@@ -3205,8 +3228,7 @@
     }
     howtoOpen = true;
     howtoEl.hidden = false;
-    // restart the little highway each time it opens
-    howtoEl.querySelectorAll('.hw-puck, .hw-pad, .hw-pop').forEach((n) => { n.style.animationName = 'none'; void n.offsetWidth; n.style.animationName = ''; });
+    showHowtoPage(0);
     document.getElementById('btn-howto-close').focus({ preventScroll: true });
   }
   function closeHowto() {
@@ -3216,7 +3238,9 @@
   }
   const howtoBtn = document.getElementById('btn-howto');
   if (howtoBtn) howtoBtn.addEventListener('click', () => { ensureAudio(); openHowto(); });
-  document.getElementById('btn-howto-close').addEventListener('click', closeHowto);
+  document.getElementById('btn-howto-close').addEventListener('click', howtoNext);
+  document.getElementById('btn-howto-back').addEventListener('click', () => showHowtoPage(howtoPage - 1));
+  howtoDots.forEach((dot, j) => dot.addEventListener('click', () => showHowtoPage(j)));
 
   const syncBtn = document.getElementById('syncbtn');
   if (syncBtn) syncBtn.addEventListener('click', () => { goSync(); });
