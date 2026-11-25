@@ -61,6 +61,11 @@
     let s = String(html)
       .replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g, ' $1 over $2 ')
       .replace(/<span class="blank">.*?<\/span>/g, ' what ')
+      .replace(/lim<sub>(.*?)→(.*?)<\/sub>/g, ' the limit as $1 approaches $2 of ')
+      .replace(/log<sub>(.*?)<\/sub>/g, ' log base $1 of ')
+      .replace(/<sup>−1<\/sup>/g, ' inverse ').replace(/<sup>2<\/sup>/g, ' squared ').replace(/<sup>3<\/sup>/g, ' cubed ')
+      .replace(/<i>([fg])<\/i>(<sup>−1<\/sup>)?\(/g, '$1$2 of (')
+      .replace(/<sup>(.*?)<\/sup>/g, ' to the power $1 ')
       .replace(/<br\s*\/?>/g, '. ')
       .replace(/<[^>]+>/g, '');
     deco.innerHTML = s; s = deco.value;
@@ -70,6 +75,8 @@
       .replace(/(\d)x\b/g, '$1 x').replace(/=/g, ' equals ').replace(/>/g, ' is greater than ').replace(/</g, ' is less than ')
       .replace(/\$(\d+(?:[.,]\d+)*)/g, '$1 dollars').replace(/\+/g, ' plus ').replace(/¢/g, ' cents').replace(/%/g, ' percent').replace(/°/g, ' degrees')
       .replace(/(\d) : (\d)/g, '$1 to $2').replace(/(\d+) R(\d+)/g, '$1 remainder $2').replace(/→/g, ' becomes ').replace(/✓/g, '')
+      .replace(/²/g, ' squared').replace(/³/g, ' cubed').replace(/√/g, ' the square root of ').replace(/π/g, ' pi ').replace(/′/g, ' prime')
+      .replace(/≤/g, ' is at most ').replace(/≥/g, ' is at least ').replace(/∞/g, ' infinity').replace(/⟂/g, ' is perpendicular to ').replace(/σ/g, ' sigma').replace(/μ/g, ' mu')
       .replace(/\s+/g, ' ').trim();
   }
   function readOn() { return save.read === null ? (cur.grade == null ? 1 : cur.grade) <= 2 : save.read; }
@@ -117,7 +124,9 @@
 
   // ---------- state ----------
   let cur = { name: 'title', grade: save.grade };
-  const gradeOf = (n) => GRADES.find((g) => g.n === n) || GRADES[1];
+  const bigOpen = () => !!(window.MickleGrades && MickleGrades.unlocked());
+  const shownGrades = () => GRADES.filter((g) => !g.big || bigOpen());
+  const gradeOf = (n) => shownGrades().find((g) => g.n === n) || GRADES[1];
   const grade = () => gradeOf(cur.grade);
   const topicStars = (id) => save.stars[id] || 0;
   const gradeStars = (g) => gradeOf(g).topics.reduce((t, tp) => t + topicStars(tp.id), 0) + ((save.quiz['g' + g] || {}).stars || 0);
@@ -135,14 +144,16 @@
   // ---------- TITLE ----------
   function goTitle() {
     cur = { name: 'title', grade: save.grade };
-    const btns = GRADES.map((g) => {
+    const list = shownGrades(), many = list.length > 7;
+    const btns = list.map((g) => {
       const st = gradeStars(g.n), max = g.topics.length * 3 + 3;
-      return `<button class="grade nav" data-act="grade" data-g="${g.n}" style="--c:${g.color}"${save.grade === g.n ? ' data-default' : ''}><b>${g.n ? 'GRADE ' + g.n : 'KINDER'}</b><span>${g.blurb}</span><em>★ ${st}/${max}</em></button>`;
+      return `<button class="grade nav${g.big ? ' hs' : ''}" data-act="grade" data-g="${g.n}" style="--c:${g.color}"${save.grade === g.n ? ' data-default' : ''}><b>${g.n ? 'GRADE ' + g.n : 'KINDER'}</b><span>${g.blurb}</span><em>★ ${st}/${max}</em></button>`;
     }).join('');
     const ro = save.read === null ? 'AUTO' : save.read ? 'ON' : 'OFF';
-    show(`<div class="title-scr">
+    const lock = many ? '' : `<p class="lock-note">\u{1F512} Finish the Grade 6 Summit Quiz to open Grades 7–12!</p>`;
+    show(`<div class="title-scr${many ? ' many' : ''}">
       <div class="logo-row rise">${pipSVG()}<div><h1 class="logo">MATH<br>MOUNTAIN</h1><p>Learn it. Practice it. Climb to the quiz!</p></div></div>
-      <div class="grades rise" style="animation-delay:.1s">${btns}</div>
+      <div class="grades rise${many ? ' many' : ''}" style="animation-delay:.1s">${btns}</div>${lock}
       <div class="title-row"><button class="pill nav" data-act="howto">? HOW TO PLAY</button><button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button></div>
     </div>`);
   }
@@ -358,7 +369,7 @@
 
   function finish() {
     const quiz = cur.name === 'quiz', g = grade();
-    let stars, title, lines, btns;
+    let stars, title, lines, btns, unlocked = false;
     if (quiz) {
       stars = cur.right >= 11 ? 3 : cur.right >= 8 ? 2 : 1;
       const rec = save.quiz['g' + g.n] || {}, newBest = cur.score > (rec.best || 0);
@@ -366,6 +377,7 @@
       store();
       if (cur.score > 0 && window.MickleScores) MickleScores.record('math-mountain', cur.score, { category: g.label, order: g.n });
       title = cur.right === QUIZ_N ? 'PERFECT CLIMB!' : 'YOU REACHED THE SUMMIT!';
+      unlocked = g.n === 6 && !!window.MickleGrades && MickleGrades.unlock();
       lines = `<div class="big-score">${cur.score}</div><p>${cur.right} of ${QUIZ_N} right · best streak ${cur.best}${newBest ? ' · <b style="color:#16a34a">NEW BEST!</b>' : ' · best ' + save.quiz['g' + g.n].best}</p>`;
       btns = `<button class="go nav" data-act="quiz" data-default>CLIMB AGAIN</button><button class="go blue nav" data-act="back">MAP</button>`;
     } else {
@@ -381,10 +393,11 @@
     const was = cur;
     cur = { name: 'result', grade: cur.grade, from: was.name, ti: was.ti };
     const starsHtml = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.25}s">★</span>`).join('');
-    show(`<div class="result"><div class="panel glass rise">${pipSVG()}<h2>${title}</h2><div class="stars">${starsHtml}</div>${lines}<div class="row">${btns}</div></div></div>`);
+    const unl = unlocked ? `<p class="unlock">\u{1F513} GRADES 7–12 UNLOCKED!</p>` : '';
+    show(`<div class="result"><div class="panel glass rise">${pipSVG()}<h2>${title}</h2><div class="stars">${starsHtml}</div>${lines}${unl}<div class="row">${btns}</div></div></div>`);
     for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 300 + i * 250);
     setTimeout(() => { sfx.fanfare(); confetti(stars * 50 + 40); }, 300 + stars * 250);
-    say(title.toLowerCase() + '!');
+    say(title.toLowerCase() + '!' + (unlocked ? ' ' + MickleGrades.MSG : ''), unlocked);
   }
 
   // ---------- confetti ----------

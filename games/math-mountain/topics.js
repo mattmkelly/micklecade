@@ -1181,5 +1181,5 @@
   ];
 
   GRADES.forEach((g) => { g.label = g.n ? 'GRADE ' + g.n : 'KINDERGARTEN'; });
-  global.MathMountain = { GRADES, F, R, pick, shuffle };
+  global.MathMountain = { GRADES, F, R, pick, shuffle, Q, FQ, X, BL, MINUS, fmt, pn, gcd, big, SV, T, vScale, vLine, vHundred };
 })(window);

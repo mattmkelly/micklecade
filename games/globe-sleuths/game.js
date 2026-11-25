@@ -30,6 +30,13 @@
     { n: 4, label: 'GRADE 4', short: 'GRADE 4', blurb: 'Hemispheres, falls & fjords' },
     { n: 5, label: 'GRADE 5', short: 'GRADE 5', blurb: 'Capitals, latitude & volcanoes' },
     { n: 6, label: 'GRADE 6', short: 'GRADE 6', blurb: 'Master detective: the world!' },
+    // grades 7-12 stay hidden until a learning game's top level is finished (shared/grades.js)
+    { n: 7, label: 'GRADE 7', short: 'GRADE 7', blurb: 'Capitals, climate & coordinates', big: true },
+    { n: 8, label: 'GRADE 8', short: 'GRADE 8', blurb: 'Biomes, rivers & map reading', big: true },
+    { n: 9, label: 'GRADE 9', short: 'GRADE 9', blurb: 'People, cities & resources', big: true },
+    { n: 10, label: 'GRADE 10', short: 'GRADE 10', blurb: 'Straits, water & world trade', big: true },
+    { n: 11, label: 'GRADE 11', short: 'GRADE 11', blurb: 'Plates, currents & projections', big: true },
+    { n: 12, label: 'GRADE 12', short: 'GRADE 12', blurb: 'How the planet works', big: true },
   ];
   // How often each kind of case turns up on a grade's board.
   const WEIGHTS = [
@@ -40,6 +47,12 @@
     { ocean: 0.6, landform: 2, country: 3, wonder: 3, skill: 1.5 },
     { landform: 1.5, country: 2.5, wonder: 3, city: 2.2, skill: 1.5 },
     { landform: 1.5, country: 2.5, wonder: 3, city: 2.2, skill: 1.5 },
+    { landform: 0.8, country: 2.5, wonder: 1.8, city: 2.5, skill: 2.2 },
+    { landform: 0.6, country: 2.5, wonder: 1.6, city: 2.5, skill: 2.5 },
+    { country: 2, wonder: 1.2, city: 2.5, skill: 3 },
+    { country: 2, wonder: 1, city: 2.5, skill: 3.2 },
+    { country: 1.6, wonder: 0.8, city: 2.4, skill: 3.6 },
+    { country: 1.6, wonder: 0.8, city: 2.4, skill: 3.8 },
   ];
   const KIND = {
     continent: { ask: 'Which continent is it?', tag: 'WHICH CONTINENT?', mode: 'cont', book: 'CONTINENTS', tip: 'Tap the right continent on the map!' },
@@ -196,7 +209,9 @@
   // ---------- state ----------
   let cur = { name: 'title', grade: save.grade };
   let mapState = null; // the live map on a case screen
-  const gradeOf = (n) => GRADES.find((g) => g.n === n) || GRADES[0];
+  const bigOpen = () => !!(window.MickleGrades && MickleGrades.unlocked());
+  const shownGrades = () => GRADES.filter((g) => !g.big || bigOpen());
+  const gradeOf = (n) => shownGrades().find((g) => g.n === n) || GRADES[0];
   const grade = () => gradeOf(cur.grade);
   const inGrade = (it, g) => it.g[0] <= g && g <= it.g[1];
   const poolFor = (g) => ITEMS.filter((it) => inGrade(it, g));
@@ -218,15 +233,17 @@
   // ---------- TITLE ----------
   function goTitle() {
     cur = { name: 'title', grade: save.grade };
-    const btns = GRADES.map((g) => {
+    const list = shownGrades(), many = list.length > 7;
+    const btns = list.map((g) => {
       const pool = poolFor(g.n), got = pool.filter((it) => filed(it.id)).length;
-      return `<button class="grade nav" data-act="grade" data-g="${g.n}"${save.grade === g.n ? ' data-default' : ''}><b>${g.short}</b><span>${g.blurb}</span><em>\u{1F4C1} ${got}/${pool.length}</em></button>`;
+      return `<button class="grade nav${g.big ? ' hs' : ''}" data-act="grade" data-g="${g.n}"${save.grade === g.n ? ' data-default' : ''}><b>${g.short}</b><span>${g.blurb}</span><em>\u{1F4C1} ${got}/${pool.length}</em></button>`;
     }).join('');
     const ro = save.read === null ? 'AUTO' : save.read ? 'ON' : 'OFF';
     const n = filedCount();
-    show(`<div class="title-scr">
+    const lock = many ? '' : `<p class="lock-note rise" style="animation-delay:.14s">\u{1F512} Catch Rascal in the Grade 6 BIG CASE to open Grades 7–12!</p>`;
+    show(`<div class="title-scr${many ? ' many' : ''}">
       <div class="logo-row rise">${finnSVG()}<div><h1 class="logo"><small>FINN THE FOX IN</small>GLOBE<br>SLEUTHS</h1><p>Follow the clues. Find the place. Solve the case!</p></div></div>
-      <div class="grades rise" style="animation-delay:.1s">${btns}</div>
+      <div class="grades rise${many ? ' many' : ''}" style="animation-delay:.1s">${btns}</div>${lock}
       <div class="title-row rise" style="animation-delay:.18s"><span class="rank">\u{1F50E} ${rankOf(n).toUpperCase()} · ${n} CASE FILES</span><button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button>${MV && MV.can ? `<button class="pill nav" data-act="voices" id="voicebtn">\u{1F5E3}\uFE0F VOICE: ${esc(voiceLabel())}</button>` : ''}</div>
     </div>`);
   }
@@ -799,6 +816,7 @@
     store();
     if (window.MickleScores) MickleScores.record('globe-sleuths', total, { category: g.label, order: g.n });
     const stars = total >= 520 ? 3 : total >= 380 ? 2 : 1;
+    const unlocked = g.n === 6 && !!window.MickleGrades && MickleGrades.unlock();
     cur = { name: 'result', grade: cur.grade };
     show(`${topBar('BOARD', 'BIG CASE · CAUGHT!')}
       <div class="result">
@@ -808,12 +826,12 @@
           <p>“You found me! I just wanted to see the world. Here’s the Golden Globe back!”</p>
           <div class="st">${Array.from({ length: 3 }, (_, i) => `<span style="animation-delay:${0.3 + i * 0.25}s">${i < stars ? '★' : '<span style="color:rgba(120,53,15,.25)">★</span>'}</span>`).join('')}</div>
           <div class="total">${total}</div>
-          <div class="best">${isBest ? '\u{1F3C6} NEW BEST!' : 'BEST: ' + prev} · +100 for the catch</div>
+          <div class="best">${isBest ? '\u{1F3C6} NEW BEST!' : 'BEST: ' + prev} · +100 for the catch</div>${unlocked ? '<p class="unlock">\u{1F513} GRADES 7–12 UNLOCKED!</p>' : ''}
           <div class="btns"><button class="go ghost nav" data-act="back">BOARD</button><button class="go gold nav" data-act="chase" data-default>CHASE AGAIN</button></div>
         </div>
       </div>`);
     sfx.fanfare(); confetti(stars * 50 + 60);
-    say('You caught Rascal!', false, 'finn', () => say(['You found me!', 'I just wanted to see the world.', 'Here is the Golden Globe back!'], false, 'rascal'));
+    say('You caught Rascal!', false, 'finn', () => say(['You found me!', 'I just wanted to see the world.', 'Here is the Golden Globe back!'], false, 'rascal', unlocked ? () => say(MickleGrades.MSG, true, 'finn') : undefined));
   }
 
   // ---------- NOTEBOOK ----------
