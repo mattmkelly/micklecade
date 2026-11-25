@@ -143,7 +143,7 @@
     show(`<div class="title-scr">
       <div class="logo-row rise">${pipSVG()}<div><h1 class="logo">MATH<br>MOUNTAIN</h1><p>Learn it. Practice it. Climb to the quiz!</p></div></div>
       <div class="grades rise" style="animation-delay:.1s">${btns}</div>
-      <button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button>
+      <div class="title-row"><button class="pill nav" data-act="howto">? HOW TO PLAY</button><button class="pill nav" data-act="read">\u{1F50A} READ TO ME: ${ro}</button></div>
     </div>`);
   }
 
@@ -432,6 +432,7 @@
       case 'skipwait': if (cur.locked && cur.name === 'quiz' && cur.timer) { clearTimeout(cur.timer); cur.timer = 0; nextQuestion(); } break;
       case 'hint': if (cur.q && !cur.locked) { bubble('\u{1F4A1} ' + cur.q.hint); say(cur.q.hint, true); } break;
       case 'speak': speakNow(); break;
+      case 'howto': openHowto(); break;
       case 'back': back(); break;
     }
   }
@@ -442,7 +443,19 @@
       say(cur.locked && b ? b.innerHTML.replace(/<button[\s\S]*<\/button>/, '') : cur.q.q, true);
     }
   }
+  // ---------- HOW TO PLAY ----------
+  const howto = document.getElementById('howto');
+  document.getElementById('hw-pip').innerHTML = pipSVG();
+  const howtoOpen = () => !howto.hidden;
+  let howtoFrom = null;
+  function openHowto() { hush(); howtoFrom = focused; howto.hidden = false; setFocus(null); if (document.body.classList.contains('navmode')) setFocus(document.getElementById('btn-howto-close')); }
+  function closeHowto() { howto.hidden = true; setFocus(howtoFrom && screen.contains(howtoFrom) ? howtoFrom : null); howtoFrom = null; }
+  document.getElementById('btn-howto').addEventListener('click', () => { if (window.MickleMenu) MickleMenu.close(); openHowto(); });
+  document.getElementById('btn-howto-close').addEventListener('click', () => { sfx.tap(); closeHowto(); });
+  howto.addEventListener('click', (e) => { if (e.target === howto) closeHowto(); });
+
   function back() {
+    if (howtoOpen()) return closeHowto();
     clearTimeout(cur.timer);
     if (cur.name === 'title') { if (window.MickleMenu) MickleMenu.backToArcade(); return; }
     if (cur.name === 'map') return goTitle();
@@ -465,11 +478,11 @@
     focused = el || null;
     if (focused) { focused.classList.add('foc'); try { focused.focus({ preventScroll: true }); } catch (e) { /* */ } }
   }
-  function navEls() { return [...screen.querySelectorAll('.nav')].filter((b) => !b.disabled && b.offsetParent !== null && !b.classList.contains('bad')); }
+  function navEls() { return [...(howtoOpen() ? howto : screen).querySelectorAll('.nav')].filter((b) => !b.disabled && b.offsetParent !== null && !b.classList.contains('bad')); }
   function move(dx, dy) {
     document.body.classList.add('navmode');
     const els = navEls(); if (!els.length) return;
-    if (!focused || !screen.contains(focused) || !els.includes(focused)) return setFocus(els[0]);
+    if (!focused || !els.includes(focused)) return setFocus(els[0]);
     const r = focused.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     let best = null, bs = Infinity;
     for (const el of els) {
@@ -484,6 +497,7 @@
   }
   function press() {
     document.body.classList.add('navmode');
+    if (howtoOpen()) { sfx.tap(); closeHowto(); return; }
     if (cur.name === 'quiz' && cur.locked && cur.timer) { act('skipwait'); return; }
     if (!focused || !screen.contains(focused)) { setFocus(navEls()[0]); return; }
     audio();
@@ -497,10 +511,11 @@
     else if (k === 'ArrowUp') move(0, -1); else if (k === 'ArrowDown') move(0, 1);
     else if (k === 'Enter' || k === ' ') press();
     else if (k === 'Escape' || k === 'Backspace') back();
+    else if (howtoOpen()) return;
     else if (/^[1-4]$/.test(k) && (cur.name === 'practice' || cur.name === 'quiz')) {
       if (cur.locked) { const nb = screen.querySelector('[data-act="nextq"]'); if (nb) act('nextq'); else if (cur.timer) act('skipwait'); }
       else { audio(); choose(+k - 1); }
-    } else if (k === 'h' || k === 'H' || k === '?') act('hint');
+    } else if (k === 'h' || k === 'H' || k === '?') { if (howtoOpen()) closeHowto(); else if (cur.name === 'title') act('howto'); else act('hint'); }
     else if (k === 's' || k === 'S') speakNow();
     else return;
     e.preventDefault();
@@ -514,8 +529,8 @@
         if (dx || dy) move(dx, dy);
         if (Pad360.pressed(Pad360.BTN.A) || Pad360.pressed(Pad360.BTN.START)) press();
         if (Pad360.pressed(Pad360.BTN.B)) back();
-        if (Pad360.pressed(Pad360.BTN.Y)) speakNow();
-        if (Pad360.pressed(Pad360.BTN.X) && cur.name === 'practice') act('hint');
+        if (Pad360.pressed(Pad360.BTN.Y)) { if (howtoOpen()) closeHowto(); else if (cur.name === 'title') act('howto'); else speakNow(); }
+        if (Pad360.pressed(Pad360.BTN.X) && cur.name === 'practice' && !howtoOpen()) act('hint');
       }
     }
     requestAnimationFrame(padLoop);
@@ -523,7 +538,7 @@
   requestAnimationFrame(padLoop);
 
   // test hooks
-  window.MathMountainDebug = { get state() { return cur; }, save: () => save, goTitle, goMap, goLesson, startPractice, startQuiz, choose, act, sayOf, grade: (n) => { cur.grade = n; } };
+  window.MathMountainDebug = { get state() { return cur; }, save: () => save, goTitle, goMap, goLesson, startPractice, startQuiz, choose, act, sayOf, openHowto, closeHowto, grade: (n) => { cur.grade = n; } };
 
   goTitle();
 })();
