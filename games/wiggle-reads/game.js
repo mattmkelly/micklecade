@@ -965,7 +965,7 @@
     const g = G(), scr = $('#s-arcade');
     scr.innerHTML = '';
     scr.append(hudBar('ARCADE · GRADE ' + GR[g].name, title, h('span', { class: 'pill', text: '🌱 ' + save.seeds })));
-    scr.append(h('div', { class: 'acards' }, AGAMES.map((a) => h('button', { class: 'acard ' + a.id, onclick: () => { sfx.tap(); playArcade(a); } },
+    scr.append(h('div', { class: 'acards' }, AGAMES.map((a) => h('button', { class: 'acard ac-' + a.id, onclick: () => { sfx.tap(); playArcade(a); } },
       h('div', { class: 'ico', text: a.ico }), h('b', { text: a.name }), h('p', { text: a.desc }),
       h('div', { class: 'sub', text: save.best[a.id + '.' + g] ? 'BEST ' + save.best[a.id + '.' + g] : a.time + ' SECONDS' })))));
   }
@@ -1228,6 +1228,33 @@
     '🌱': 0.6, '🌷': 0.8, '🌼': 0.7, '🌸': 0.7, '🌹': 0.8, '🌻': 0.9, '🍄': 0.7, '🐞': 0.5, '🐌': 0.55, '🐝': 0.6, '🦋': 0.75, '🐸': 0.7 };
   const SKY = new Set(SHOP.filter((s) => s[2]).map((s) => s[0]));
   const COST = new Map(SHOP.map((s) => [s[0], s[1]]));
+  // GROWING: plants go in as a sprout and grow over real time (they keep growing while you play
+  // other modes). Each stage is [minutes old, what it shows (null = the plant itself), size vs. grown].
+  // Tapping a growing plant waters it, which adds WATER minutes. Old saves (no `t`) are fully grown.
+  const FLOWER = [[0, '🌱', 0.6], [1, '🌿', 0.8], [4, null, 0.7], [10, null, 1]];
+  const TREE = [[0, '🌱', 0.25], [2, '🌿', 0.35], [8, null, 0.5], [20, null, 0.75], [35, null, 1]];
+  const GROW = {
+    '🌷': FLOWER, '🌼': FLOWER, '🌸': FLOWER, '🌹': FLOWER, '🌻': FLOWER,
+    '🍄': [[0, null, 0.4], [1, null, 0.7], [3, null, 1]],
+    '🎃': [[0, '🌱', 0.5], [1, '🌿', 0.7], [5, null, 0.5], [12, null, 1]],
+    '🌵': TREE, '🌳': TREE, '🌲': TREE, '🌴': TREE,
+    // the little 🌱 grows into a surprise flower
+    '🌱': [[0, null, 1], [3, '🌿', 1.2], [8, 'surprise', 1]],
+  };
+  const SURPRISE = ['🌷', '🌼', '🌸', '🌹', '🌻', '🌺', '💐'];
+  const WATER = 1.5;
+  // what a garden item looks like right now: { e, scale, grown, stage }
+  function growLook(it, now) {
+    const st = GROW[it.e];
+    if (!st || !it.t) return { e: it.e, scale: ITEM_SCALE[it.e] || 1, grown: true, stage: -1 };
+    const age = (now - it.t) / 60000 + (it.w || 0);
+    let k = 0;
+    while (k + 1 < st.length && age >= st[k + 1][0]) k++;
+    let e = st[k][1] || it.e;
+    if (e === 'surprise') e = SURPRISE[Math.abs(Math.round(it.x * 7 + it.y * 13)) % SURPRISE.length];
+    const base = st[k][1] === 'surprise' ? (ITEM_SCALE[e] || 0.8) : (ITEM_SCALE[it.e] || 1);
+    return { e, scale: base * st[k][2], grown: k === st.length - 1, stage: k };
+  }
   function garden() {
     show('s-garden');
     const scr = $('#s-garden');
@@ -1263,15 +1290,30 @@
       sfx.tap(); refreshTray();
       setHint(selected ? 'Tap the garden to put your ' + e + ' there!' : '');
     } }, h('span', { class: 'ge', text: e }), h('small', { text: '🌱' + cost }))));
-    function sizeFor(e, y) { return (ITEM_SCALE[e] || 1) * (SKY.has(e) ? 2.4 : 1.9 + 2.4 * Math.max(0, (y - 45) / 55)); }
+    function sizeFor(scale, e, y) { return scale * (SKY.has(e) ? 2.4 : 1.9 + 2.4 * Math.max(0, (y - 45) / 55)); }
+    const growing = [];
     function place(it) {
       const el = h('div', { class: 'gitem', text: it.e });
+      let look = growLook(it, Date.now()), lastWater = 0;
       function pos() {
+        el.textContent = look.e;
         el.style.left = it.x + '%'; el.style.top = it.y + '%';
-        el.style.fontSize = sizeFor(it.e, it.y) + 'em';
+        el.style.fontSize = sizeFor(look.scale, it.e, it.y) + 'em';
         el.style.zIndex = Math.round(it.y * 10) + (SKY.has(it.e) ? 1000 : 0);
+        el.classList.toggle('young', !look.grown);
       }
       pos();
+      if (!look.grown) {
+        growing.push({ it, el, check(now) {
+          const nl = growLook(it, now);
+          if (nl.stage === look.stage) return nl.grown;
+          look = nl; pos();
+          el.classList.remove('grow'); void el.offsetWidth; el.classList.add('grow');
+          sfx.plant();
+          if (nl.grown) { el.classList.remove('young'); burst(el, ['#facc15', '#86efac', '#f9a8d4', '#fff']); }
+          return nl.grown;
+        } });
+      }
       let drag = null;
       el.addEventListener('pointerdown', (ev) => {
         ev.stopPropagation(); ev.preventDefault();
@@ -1297,10 +1339,32 @@
           addSeeds(COST.get(it.e) || 0); el.remove(); sfx.plant(); updSeeds();
           return;
         }
+        if (!look.grown) {
+          // water it: a little sooner to the next stage (once every couple of seconds)
+          const now = Date.now();
+          if (now - lastWater > 2000) {
+            lastWater = now;
+            it.w = (it.w || 0) + WATER; persist();
+            const r = el.getBoundingClientRect(), sr = scene.getBoundingClientRect();
+            floatText('💧', r.left - sr.left + r.width / 2, r.top - sr.top, null, scene);
+            sfx.pop();
+            const g = growing.find((x) => x.it === it);
+            if (g && g.check(now)) growing.splice(growing.indexOf(g), 1);
+          }
+          return;
+        }
         el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop'); sfx.boing();
       });
       scene.append(el);
     }
+    // grow while the garden is open (and catch up on time spent away)
+    const growTimer = setInterval(() => {
+      if (!document.body.contains(scene)) { clearInterval(growTimer); return; }
+      const now = Date.now();
+      for (let k = growing.length - 1; k >= 0; k--) {
+        if (!document.body.contains(growing[k].el) || growing[k].check(now)) growing.splice(k, 1);
+      }
+    }, 2000);
     function clampY(e, y) { return SKY.has(e) ? Math.max(12, Math.min(96, y)) : Math.max(47, Math.min(99, y)); }
     scene.addEventListener('pointerdown', (ev) => {
       if (!selected || picking) return;
@@ -1310,9 +1374,11 @@
       const r = scene.getBoundingClientRect();
       const it = { e: selected, x: Math.max(2, Math.min(98, (ev.clientX - r.left) / r.width * 100)), y: 0 };
       it.y = clampY(it.e, (ev.clientY - r.top) / r.height * 100 + 6);
+      if (GROW[it.e]) it.t = Date.now();
       save.seeds -= cost; save.garden.push(it); persist();
       place(it); sfx.plant(); updSeeds();
-      if (cost > save.seeds) { selected = null; refreshTray(); setHint(''); }
+      if (GROW[it.e]) setHint(it.e === '🌱' ? 'Your sprout will grow into a surprise flower! Tap it to water it 💧' : 'Your ' + it.e + ' will grow! Tap it to water it 💧');
+      if (cost > save.seeds) { selected = null; refreshTray(); if (!GROW[it.e]) setHint(''); }
     });
     save.garden.forEach(place);
     scr.append(scene, hint, tray, hudBar('WIGGLE\'S GARDEN', title, [seedPill, pickBtn, earnBtn]));

@@ -268,9 +268,9 @@
   .acard b { font-size: 1.8em; font-weight: 900; text-shadow: 0 .08em 0 rgba(0,0,0,.2); }
   .acard p { margin: 0; font-weight: 700; line-height: 1.25; }
   .acard .sub { margin-top: auto; font-weight: 900; padding: .25em .8em; border-radius: 999px; background: rgba(0,0,0,.2); }
-  .acard.balloon { background: linear-gradient(160deg, #f472b6, #db2777); }
-  .acard.firefly { background: linear-gradient(160deg, #6366f1, #312e81); }
-  .acard.train { background: linear-gradient(160deg, #38bdf8, #0369a1); }
+  .acard.ac-balloon { background: linear-gradient(160deg, #f472b6, #db2777); }
+  .acard.ac-firefly { background: linear-gradient(160deg, #6366f1, #312e81); }
+  .acard.ac-train { background: linear-gradient(160deg, #38bdf8, #0369a1); }
 
   #s-play { background: linear-gradient(#7dd3fc, #e0f2fe); overflow: hidden; }
   #s-play.night { background: radial-gradient(circle at 50% 120%, #4338ca, #1e1b4b 60%, #0f0c2e); }
@@ -336,6 +336,8 @@
   .gscene .sun { position: absolute; right: 5em; top: 3.8em; width: 4em; height: 4em; border-radius: 50%; background: radial-gradient(circle, #fef08a, #facc15); box-shadow: 0 0 2em #fde047; }
   .gitem { position: absolute; transform: translate(-50%, -88%); line-height: 1; cursor: grab; touch-action: none; filter: drop-shadow(0 .08em .05em rgba(0,0,0,.25)); }
   .gitem.hop { animation: ghop .45s ease-out; }
+  .gitem.grow { animation: ggrow .7s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes ggrow { from { transform: translate(-50%, -88%) scale(.4); } }
   @keyframes ghop { 40% { transform: translate(-50%, -120%) scale(1.1); } }
   .picking .gitem { animation: jiggle .5s ease-in-out infinite; cursor: pointer; }
   @keyframes jiggle { 25% { rotate: -6deg; } 75% { rotate: 6deg; } }
@@ -396,7 +398,7 @@
       <div class="hw-grid">
         <div class="hw trail"><div class="i">🗺️</div><b>TRAIL</b><p>Walk Wiggle along a trail of 12 stops. Each stop is a short reading round. 📖 stops are little stories with questions. Finish a stop to open the next one and win up to 3 stars. After stop 12, try the 🏆 GRADE CUP: 10 questions from the whole grade. Get 7 right to win it!</p></div>
         <div class="hw arcade"><div class="i">🎮</div><b>ARCADE</b><p>Quick word games against the clock: pop the right balloon, catch the fireflies that fit the rule, and hook word cars onto the train in the right order.</p></div>
-        <div class="hw garden"><div class="i">🌻</div><b>GARDEN</b><p>Answer questions to earn seeds 🌱, then spend them on flowers, trees, animals and houses for Wiggle's garden. Stars and arcade points earn seeds too!</p></div>
+        <div class="hw garden"><div class="i">🌻</div><b>GARDEN</b><p>Answer questions to earn seeds 🌱, then spend them on flowers, trees, animals and houses for Wiggle's garden. Flowers and trees start as little sprouts and grow over time. Tap one to water it 💧 and help it grow! Stars and arcade points earn seeds too!</p></div>
       </div>
       <div class="hw-tips">
         <div>🔊 <b>Listen:</b> tap the speaker to hear it again. Wiggle reads out loud if your device has a voice.</div>
@@ -413,8 +415,8 @@
   <script src="../../shared/scores.js"></script>
   <script src="../../shared/menu.js" data-frame="#stage" data-at="1,0"></script>
   <script src="../../shared/grades.js"></script>
-  <script src="content.js?v=7"></script>
+  <script src="content.js?v=8"></script>
   <script src="content-hs.js?v=1"></script>
-  <script src="game.js?v=7"></script>
+  <script src="game.js?v=8"></script>
 </body>
 </html>
