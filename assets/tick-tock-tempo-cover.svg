@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="10%" r="120%"><stop offset="0" stop-color="#7c3aed"/><stop offset=".45" stop-color="#3b0764"/><stop offset="1" stop-color="#1e0b3a"/></radialGradient>
+    <linearGradient id="wd" x1="0" x2="1"><stop offset="0" stop-color="#5b2c0f"/><stop offset=".5" stop-color="#a35d29"/><stop offset="1" stop-color="#4a230b"/></linearGradient>
+    <linearGradient id="br" x1="0" x2="1"><stop offset="0" stop-color="#a16207"/><stop offset=".45" stop-color="#fde047"/><stop offset="1" stop-color="#854d0e"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fef3c7"/><stop offset="1" stop-color="#fbbf24"/></linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <g stroke="#fff" stroke-opacity=".1" stroke-width="2"><line x1="0" y1="60" x2="400" y2="60"/><line x1="0" y1="85" x2="400" y2="85"/><line x1="0" y1="110" x2="400" y2="110"/><line x1="0" y1="135" x2="400" y2="135"/><line x1="0" y1="160" x2="400" y2="160"/></g>
+  <g transform="translate(40 40)">
+    <path d="M48 20 H82 L118 220 H12 Z" fill="url(#wd)"/>
+    <rect x="4" y="220" width="122" height="16" rx="3" fill="#3b1a07"/>
+    <rect x="58" y="40" width="14" height="140" fill="#fdf6e3"/>
+    <g transform="rotate(22 65 214)" opacity=".35"><line x1="65" y1="214" x2="65" y2="8" stroke="#e5e7eb" stroke-width="4"/></g>
+    <g transform="rotate(-14 65 214)"><line x1="65" y1="214" x2="65" y2="8" stroke="#e5e7eb" stroke-width="4" stroke-linecap="round"/><path d="M56 70 H74 L79 84 H51 Z" fill="url(#br)"/></g>
+    <circle cx="65" cy="210" r="6" fill="#fbbf24"/>
+  </g>
+  <text x="270" y="118" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="50" fill="url(#gold)" stroke="#92400e" stroke-width="2">TICK TOCK</text>
+  <text x="270" y="172" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="56" fill="url(#gold)" stroke="#92400e" stroke-width="2">TEMPO</text>
+  <g font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="17" text-anchor="middle">
+    <text x="215" y="215" fill="#a78bfa">Largo</text>
+    <text x="285" y="232" fill="#f472b6">Andante</text>
+    <text x="350" y="214" fill="#fb923c">Allegro</text>
+    <text x="300" y="264" fill="#a3e635">Prestissimo!</text>
+  </g>
+  <text x="200" y="290" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="14" fill="#fde68a" opacity=".9">10 TO 2000 BPM</text>
+</svg>
