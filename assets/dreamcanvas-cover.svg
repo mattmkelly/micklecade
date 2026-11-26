@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <!-- dusk sky, in the same family as the DREAMSCAPE and DREAMREEL covers -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#140b33"/><stop offset="0.5" stop-color="#36205f"/>
+      <stop offset="0.82" stop-color="#874081"/><stop offset="1" stop-color="#d9687a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd7a8" stop-opacity="0.5"/><stop offset="0.55" stop-color="#c25fd0" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#c25fd0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7a4a24"/><stop offset="0.45" stop-color="#c98c52"/><stop offset="1" stop-color="#6b3d1b"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe9a8"/><stop offset="0.5" stop-color="#d79a3a"/><stop offset="1" stop-color="#8a5418"/>
+    </linearGradient>
+    <!-- the little painting: a watercolour night with a big moon -->
+    <linearGradient id="pSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d3e9c"/><stop offset="0.55" stop-color="#6a7fd8"/><stop offset="1" stop-color="#f3a6b8"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="0.4" cy="0.38" r="0.6">
+      <stop offset="0" stop-color="#fffbe6"/><stop offset="0.7" stop-color="#ffe7a0"/><stop offset="1" stop-color="#ffc766"/>
+    </radialGradient>
+    <linearGradient id="ribbon" gradientUnits="userSpaceOnUse" x1="150" y1="0" x2="400" y2="0">
+      <stop offset="0" stop-color="#ff5a8a"/><stop offset="0.25" stop-color="#ffb347"/><stop offset="0.45" stop-color="#ffe066"/>
+      <stop offset="0.65" stop-color="#5fe0a0"/><stop offset="0.82" stop-color="#5aa8ff"/><stop offset="1" stop-color="#b47cff"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8a9a"/><stop offset="0.45" stop-color="#d63a55"/><stop offset="1" stop-color="#8a1a32"/>
+    </linearGradient>
+    <linearGradient id="ferrule" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.4" stop-color="#c9cedb"/><stop offset="1" stop-color="#6e7486"/>
+    </linearGradient>
+    <filter id="wc" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="3" seed="3" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="6"/>
+    </filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="5"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .22 0"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#07031a" flood-opacity="0.65"/>
+    </filter>
+    <filter id="shine" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <clipPath id="art"><rect x="122" y="40" width="156" height="114"/></clipPath>
+  </defs>
+
+  <rect width="400" height="300" fill="url(#sky)"/>
+  <!-- stars -->
+  <g fill="#fff6dc">
+    <circle cx="34" cy="28" r="1.3"/><circle cx="78" cy="58" r="0.9"/><circle cx="96" cy="18" r="1.1"/>
+    <circle cx="318" cy="30" r="1.2"/><circle cx="352" cy="66" r="0.9"/><circle cx="374" cy="22" r="1.4"/>
+    <circle cx="48" cy="104" r="0.8"/><circle cx="366" cy="118" r="0.8"/><circle cx="290" cy="14" r="0.8"/>
+    <circle cx="160" cy="12" r="0.7"/><circle cx="22" cy="150" r="0.7"/><circle cx="386" cy="160" r="0.7"/>
+  </g>
+  <path d="M60 70 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#ffe9a0"/>
+  <path d="M338 92 l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6 -4 -4 -1.6 4 -1.6z" fill="#ffe9a0"/>
+  <ellipse cx="200" cy="104" rx="150" ry="110" fill="url(#glow)"/>
+
+  <!-- easel legs -->
+  <g stroke-linecap="round">
+    <path d="M200 14 L150 252" stroke="url(#wood)" stroke-width="9"/>
+    <path d="M200 14 L250 252" stroke="url(#wood)" stroke-width="9"/>
+    <path d="M200 30 L200 236" stroke="#5a3417" stroke-width="7"/>
+  </g>
+
+  <!-- the canvas in a gold frame -->
+  <g filter="url(#soft)">
+    <rect x="112" y="30" width="176" height="134" rx="4" fill="url(#frame)"/>
+  </g>
+  <rect x="112" y="30" width="176" height="134" rx="4" fill="none" stroke="#fff3c4" stroke-width="1.2" opacity="0.7"/>
+  <rect x="119" y="37" width="162" height="120" fill="#5a3417"/>
+  <g clip-path="url(#art)">
+    <rect x="122" y="40" width="156" height="114" fill="#fbf6ea"/>
+    <g filter="url(#wc)">
+      <rect x="118" y="36" width="164" height="90" fill="url(#pSky)" opacity="0.92"/>
+      <path d="M118 116 Q160 92 202 112 T282 104 V158 H118z" fill="#3c8f6a" opacity="0.9"/>
+      <path d="M118 134 Q170 114 222 132 T282 128 V158 H118z" fill="#245a54" opacity="0.92"/>
+    </g>
+    <!-- soft dreamy swirls in the sky -->
+    <g fill="none" stroke="#c9d6ff" stroke-width="3" stroke-linecap="round" opacity="0.55" filter="url(#wc)">
+      <path d="M134 70 q14 -14 28 0 t28 0"/>
+      <path d="M150 90 q12 -10 24 0 t24 0"/>
+    </g>
+    <circle cx="240" cy="68" r="17" fill="url(#moon)"/>
+    <circle cx="240" cy="68" r="24" fill="#fff3c4" opacity="0.18"/>
+    <g fill="#fffbe6"><circle cx="198" cy="52" r="1.6"/><circle cx="214" cy="84" r="1.2"/><circle cx="268" cy="96" r="1.3"/><circle cx="132" cy="50" r="1.1"/></g>
+    <!-- a little house with a lit window -->
+    <path d="M170 128 h18 v14 h-18z" fill="#f4e3c8"/><path d="M167 129 l12 -10 12 10z" fill="#c9524a"/>
+    <rect x="176" y="132" width="6" height="5" fill="#ffd35a"/>
+    <rect x="122" y="40" width="156" height="114" filter="url(#grain)"/>
+  </g>
+
+  <!-- the canvas tray -->
+  <rect x="104" y="164" width="192" height="10" rx="3" fill="url(#wood)" stroke="#3b2414" stroke-width="1"/>
+
+  <!-- the brush, big and in front, painting a rainbow stroke out of the picture -->
+  <path d="M214 178 C 256 160, 302 196, 342 172 S 384 138, 392 114" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" opacity="0.2" filter="url(#shine)"/>
+  <path d="M214 178 C 256 160, 302 196, 342 172 S 384 138, 392 114" fill="none" stroke="url(#ribbon)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M222 174 C 260 160, 302 192, 340 168" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity="0.5"/>
+  <g filter="url(#soft)">
+    <g transform="translate(206 184) rotate(-30)">
+      <!-- handle -->
+      <path d="M-132 -5.5 C -132 -9, -128 -9.5, -122 -9 L -52 -7 L -52 7 L -122 9 C -128 9.5, -132 9, -132 5.5 Z" fill="url(#handle)" stroke="#4a1020" stroke-width="1.2"/>
+      <path d="M-126 -4.5 L -56 -3.6" stroke="#ffffff" stroke-width="2" opacity="0.45" stroke-linecap="round"/>
+      <!-- ferrule -->
+      <rect x="-54" y="-9" width="26" height="18" rx="2.5" fill="url(#ferrule)" stroke="#4f5566" stroke-width="1.2"/>
+      <path d="M-48 -9 v18 M-42 -9 v18" stroke="#8a90a2" stroke-width="1"/>
+      <!-- bristles, dipped in pink paint -->
+      <path d="M-28 -9 C -14 -11, 2 -5, 12 0 C 2 5, -14 11, -28 9 Z" fill="#f2d6b0" stroke="#7a5a3a" stroke-width="1"/>
+      <path d="M-16 -8.4 C -6 -7, 4 -3, 12 0 C 4 3, -6 7, -16 8.4 C -12 3, -12 -3, -16 -8.4 Z" fill="#ff5a8a"/>
+      <path d="M-10 -4 C -4 -3, 2 -1.5, 8 0" stroke="#ffffff" stroke-width="1.4" opacity="0.6" fill="none" stroke-linecap="round"/>
+    </g>
+  </g>
+  <circle cx="376" cy="98" r="3.4" fill="#b47cff"/><circle cx="388" cy="86" r="2.2" fill="#b47cff"/>
+
+  <text x="200" y="288" text-anchor="middle" font-family="Trebuchet MS, Verdana, sans-serif" font-weight="bold" font-size="30" letter-spacing="4" fill="#fff6dc" stroke="#2a1b3a" stroke-width="1.2">DREAMCANVAS</text>
+</svg>
