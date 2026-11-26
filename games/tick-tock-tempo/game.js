@@ -18,8 +18,8 @@
     { id: 'largo', nm: 'LARGO', lo: 40, hi: 59, say: 'LAR-go', tts: 'lar go', mean: 'slow and broad', c: '#a78bfa' },
     { id: 'larghetto', nm: 'LARGHETTO', short: 'LARGH­ETTO', lo: 60, hi: 65, say: 'lar-GET-oh', tts: 'lar get toe', mean: 'a little less slow than largo', c: '#c084fc' },
     { id: 'adagio', nm: 'ADAGIO', lo: 66, hi: 75, say: 'ah-DAH-jo', tts: 'ah dah joe', mean: 'slow and relaxed', c: '#e879f9' },
-    { id: 'andante', nm: 'ANDANTE', lo: 76, hi: 107, say: 'ahn-DAHN-tay', tts: 'ahn dahn tay', mean: 'walking speed', c: '#f472b6' },
-    { id: 'moderato', nm: 'MODERATO', short: 'MODER­ATO', lo: 108, hi: 119, say: 'mod-er-AH-toe', tts: 'mod er ah toe', mean: 'medium speed', c: '#fb7185' },
+    { id: 'andante', nm: 'ANDANTE', lo: 76, hi: 107, say: 'ahn-DAHN-tay', tts: 'on dawn tay', mean: 'walking speed', c: '#f472b6' },
+    { id: 'moderato', nm: 'MODERATO', short: 'MODER­ATO', lo: 108, hi: 119, say: 'mod-er-AH-toe', tts: 'modder rah toe', mean: 'medium speed', c: '#fb7185' },
     { id: 'allegro', nm: 'ALLEGRO', lo: 120, hi: 155, say: 'ah-LEG-ro', tts: 'ah leg roe', mean: 'fast and cheerful', c: '#fb923c' },
     { id: 'vivace', nm: 'VIVACE', lo: 156, hi: 175, say: 'vee-VAH-chay', tts: 'vee vah chay', mean: 'lively and quick', c: '#fbbf24' },
     { id: 'presto', nm: 'PRESTO', lo: 176, hi: 199, say: 'PRESS-toe', tts: 'press toe', mean: 'very fast', c: '#facc15' },
@@ -190,10 +190,24 @@
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden && E.playing) { stop(); if (cur.name === 'metro') renderPlay(); } });
 
+  // Tempo words are Italian, so an Italian voice says them best: use one if the device has it, then the
+  // usual English voice reads the meaning. Without one, the English voice reads `tts`, a sound-it-out
+  // spelling made of syllables English voices say as words (voices spell out odd ones like "ahn" letter by letter).
+  function italianVoice() {
+    let vs = [];
+    try { vs = speechSynthesis.getVoices(); } catch (e) { return null; }
+    const it = vs.filter((v) => /^it/i.test(v.lang));
+    const rank = (v) => (/natural|neural/i.test(v.name) ? 3 : /google|enhanced|premium/i.test(v.name) ? 2 : 0) + (v.localService ? 1 : 0);
+    return it.sort((a, b) => rank(b) - rank(a))[0] || null;
+  }
   function say(t) {
     if (!window.MickleVoice || !MickleVoice.can) return;
     MickleVoice.cancel();
-    MickleVoice.speak(t.fun ? [t.tts, t.mean] : [t.tts, 'It means ' + t.mean.replace('!', '') + '.']);
+    const meaning = 'It means ' + t.mean.replace('!', '') + '.';
+    if (t.fun) return MickleVoice.speak([t.tts, t.mean]);
+    const it = italianVoice();
+    if (it) MickleVoice.speak(t.nm.toLowerCase(), { voice: { voice: it }, rate: 0.85, onend: () => MickleVoice.speak(meaning) });
+    else MickleVoice.speak([t.tts, meaning]);
   }
 
   // ---------- canvas views ----------
