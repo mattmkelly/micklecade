@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaf4ff"/><stop offset="1" stop-color="#cfe3fa"/></linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#3b82f6" stroke-opacity=".14" stroke-width="2"/></pattern>
+    <linearGradient id="logo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset=".5" stop-color="#fb923c"/><stop offset="1" stop-color="#ef4444"/></linearGradient>
+    <radialGradient id="red" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fecaca"/><stop offset="1" stop-color="#dc2626"/></radialGradient>
+    <radialGradient id="bowl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#64748b"/><stop offset="1" stop-color="#0f172a"/></radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#wall)"/>
+  <rect width="800" height="600" fill="url(#grid)"/>
+  <!-- pipe -->
+  <rect x="98" y="-10" width="64" height="150" rx="8" fill="#64748b"/>
+  <rect x="88" y="128" width="84" height="18" rx="5" fill="#475569"/>
+  <!-- ramp -->
+  <line x1="80" y1="250" x2="330" y2="350" stroke="#7c4a1e" stroke-width="22" stroke-linecap="round"/>
+  <line x1="80" y1="250" x2="330" y2="350" stroke="#c98a4b" stroke-width="14" stroke-linecap="round"/>
+  <!-- trampoline -->
+  <path d="M430 520 l10 -16 -10 -16 M560 520 l10 -16 -10 -16" stroke="#64748b" stroke-width="4" fill="none"/>
+  <line x1="410" y1="490" x2="590" y2="490" stroke="#1e293b" stroke-width="16" stroke-linecap="round"/>
+  <line x1="410" y1="490" x2="590" y2="490" stroke="#8b5cf6" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="410" cy="490" r="10" fill="#facc15"/><circle cx="590" cy="490" r="10" fill="#facc15"/>
+  <!-- the path the ball took -->
+  <path d="M130 160 L130 230 Q 240 290 330 340 Q 420 380 490 478 Q 560 280 690 330" fill="none" stroke="#ef4444" stroke-width="7" stroke-dasharray="2 16" stroke-linecap="round" opacity=".6"/>
+  <!-- basket -->
+  <rect x="640" y="380" width="120" height="90" fill="#22c55e" opacity=".2"/>
+  <path d="M640 380 V470 H760 V380" fill="none" stroke="#15803d" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M640 380 V470 H760 V380" fill="none" stroke="#4ade80" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M760 380 V330 L800 344 L760 358" fill="#facc15" stroke="#334155" stroke-width="3"/>
+  <!-- balls -->
+  <circle cx="690" cy="330" r="30" fill="url(#red)" stroke="#7f1d1d" stroke-opacity=".4" stroke-width="3"/>
+  <rect x="662" y="324" width="56" height="10" fill="#fff" opacity=".55" transform="rotate(-25 690 330)"/>
+  <circle cx="300" cy="300" r="36" fill="url(#bowl)"/>
+  <circle cx="292" cy="288" r="5" fill="#020617"/><circle cx="306" cy="286" r="5" fill="#020617"/><circle cx="300" cy="302" r="5" fill="#020617"/>
+  <!-- stars -->
+  <path d="M560 250 l9 20 22 2 -17 14 6 22 -20 -12 -20 12 6 -22 -17 -14 22 -2z" fill="#fbbf24" stroke="#b45309" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M230 420 l7 15 17 2 -13 11 4 17 -15 -9 -15 9 4 -17 -13 -11 17 -2z" fill="#fbbf24" stroke="#b45309" stroke-width="3" stroke-linejoin="round"/>
+  <!-- Professor Newt -->
+  <g transform="translate(110 590) scale(3.6)">
+    <path d="M6 -6 Q22 -2 26 -14" stroke="#16a34a" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <ellipse cx="-7" cy="-1.5" rx="5" ry="2.5" fill="#16a34a"/><ellipse cx="7" cy="-1.5" rx="5" ry="2.5" fill="#16a34a"/>
+    <path d="M-10 -26 H10 L13 -3 H-13Z" fill="#fff" stroke="#cbd5e1"/>
+    <path d="M-4 -26 H4 L0 -15Z" fill="#4ade80"/>
+    <rect x="4" y="-14" width="5" height="4" fill="#3b82f6"/>
+    <path d="M-10 -22 L-16 -14" stroke="#22c55e" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M10 -22 L17 -31" stroke="#22c55e" stroke-width="3.5" stroke-linecap="round"/><circle cx="18" cy="-32" r="2.5" fill="#22c55e"/>
+    <ellipse cx="0" cy="-36" rx="15" ry="12" fill="#4ade80" stroke="#16a34a" stroke-width="1.2"/>
+    <path d="M-14 -44 A14 4 0 0 1 14 -44" stroke="#f97316" stroke-width="2" fill="none"/>
+    <circle cx="-5" cy="-47" r="4" fill="#7dd3fc" stroke="#334155" stroke-width="1.3"/><circle cx="5" cy="-47" r="4" fill="#7dd3fc" stroke="#334155" stroke-width="1.3"/>
+    <ellipse cx="-6" cy="-37" rx="4.2" ry="4.6" fill="#fff"/><ellipse cx="6" cy="-37" rx="4.2" ry="4.6" fill="#fff"/>
+    <circle cx="-5.2" cy="-36.5" r="2.2" fill="#0f172a"/><circle cx="6.8" cy="-36.5" r="2.2" fill="#0f172a"/>
+    <circle cx="-10" cy="-31" r="2.2" fill="#f472b6" opacity=".5"/><circle cx="10" cy="-31" r="2.2" fill="#f472b6" opacity=".5"/>
+    <path d="M-4.2 -32 A4.5 4.5 0 0 0 4.2 -32" stroke="#14532d" stroke-width="1.3" fill="none"/>
+  </g>
+  <!-- title -->
+  <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <text x="470" y="150" font-size="120" fill="none" stroke="#1e1b4b" stroke-width="22" stroke-linejoin="round">BOING</text>
+    <text x="470" y="150" font-size="120" fill="url(#logo)">BOING</text>
+    <text x="520" y="250" font-size="96" fill="none" stroke="#1e1b4b" stroke-width="20" stroke-linejoin="round">LAB</text>
+    <text x="520" y="250" font-size="96" fill="url(#logo)">LAB</text>
+  </g>
+</svg>
