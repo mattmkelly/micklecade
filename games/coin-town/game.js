@@ -14,7 +14,11 @@
   const fctx = fx.getContext('2d');
 
   const SAVE_KEY = 'coinTown.save';
-  const RATE = 0.02;                 // the bank pays 2% a week (real banks: a few % a YEAR); bonds pay more, stocks more again (but bumpy)
+  // REAL TIME (Matt's call): a game week is a real week, and every rate is a real yearly rate applied a week at a time
+  // (savings 4% a year, short bonds 4.5-5.5%, stocks ~6-12% a year on average with real-size swings, loans 9-24% APR).
+  // So weekly interest is honestly tiny; the bank's Savings Time Machine shows what it does over real years.
+  const RATE = 0.04;                 // savings account: 4% a year (a good high-yield savings rate)
+  const WEEKS = 52;
   const SHIFT_N = 5, PRACTICE_N = 6;
   const BASE_PAY = 400, BONUS_PAY = 100;
 
@@ -71,7 +75,7 @@
     { id: 'think', e: '🤔', name: 'THINK FIRST', how: 'Skip a treat to keep saving', tip: 'Treats are fine sometimes! Stopping to think before buying is a habit that keeps grown-ups out of money trouble.' },
     { id: 'rainy', e: '☂️', name: 'RAINY-DAY FUND', how: 'Savings pay for a surprise', tip: 'Grown-ups keep an emergency fund for surprises like a broken car, so a bad day doesn\'t become a money problem.' },
     { id: 'giver', e: '💝', name: 'GIVER', how: 'Give money to the Park', tip: 'Giving helps your whole town. Lots of grown-ups share a little from every paycheck.' },
-    { id: 'grower', e: '🌱', name: 'MONEY GROWER', how: 'Earn $1 of interest', tip: 'Interest is money your money earns. The earlier you start saving, the more time it has to grow.' },
+    { id: 'grower', e: '🌱', name: 'MONEY GROWER', how: 'Earn 10¢ of interest', tip: 'Interest is money your money earns. The earlier you start saving, the more time it has to grow.' },
     { id: 'cashier', e: '🧾', name: 'SUPER CASHIER', how: 'A perfect shift at the Shop', tip: 'Careful counting keeps things fair. Always count your change -- grown-ups do too!' },
     { id: 'credit', e: '💳', name: 'GOOD CREDIT', how: 'Pay back a loan on time', tip: 'Paying back on time builds a good credit score, so borrowing costs less when you are grown up and need a car or a home.' },
     { id: 'basket', e: '🧺', name: 'MIXED BASKET', how: 'Own 3 stocks or an ETF', tip: 'Don\'t put all your eggs in one basket! Grown-ups spread their investments so one bad company can\'t sink them.' },
@@ -596,15 +600,18 @@
     town.showLabels(false); town.focus(null); town.setNight(true); sfx.night();
     ui.innerHTML = '';
     const g = grade().n;
-    const interest = save.bank > 0 ? Math.max(1, Math.round(save.bank * RATE)) : 0;
-    const before = save.bank;
+    // one week of interest at the yearly rate; fractions of a cent carry over to next week, like a real bank's daily interest
+    const owed = save.bank > 0 ? save.bank * RATE / WEEKS + (save.intCarry || 0) : 0;
+    const interest = Math.floor(owed);
+    save.intCarry = owed - interest;
+    const yearly = Math.round(save.bank * RATE);
     save.bank += interest; save.interestTotal += interest;
     save.hist.push({ w: save.week, bank: save.bank, i: interest }); if (save.hist.length > 30) save.hist.shift();
-    if (save.interestTotal >= 100) { const b = earn('grower'); if (b) earned.push(b); }
+    if (save.interestTotal >= 10) { const b = earn('grower'); if (b) earned.push(b); }
     store();
     const q = cur.queue;
-    q.push(() => weekCard('🌙', `WEEK ${save.week} IS OVER`, interest
-      ? `The bank paid you <b>${fmt(interest)}</b> of interest! ${g <= 2 ? `For every $1 you kept in the bank, it added ${RATE * 100}¢.` : `${RATE * 100}% of ${fmt(before)} is ${fmt(interest)}.`} Your savings: <b>${fmt(save.bank)}</b>.`
+    q.push(() => weekCard('🌙', `WEEK ${save.week} IS OVER`, save.bank > 0
+      ? `The bank added <b>${interest ? fmt(interest) : 'a tiny bit less than 1¢'}</b> of interest this week. ${RATE * 100}% a year means about <b>${fmt(Math.max(1, yearly))}</b> in a whole year on your ${fmt(save.bank)}. Interest is slow, so saving for a <b>long</b> time is what makes it grow!`
       : 'Your bank account is empty, so it earned no interest this week. Money you SAVE grows a little every week!',
       `<button class="go nav" data-act="wnext" data-default>NEXT ▶</button>`, interest ? '' : 'Grown-ups say: "Pay yourself first." Even a little bit counts!'));
     const lc = loanWeek(); if (lc) q.push(() => weekCard(lc.e, lc.title, lc.text, `<button class="go nav" data-act="wnext" data-default>NEXT ▶</button>`, lc.grown));
@@ -714,17 +721,49 @@
   }
 
   // ---------- BANK ----------
+  // SAVINGS TIME MACHINE: project the balance forward with compound interest, next to simple interest
+  // (interest taken out, not reinvested) and plain deposits, so the growing gap shows "interest on interest".
+  function project(start, add, years) {
+    // real time: deposit `add` every week and add a week of interest (RATE / 52) every week; plot one point a year
+    const comp = [start], simp = [start], dep = [start];
+    let b = start, p = start, si = 0;
+    for (let w = 1; w <= years * WEEKS; w++) {
+      b = (b + add) * (1 + RATE / WEEKS);     // payday deposit, then the week's interest (same order as the game)
+      p += add; si += p * RATE / WEEKS;       // simple: interest only on the money you put in
+      if (w % WEEKS === 0) { comp.push(b); simp.push(p + si); dep.push(p); }
+    }
+    return { comp, simp, dep };
+  }
+  function timeChart(pr, years) {
+    const W = 320, H = 100, L = 30, R = 30, T = 9, B = 13;
+    const top = Math.max(...pr.comp) * 1.08 || 100;
+    const X = (i) => L + i / years * (W - L - R), Y = (v) => T + (1 - v / top) * (H - T - B);
+    const line = (a) => a.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    let s = `<svg class="tmchart" viewBox="0 0 ${W} ${H}">`;
+    for (const f of [0, 0.5, 1]) { const v = top * f, y = Y(v); s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#e2e8f0" stroke-width=".5"/><text x="${L - 2}" y="${y + 2}" text-anchor="end" font-size="6" fill="#64748b">${fmt(Math.round(v / 100) * 100)}</text>`; }
+    for (const i of [0, years / 2, years]) s += `<text x="${X(i)}" y="${H - 5}" text-anchor="middle" font-size="6" fill="#64748b">${i === 0 ? 'NOW' : i + ' YRS'}</text>`;
+    s += `<polygon points="${X(0)},${Y(0)} ${line(pr.comp)} ${X(years)},${Y(0)}" fill="rgba(74,222,128,.18)"/>`;
+    s += `<polyline points="${line(pr.dep)}" fill="none" stroke="#94a3b8" stroke-width="1.2"/>`;
+    s += `<polyline points="${line(pr.simp)}" fill="none" stroke="#f59e0b" stroke-width="1.4" stroke-dasharray="3 2"/>`;
+    s += `<polyline points="${line(pr.comp)}" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linejoin="round"/>`;
+    const e = pr.comp[years];
+    s += `<circle cx="${X(years)}" cy="${Y(e)}" r="2.2" fill="#16a34a"/><text x="${X(years) - 3}" y="${Y(e) - 4}" text-anchor="end" font-size="7" font-weight="900" fill="#166534">${fmt(Math.round(e))}</text>`;
+    return s + '</svg>';
+  }
   function goBank(msg) {
-    cur = { name: 'bank' };
-    const g = grade().n;
-    const hist = save.hist.slice(-10);
-    const max = Math.max(100, ...hist.map((h) => h.bank));
-    const bw = 100 / Math.max(6, hist.length);
-    const bars = hist.map((h, i) => { const H = h.bank / max * 70, I = Math.min(H, h.i / max * 70); return `<rect x="${i * bw + bw * 0.15}" y="${80 - H}" width="${bw * 0.7}" height="${H - I}" rx="1" fill="#4ade80"/><rect x="${i * bw + bw * 0.15}" y="${80 - I}" width="${bw * 0.7}" height="${I}" fill="#fbbf24"/><text x="${i * bw + bw / 2}" y="88" text-anchor="middle" font-size="4" fill="#475569">W${h.w}</text><text x="${i * bw + bw / 2}" y="${78 - H}" text-anchor="middle" font-size="3.6" fill="#166534">${fmt(h.bank)}</text>`; }).join('');
-    const chart = hist.length ? `<svg viewBox="-2 0 104 92" preserveAspectRatio="none">${bars}<line x1="0" y1="80" x2="100" y2="80" stroke="#94a3b8" stroke-width=".4"/></svg>`
-      : `<div class="big sm" style="flex:1;display:grid;place-items:center">📈<br><span style="font-size:.5em">Your savings chart grows here each week!</span></div>`;
-    const in10 = Math.round(save.bank * Math.pow(1 + RATE, 10));
-    const explain = g <= 2 ? `Every week, the bank adds <b>${RATE * 100}¢ for every $1</b> you keep here. That's called <b>interest</b>.` : `Every week the bank pays <b>${RATE * 100}% interest</b>. Interest stays in the bank and earns interest too!`;
+    const keep = cur.name === 'bank' ? cur : {};
+    cur = { name: 'bank', years: keep.years || 10, add: keep.add != null ? keep.add : 0 };
+    const g = grade().n, years = cur.years, add = cur.add;
+    const example = save.bank <= 0 && !add;
+    const start = example ? 1000 : save.bank;
+    const p30 = project(start, add, 30), pr = { comp: p30.comp.slice(0, years + 1), simp: p30.simp.slice(0, years + 1), dep: p30.dep.slice(0, years + 1) };
+    const c = Math.round(pr.comp[years]), s = Math.round(pr.simp[years]), d = Math.round(pr.dep[years]);
+    const yb = (v) => `<button class="tab nav${years === v ? ' on' : ''}" data-act="byears" data-v="${v}">${v} YRS</button>`;
+    const ab = (v) => `<button class="tab nav${add === v ? ' on' : ''}" data-act="badd" data-v="${v}">${v ? '+' + fmt(v) : '$0'}</button>`;
+    const lesson = g <= 2
+      ? `Your money earns interest, then the <b>interest earns interest too</b>! 🐢 It's slow, so start early.`
+      : `<b>Compound interest</b>: you earn ${RATE * 100}% a year on your money <b>and</b> on old interest. 🐢 It's slow at first, so start early!`;
+    const result = `${example ? 'Example with $10' : `Your ${fmt(start)}`}${add ? ` + ${fmt(add)} a week` : ''}: in ${years} years <b>${fmt(c)}</b>. Interest on interest: <b class="g">${fmt(c - s)}</b>`;
     show(panel('bank', '🏦 COIN TOWN BANK', moneyChips(), `<div class="bank">
       <div class="bal">
         <div class="card2"><div class="lab">YOUR SAVINGS</div><div class="big-n">${fmt(save.bank)}</div><div class="lab" style="margin-top:.3em">INTEREST EARNED SO FAR: <span style="color:#b45309">${fmt(save.interestTotal)}</span></div></div>
@@ -733,12 +772,15 @@
         <div class="card2"><div class="lab">TAKE OUT</div><div class="btnrow" style="margin-top:.35em">
           <button class="go ghost sm nav" data-act="wd" data-v="100"${save.bank >= 100 ? '' : ' disabled'}>−$1</button><button class="go ghost sm nav" data-act="wd" data-v="500"${save.bank >= 500 ? '' : ' disabled'}>−$5</button><button class="go ghost sm nav" data-act="wd" data-v="all"${save.bank > 0 ? '' : ' disabled'}>ALL</button></div></div>
       </div>
-      <div class="chart card2">${chart}
-        <p>${msg || explain}</p>
-        ${save.bank >= 100 ? `<p>If you leave it alone for 10 weeks, <b>${fmt(save.bank)}</b> grows to about <b>${fmt(in10)}</b>!</p>` : ''}
-        <p style="font-size:.85em;color:#0f766e">👩‍💼 Real banks pay interest too, but much slower: a few cents per dollar each <b>year</b>. Coin Town's bank is super fast so you can see it work!</p>
+      <div class="chart card2"><div class="tmhead"><b>⏳ SAVINGS TIME MACHINE</b><span class="rate">${RATE * 100}% A YEAR</span></div>
+        <div class="tmctl"><div class="tabs">${yb(10)}${yb(20)}${yb(30)}</div><div class="tabs"><span class="tml">SAVE EACH WEEK</span>${ab(0)}${ab(100)}${ab(200)}${ab(500)}</div></div>
+        ${timeChart(pr, years)}
+        <div class="legend"><span><i style="background:#16a34a"></i>Compound interest</span><span><i class="dash"></i>Simple interest</span><span><i style="background:#94a3b8"></i>Just deposits</span></div>
+        <p>${msg || result}</p>
+        <div class="miles save">${[1, 5, 10, 20, 30].map((y) => `<div><b>${y === 1 ? '1 YEAR' : y + ' YEARS'}</b>${fmt(Math.round(p30.comp[y]))}</div>`).join('')}</div>
+        <p class="small">${lesson}</p>
       </div></div>`));
-    say(msg || explain);
+    say(msg || result);
   }
   function bankMove(dir, v) {
     const amt = v === 'all' ? (dir > 0 ? save.wallet : save.bank) : +v;
@@ -911,18 +953,29 @@
   const bigS = (t) => `<div class="big sm">${t}</div>`;
 
   // ---------- CREDIT CORNER: borrowing, interest, trust stars ----------
-  const LOAN_RATES = [0, 10, 8, 6, 5, 4];          // % a week by trust stars (Coin Town is fast; real loans charge yearly)
+  // APR (yearly rate) by trust stars: 1 star = a typical credit card (24%), 5 stars = a great-credit loan (9%).
+  // Charged a week at a time (APR / 52), like a real loan. Minimum payment = about a third of the loan.
+  const LOAN_RATES = [0, 24, 20, 16, 12, 9];
+  const loanMin = (P) => Math.ceil(P / 300) * 100;
+  const weekInt = (bal, rate) => Math.round(bal * rate / 100 / WEEKS);
+  // "1 YR $12.71 · 5 YRS $33 · 10 YRS $109": what an amount grows to, compounding every week at a yearly rate
+  const grownTo = (amt, rate, yrs) => amt * Math.pow(1 + rate / WEEKS, WEEKS * yrs);
+  function milestones(amt, rate, yrs, cls = '') {
+    return `<div class="miles ${cls}">${yrs.map((y) => `<div><b>${y === 1 ? '1 YEAR' : y + ' YEARS'}</b>${fmt(Math.round(grownTo(amt, rate, y)))}</div>`).join('')}</div>`;
+  }
   const LOAN_MAX = [0, 1000, 2000, 3000, 4000, 5000];
   const credit = () => save.credit || (save.credit = { stars: 1, loan: null, intro: false, paid: 0, misses: 0 });
   const starRow = (n) => '★'.repeat(n) + '<span class="off">' + '★'.repeat(5 - n) + '</span>';
   function loanCost(P, rate, min) {        // total paid back if you only pay the minimum
     let bal = P, paid = 0, wk = 0;
-    while (bal > 0 && wk < 60) { bal += Math.round(bal * rate / 100); const p = Math.min(min, bal); bal -= p; paid += p; wk++; }
+    while (bal > 0 && wk < 60) { bal += weekInt(bal, rate); const p = Math.min(min, bal); bal -= p; paid += p; wk++; }
     return { paid, weeks: wk };
   }
   const CREDIT_INTRO = (g) => [
     { t: 'Sometimes people <b>borrow</b> money to buy something now, then pay it back later. Borrowed money is called a <b>loan</b>.', v: bigV('🏦 ➜ 💵 ➜ 🙂') },
-    { t: 'Borrowing is <b>not free</b>! The lender adds extra money called <b>interest</b>. Borrow $10 and you might pay back $12.', v: bigS('BORROW $10<br>PAY BACK $12') },
+    { t: 'Borrowing is <b>not free</b>! The lender adds extra money called <b>interest</b>, a little bit every week you still owe.', v: bigV('💵 + 🪙🪙') },
+    { t: '<b>APR</b> is the <b>price of borrowing</b> for one year. If the APR is 24%, then for every <b>$1</b> you owe, you pay about <b>24¢ extra</b> in a year. Credit cards often charge about 20 to 25% APR!', v: bigS('24% APR<br>$1 → about $1.24') },
+    { t: 'If you <b>never pay it back</b>, the interest earns interest too, and debt grows and grows. Here is $10 at 24% APR:', v: milestones(1000, 0.24, [1, 5, 10, 20], 'big') },
     { t: 'Every week you must make a <b>payment</b>. Pay on time and you earn <b>trust stars</b>. Miss one and you pay a late fee and lose a star.', v: bigV('⭐⭐⭐') },
     { t: 'More trust stars means you can borrow more, for <b>less</b> interest. Grown-ups call this a <b>credit score</b>.', v: bigS('MORE ⭐<br>= CHEAPER LOANS') },
     { t: g >= 3 ? 'Smart tip: pay back <b>more than the minimum</b> when you can. The faster you pay, the less interest you pay!' : 'Smart tip: pay it back <b>fast</b>, and you pay less extra!', v: bigV('💨💵') },
@@ -935,28 +988,30 @@
     const left = `<div class="card2"><div class="lab">YOUR TRUST STARS</div><div class="tstars">${starRow(c.stars)}</div>
         <p class="small">Pay on time to earn stars. More stars = borrow more for less.</p></div>
       <div class="card2"><div class="lab">YOU CAN BORROW UP TO</div><div class="big-n" style="font-size:2.2em">${fmt(max)}</div>
-        <p class="small">Interest: <b>${rate}%</b> of what you owe, every week.${grade().n <= 2 ? ` That's ${rate}¢ for every $1.` : ''}</p></div>`;
+        <p class="small">Your rate: <b>${rate}% APR</b>.${c.stars < 5 ? ` More stars make it lower (${LOAN_RATES[c.stars + 1]}% next).` : ' The best rate!'}</p></div>`;
+    const aprBox = `<div class="aprbox"><b>❓ WHAT IS APR?</b> APR is the <b>price of borrowing</b> for one year. ${rate}% APR means for every <b>$1</b> you owe, you pay about <b>${rate}¢ extra</b> in a year.
+      <div class="mtitle">If you owed ${fmt(L ? L.bal : 1000)} and <b>never paid it back</b>, it would grow to:</div>${milestones(L ? L.bal : 1000, rate / 100, [1, 5, 10, 20], 'debt')}</div>`;
     let right;
     if (L) {
-      const nextInt = Math.round(L.bal * rate / 100);
+      const nextInt = weekInt(L.bal, rate);
       right = `<div class="card2 loanbox"><div class="lab">YOU OWE</div><div class="big-n owe">${fmt(L.bal)}</div>
         <p>Next payment: <b>${fmt(Math.min(L.min, L.bal + nextInt))}</b> at the end of this week. Interest this week: about <b>${fmt(nextInt)}</b>.</p>
         <p>Interest paid so far: <b>${fmt(L.interest)}</b>.</p>
         <div class="lab" style="margin-top:.4em">PAY EXTRA NOW (from wallet ${fmt(save.wallet)})</div>
         <div class="btnrow"><button class="go sm nav" data-act="loanpay" data-v="100"${save.wallet >= 100 ? '' : ' disabled'}>$1</button><button class="go sm nav" data-act="loanpay" data-v="500"${save.wallet >= 500 ? '' : ' disabled'}>$5</button><button class="go sm nav" data-act="loanpay" data-v="all"${save.wallet > 0 ? '' : ' disabled'}>PAY IT ALL</button></div>
-        <p class="tipline">${msg || '💡 Paying extra now means less interest later!'}</p></div>`;
+        ${aprBox}<p class="tipline">${msg || '💡 Paying extra now means less interest later!'}</p></div>`;
     } else {
       const opts = [500, 1000, 2000, 3000, 5000].filter((v) => v <= max);
-      const rows = opts.map((P) => { const min = Math.ceil(P / 400) * 100, k = loanCost(P, rate, min); return `<button class="loanopt nav" data-act="borrow" data-v="${P}"><b>BORROW ${fmt(P)}</b><span>Pay ${fmt(min)} a week · about ${k.weeks} weeks</span><span class="cost">Total back: ${fmt(k.paid)} <em>(+${fmt(k.paid - P)} extra)</em></span></button>`; }).join('');
+      const rows = opts.map((P) => { const min = loanMin(P), k = loanCost(P, rate, min); return `<button class="loanopt nav" data-act="borrow" data-v="${P}"><b>BORROW ${fmt(P)}</b><span>Pay ${fmt(min)} a week · about ${k.weeks} weeks</span><span class="cost">Total back: ${fmt(k.paid)} <em>(+${fmt(k.paid - P)} extra)</em></span></button>`; }).join('');
       right = `<div class="card2 loanbox"><div class="lab">TAKE A LOAN?</div><div class="loanopts">${rows}</div>
-        <p class="tipline">${msg || '🤔 Only borrow for something you really need. Saving first costs nothing extra!'}</p></div>`;
+        ${aprBox}<p class="tipline">${msg || '🤔 Only borrow for something you really need. Saving first costs nothing extra!'}</p></div>`;
     }
     show(panel('credit', '💳 CREDIT CORNER', `${moneyChips()}<button class="pill nav" data-act="creditlearn">? LEARN</button>`, `<div class="credit"><div class="bal">${left}</div>${right}</div>`));
     say(msg || (L ? `You owe ${fmt(L.bal)}.` : 'Want to borrow? Remember, borrowing costs extra.'));
   }
   function borrow(P) {
     const c = credit(); if (c.loan || P > LOAN_MAX[c.stars]) return;
-    c.loan = { P, bal: P, min: Math.ceil(P / 400) * 100, interest: 0, missed: 0, week: save.week };
+    c.loan = { P, bal: P, min: loanMin(P), interest: 0, missed: 0, week: save.week };
     save.wallet += P; store(); sfx.cash();
     goCredit(`You borrowed <b>${fmt(P)}</b>. It's in your wallet. Your first payment of ${fmt(c.loan.min)} comes out at the end of the week.`);
   }
@@ -978,7 +1033,7 @@
   // called at the end of each week (adds interest, takes the payment)
   function loanWeek() {
     const c = credit(), L = c.loan; if (!L) return null;
-    const rate = LOAN_RATES[c.stars], int = Math.round(L.bal * rate / 100);
+    const rate = LOAN_RATES[c.stars], int = weekInt(L.bal, rate);
     L.bal += int; L.interest += int;
     const due = Math.min(L.min, L.bal);
     if (total() >= due) {
@@ -993,35 +1048,45 @@
 
   // ---------- MARKET STREET: a pretend market with STOCKS, ETFs and BONDS ----------
   // Stocks wiggle every week (drift + noise + news). An ETF's weekly change is the average of the stocks it holds.
-  // Bonds: lend $5 to the town or a company; it pays a fixed amount every week, then your $5 comes back.
-  // Average growth: bank 2% < bonds 3-4% < stocks (more, but bumpy) -- the same order as real life, just much faster.
+  // Bonds: short bonds like real 13- and 26-week bills: lend $5, get it back with interest at the end.
+  // Real time: drift = average YEARLY return, vol = how much a typical YEAR swings; both are applied a week at a time
+  // (drift / 52, swing / sqrt 52), plus a shared market mood and news. Steady stocks ~6-7% +-12% a year, bumpy ~6-9%
+  // +-20%, wild ~12% +-36% (its usual result is much lower than its average: big drops hurt). Bank 4% < bonds < stocks.
   const COMPANIES = [
-    { id: 'cookie', type: 'stock', e: '🍪', name: 'COOKIE CO', about: 'Bakes cookies for the whole town. Slow and steady.', p: 400, drift: 0.03, vol: 0.05, risk: 1 },
-    { id: 'farm', type: 'stock', e: '🥕', name: 'FARM FRESH', about: 'Grows fruit and veggies. People always need food!', p: 300, drift: 0.025, vol: 0.045, risk: 1 },
-    { id: 'toys', type: 'stock', e: '🧸', name: 'TOY TOWN', about: 'Makes toys and games. Some toys are hits, some flop.', p: 600, drift: 0.035, vol: 0.1, risk: 2 },
-    { id: 'umbrella', type: 'stock', e: '☂️', name: 'UMBRELLA INC', about: 'Umbrellas and rain boots. Rainy weeks are good for it!', p: 500, drift: 0.025, vol: 0.12, risk: 2 },
-    { id: 'rocket', type: 'stock', e: '🚀', name: 'ROCKET RIDES', about: 'Rocket rides to the clouds. Exciting... and very risky!', p: 800, drift: 0.045, vol: 0.22, risk: 3 },
-    { id: 'townetf', type: 'etf', e: '🧺', name: 'TOWN ETF', about: 'An ETF is a basket of companies in ONE share. This one holds a bit of ALL five companies, so when one falls, the others help.', p: 500, holds: ['cookie', 'farm', 'toys', 'umbrella', 'rocket'], risk: 1 },
-    { id: 'foodetf', type: 'etf', e: '🥗', name: 'FOOD ETF', about: 'An ETF holding the food companies: Cookie Co and Farm Fresh. Very steady.', p: 400, holds: ['cookie', 'farm'], risk: 1 },
+    { id: 'cookie', type: 'stock', e: '🍪', name: 'COOKIE CO', about: 'Bakes cookies for the whole town. Slow and steady.', p: 400, drift: 0.07, vol: 0.12, risk: 1 },
+    { id: 'farm', type: 'stock', e: '🥕', name: 'FARM FRESH', about: 'Grows fruit and veggies. People always need food!', p: 300, drift: 0.06, vol: 0.10, risk: 1 },
+    { id: 'toys', type: 'stock', e: '🧸', name: 'TOY TOWN', about: 'Makes toys and games. Some toys are hits, some flop.', p: 600, drift: 0.09, vol: 0.22, risk: 2 },
+    { id: 'umbrella', type: 'stock', e: '☂️', name: 'UMBRELLA INC', about: 'Umbrellas and rain boots. Rainy weeks are good for it!', p: 500, drift: 0.06, vol: 0.25, risk: 2 },
+    { id: 'rocket', type: 'stock', e: '🚀', name: 'ROCKET RIDES', about: 'Rocket rides to the clouds. Exciting... and very risky!', p: 800, drift: 0.12, vol: 0.45, risk: 3 },
+    { id: 'townetf', type: 'etf', e: '🧺', name: 'TOWN ETF', about: 'An ETF is a basket of companies in ONE share. This one holds a bit of ALL five companies, so when one falls, the others help.', p: 500, holds: ['cookie', 'farm', 'toys', 'umbrella', 'rocket'], risk: 1, avg: 0.08, swing: 0.13 },
+    { id: 'foodetf', type: 'etf', e: '🥗', name: 'FOOD ETF', about: 'An ETF holding the food companies: Cookie Co and Farm Fresh. Very steady.', p: 400, holds: ['cookie', 'farm'], risk: 1, avg: 0.065, swing: 0.08 },
   ];
   const BONDS = [
-    { id: 'townbond', e: '🏛️', name: 'TOWN BOND', who: 'Coin Town', face: 500, rate: 0.03, weeks: 6, about: 'Lend $5 to Coin Town to fix the roads. The town always pays back, so it is very safe.' },
-    { id: 'cookiebond', e: '📜', name: 'COOKIE CO BOND', who: 'Cookie Co', face: 500, rate: 0.04, weeks: 8, about: 'Lend $5 to Cookie Co for a new oven. Companies pay a bit more than towns, because lending to a company is a little riskier.' },
+    { id: 'townbond', e: '🏛️', name: 'TOWN BOND', who: 'Coin Town', face: 500, rate: 0.045, weeks: 13, about: 'Lend $5 to Coin Town to fix the roads. Towns almost always pay back, so it is very safe.' },
+    { id: 'cookiebond', e: '📜', name: 'COOKIE CO BOND', who: 'Cookie Co', face: 500, rate: 0.055, weeks: 26, about: 'Lend $5 to Cookie Co for a new oven. Companies pay more than towns, because lending to a company is a little riskier.' },
   ];
+  const bondInt = (B) => Math.round(B.face * B.rate * B.weeks / WEEKS);
+  // "usually grows about 7% a year; good years +25%, bad years -11%" (about 1.5 swings either side)
+  function rangeText(c) {
+    const avg = c.avg != null ? c.avg : c.drift, sw = c.swing != null ? c.swing : c.vol;
+    const up = Math.round((avg + 1.5 * sw) * 100), dn = Math.round(Math.max(-0.6, avg - 1.5 * sw) * 100);
+    return `On average it grows about <b>${Math.round(avg * 100)}% a year</b>. A good year can be <b class="g">+${up}%</b>, a bad year <b class="r">${dn}%</b>.`;
+  }
   const RISK = ['', '🟢 STEADY', '🟡 BUMPY', '🔴 WILD'];
   const TABS = [['stock', '📈 STOCKS'], ['etf', '🧺 ETFs'], ['bond', '📜 BONDS']];
   const TABNOTE = {
     stock: '📈 A <b>stock</b> is a tiny piece of ONE company. It can grow a lot, or drop a lot.',
     etf: '🧺 An <b>ETF</b> is ONE share that holds MANY companies. If one has a bad week, the others help. Safer than one stock!',
-    bond: '📜 A <b>bond</b> is a loan YOU give. You get paid every week, then your money comes back. Safe, but slower growing.',
+    bond: '📜 A <b>bond</b> is a loan YOU give. When it\'s done, you get your money back plus interest. Safe, but slower growing.',
   };
   const NEWS = [
-    ['cookie', 'Cookie Co\'s new chocolate chip cookie is a big hit!', 0.12], ['cookie', 'Oh no! An oven broke at Cookie Co.', -0.1],
-    ['farm', 'A great harvest for Farm Fresh!', 0.1], ['farm', 'Bugs nibbled the carrots at Farm Fresh.', -0.12],
-    ['toys', 'Toy Town\'s new robot is the must-have toy!', 0.2], ['toys', 'Kids got bored of Toy Town\'s spinning tops.', -0.16],
-    ['umbrella', 'Rainy week! Everybody needs an umbrella.', 0.22], ['umbrella', 'Sunny all week. Nobody bought umbrellas.', -0.15],
-    ['rocket', 'Rocket Rides flew higher than ever!', 0.35], ['rocket', 'Rocket Rides had to stop flying for repairs.', -0.32],
-    ['all', 'Coin Town is busy and happy. Most companies grew!', 0.05], ['all', 'A slow, quiet week in Coin Town.', -0.06],
+    // good and bad news are the same size for each company, so news adds ups and downs without changing the average
+    ['cookie', 'Cookie Co\'s new chocolate chip cookie is a big hit!', 0.11], ['cookie', 'Oh no! An oven broke at Cookie Co.', -0.11],
+    ['farm', 'A great harvest for Farm Fresh!', 0.11], ['farm', 'Bugs nibbled the carrots at Farm Fresh.', -0.11],
+    ['toys', 'Toy Town\'s new robot is the must-have toy!', 0.18], ['toys', 'Kids got bored of Toy Town\'s spinning tops.', -0.18],
+    ['umbrella', 'Rainy week! Everybody needs an umbrella.', 0.18], ['umbrella', 'Sunny all week. Nobody bought umbrellas.', -0.18],
+    ['rocket', 'Rocket Rides flew higher than ever!', 0.33], ['rocket', 'Rocket Rides had to stop flying for repairs.', -0.33],
+    ['all', 'Coin Town is busy and happy. Most companies grew!', 0.055], ['all', 'A slow, quiet week in Coin Town.', -0.055],
   ];
   const coOf = (id) => COMPANIES.find((c) => c.id === id);
   function market() {
@@ -1036,16 +1101,21 @@
     return m;
   }
   const price = (id) => { const h = market().hist[id]; return h[h.length - 1]; };
-  function noise() { return (Math.random() + Math.random() + Math.random() - 1.5) / 0.87; }   // mostly near 0, sometimes +-1.7
+  function noise() { return (Math.random() + Math.random() + Math.random() - 1.5) / 0.5; }   // bell-shaped, average 0, spread (sd) 1
   function stepMarket(quiet) {
     const m = save.market;
     const news = !quiet && Math.random() < 0.75 ? pick(NEWS) : null;
     const pct = {};
+    // the whole market's mood this week: real stocks tend to rise and fall together, so even an ETF has bad years.
+    // BETA = how strongly a company follows the market (food is calm, rockets swing extra). Yearly numbers are turned
+    // into weekly ones: average / 52, swing / sqrt(52). News moves a stock a few percent (a quarter of the headline size).
+    const SQ = Math.sqrt(WEEKS);
+    const mood = 0.09 * noise() / SQ, BETA = { cookie: 0.7, farm: 0.6, toys: 1.1, umbrella: 0.8, rocket: 1.6 };
     for (const c of COMPANIES) {
       if (c.type !== 'stock') continue;
-      let x = c.drift + c.vol * noise();
-      if (news && (news[0] === c.id || news[0] === 'all')) x += news[2];
-      pct[c.id] = Math.max(-0.45, Math.min(0.6, x));
+      let x = c.drift / WEEKS + (BETA[c.id] || 1) * mood + c.vol * 0.5 * noise() / SQ;
+      if (news && (news[0] === c.id || news[0] === 'all')) x += news[2] * 0.25;
+      pct[c.id] = Math.max(-0.3, Math.min(0.4, x));
     }
     for (const c of COMPANIES) if (c.type === 'etf') pct[c.id] = c.holds.reduce((s, id) => s + pct[id], 0) / c.holds.length;
     m.split = null;
@@ -1061,10 +1131,10 @@
     }
     m.news = news;
   }
-  // bonds pay their weekly interest, and the $5 comes back when a bond is done
+  // a bond counts down a week; when it's done, the $5 comes back plus its interest
   function stepBonds() {
     const m = market(); let paid = 0, back = 0;
-    for (const b of m.bonds) { const B = BONDS.find((q) => q.id === b.id); const c = Math.round(B.face * B.rate); paid += c; b.left--; if (b.left <= 0) back += B.face; }
+    for (const b of m.bonds) { const B = BONDS.find((q) => q.id === b.id); b.left--; if (b.left <= 0) { back += B.face; paid += bondInt(B); } }
     m.bonds = m.bonds.filter((b) => b.left > 0);
     save.wallet += paid + back;
     return { paid, back };
@@ -1077,7 +1147,7 @@
     { t: 'When a company does well, its share <b>price</b> usually goes <b>up</b>. When it has a bad week, the price goes <b>down</b>.', v: bigS('📈 GOOD NEWS<br>📉 BAD NEWS') },
     { t: 'Some stocks are <b>steady</b>: small ups and downs. Some are <b>wild</b>: big jumps up AND big drops. Wild ones are <b>risky</b>!', v: bigS('🟢 STEADY<br>🔴 WILD') },
     { t: '<b>Don\'t put all your eggs in one basket!</b> An <b>ETF</b> is a basket of many companies in ONE share. If one company has a bad week, the others help.', v: bigV('🧺 = 🍪🥕🧸☂️🚀') },
-    { t: 'A <b>bond</b> is a loan that <b>you</b> give to a town or a company. They pay you a little every week, then give your money back at the end. Safe, but it grows slower than stocks.', v: bigS('YOU LEND $5<br>→ 15¢ A WEEK<br>→ $5 BACK') },
+    { t: 'A <b>bond</b> is a loan that <b>you</b> give to a town or a company. When the bond is done, they give your money back <b>plus interest</b>. Safe, but it grows slower than stocks.', v: bigS('YOU LEND $5<br>→ WAIT 13 WEEKS<br>→ $5.06 BACK') },
     { t: g >= 3 ? 'Prices bounce around every week. People who <b>wait a long time</b> usually do better than people who panic and sell after a drop.' : 'Prices go up and down every week. <b>Be patient!</b>', v: bigV('🐢 ⏳ 📈') },
     { t: 'This is a <b>pretend</b> market for practice. With real stocks you can lose money too, so grown-ups only invest money they won\'t need soon, and mix stocks, ETFs and bonds.', v: bigV('🎓') },
   ];
@@ -1101,11 +1171,13 @@
     let rows, detail;
     if (tabNow === 'bond') {
       rows = BONDS.map((b) => { const n = m.bonds.filter((x) => x.id === b.id).length; return `<button class="co nav${b.id === sel.id ? ' sel' : ''}" data-act="pickco" data-id="${b.id}"${b.id === sel.id ? ' data-default' : ''}>
-        <span class="e">${b.e}</span><span class="nm"><b>${b.name}</b><small>🟢 SAFE${n ? ` · you own ${n}` : ''}</small></span><span class="pr">${fmt(b.face)}<span class="pct up">pays ${fmt(Math.round(b.face * b.rate))}/wk</span></span></button>`; }).join('');
-      const coupon = Math.round(sel.face * sel.rate), mine = m.bonds.filter((x) => x.id === sel.id);
-      detail = `<div class="cohead"><span class="e">${sel.e}</span><div><h3>${sel.name}</h3><small>🟢 SAFE · lasts ${sel.weeks} weeks</small></div><div class="pr">${fmt(sel.face)}<small>a bond</small></div></div>
-        <div class="bondplan"><div><b>YOU LEND</b>${fmt(sel.face)}</div><div>➜</div><div><b>EVERY WEEK</b>+${fmt(coupon)}</div><div>➜</div><div><b>AFTER ${sel.weeks} WEEKS</b>${fmt(sel.face)} back</div></div>
-        <p class="small">${sel.about} You can't take the money out early. Total you get: <b>${fmt(sel.face + coupon * sel.weeks)}</b>.</p>
+        <span class="e">${b.e}</span><span class="nm"><b>${b.name}</b><small>🟢 SAFE${n ? ` · you own ${n}` : ''}</small></span><span class="pr">${fmt(b.face)}<span class="pct up">${(b.rate * 100).toFixed(1).replace('.0', '')}% a year</span></span></button>`; }).join('');
+      const intr = bondInt(sel), mine = m.bonds.filter((x) => x.id === sel.id);
+      const pct = (sel.rate * 100).toFixed(1).replace('.0', '');
+      detail = `<div class="cohead"><span class="e">${sel.e}</span><div><h3>${sel.name}</h3><small>🟢 SAFE · ${pct}% a year · ${sel.weeks} weeks</small></div><div class="pr">${fmt(sel.face)}<small>a bond</small></div></div>
+        <div class="bondplan"><div><b>YOU LEND</b>${fmt(sel.face)}</div><div>➜</div><div><b>WAIT</b>${sel.weeks} weeks</div><div>➜</div><div><b>YOU GET BACK</b>${fmt(sel.face + intr)}</div></div>
+        <p class="small">${sel.about} ${pct}% a year for ${sel.weeks} weeks (${sel.weeks === 13 ? 'a quarter' : 'half'} of a year) earns <b>${fmt(intr)}</b>. You can't take the money out early.</p>
+        <div class="mtitle">If you kept lending $5 at ${pct}% again and again:</div>${milestones(500, sel.rate, [1, 5, 10, 20])}
         <p>${mine.length ? `You own <b>${mine.length}</b> of these. The next one finishes in <b>${Math.min(...mine.map((x) => x.left))} week${Math.min(...mine.map((x) => x.left)) === 1 ? '' : 's'}</b>.` : 'You don\'t own any of these bonds yet.'}</p>
         <div class="btnrow"><button class="go sm nav" data-act="buybond" data-id="${sel.id}"${save.wallet >= sel.face ? '' : ' disabled'}>LEND ${fmt(sel.face)} · BUY BOND</button></div>`;
     } else {
@@ -1114,7 +1186,8 @@
       const own = m.held[sel.id] || 0, val = own * price(sel.id), cost = m.cost[sel.id] || 0, gain = val - cost, p = price(sel.id);
       const inside = sel.type === 'etf' ? `<div class="holds">INSIDE: ${sel.holds.map((id) => coOf(id).e).join(' ')}</div>` : '';
       detail = `<div class="cohead"><span class="e">${sel.e}</span><div><h3>${sel.name}</h3><small>${sel.type === 'etf' ? 'ETF · ' : 'STOCK · '}${RISK[sel.risk]}</small></div><div class="pr">${fmt(p)}<small>a share</small></div></div>
-        <div class="bigspark">${spark(sel.id)}</div>${inside}<p class="small">${sel.about}</p>
+        <div class="bigspark">${spark(sel.id)}</div>${inside}<p class="small">${sel.about} ${rangeText(sel)}</p>
+        <div class="mtitle">If $10 grew like an average year (real years bounce up and down, so no promises!):</div>${milestones(1000, sel.avg != null ? sel.avg : sel.drift, [1, 5, 10, 20])}
         <p>${own ? `You own <b>${own}</b> share${own === 1 ? '' : 's'}, worth <b>${fmt(val)}</b>. You paid ${fmt(cost)}: ${gain > 0 ? `<b class="g">up ${fmt(gain)}</b>` : gain < 0 ? `<b class="r">down ${fmt(-gain)}</b>` : 'the same so far'}.` : 'You don\'t own any shares yet.'}</p>
         <div class="btnrow"><button class="go sm nav" data-act="buyco" data-id="${sel.id}"${save.wallet >= p ? '' : ' disabled'}>BUY 1 · ${fmt(p)}</button><button class="go ghost sm nav" data-act="sellco" data-id="${sel.id}" data-n="1"${own ? '' : ' disabled'}>SELL 1</button><button class="go ghost sm nav" data-act="sellco" data-id="${sel.id}" data-n="all"${own ? '' : ' disabled'}>SELL ALL</button></div>`;
     }
@@ -1139,7 +1212,7 @@
   function buyBond(id) {
     const m = market(), B = BONDS.find((q) => q.id === id); if (!B || save.wallet < B.face) return;
     save.wallet -= B.face; m.bonds.push({ id, left: B.weeks }); store(); sfx.cash();
-    goMarket(id, `You lent ${fmt(B.face)} to ${B.who}. You'll get ${fmt(Math.round(B.face * B.rate))} every week for ${B.weeks} weeks, then your ${fmt(B.face)} back. 📜`);
+    goMarket(id, `You lent ${fmt(B.face)} to ${B.who}. In ${B.weeks} weeks you'll get back ${fmt(B.face + bondInt(B))}. 📜`);
   }
   function sellShare(id, n) {
     const m = market(), own = m.held[id] || 0; if (!own) return;
@@ -1162,7 +1235,7 @@
     const lines = [];
     if (hadStocks) lines.push(`📰 ${m.news ? m.news[1] : 'A quiet week on Market Street.'}`, `Your stocks and ETFs are worth <b>${fmt(after)}</b> (${d >= 0 ? 'up' : 'down'} ${fmt(Math.abs(d))} this week).`);
     if (m.split && m.held[m.split]) lines.push(`✂️ ${coOf(m.split).name} split: you now have <b>${m.held[m.split]}</b> shares at half the price. Same value!`);
-    if (hadBonds) lines.push(`📜 Your bonds paid you <b>${fmt(bp.paid)}</b>.${bp.back ? ` A bond finished, and your <b>${fmt(bp.back)}</b> came back!` : ''} (It went to your wallet.)`);
+    if (hadBonds) lines.push(bp.back ? `📜 A bond finished! Your <b>${fmt(bp.back)}</b> came back plus <b>${fmt(bp.paid)}</b> interest. (It went to your wallet.)` : `📜 Your bonds are still growing. ${m.bonds.length ? `Next one is done in ${Math.min(...m.bonds.map((b) => b.left))} weeks.` : ''}`);
     const grown = hadStocks ? (d >= 0 ? 'Nice! But remember, stock prices can go down too. Mixing stocks, ETFs and bonds keeps you safer.' : 'Prices go up AND down. People who stay patient usually do better than people who panic and sell.')
       : 'Bonds are slow and steady. Grown-ups often keep some bonds so their savings don\'t bounce around too much.';
     return { e: hadStocks ? (d >= 0 ? '📈' : '📉') : '📜', title: 'MARKET NEWS', text: lines.join('<br>'), grown };
@@ -1244,6 +1317,8 @@
       case 'treat': treat(ds.y === '1'); break;
       case 'gift': gift(ds.to); break;
       case 'dep': bankMove(1, ds.v); break;
+      case 'byears': cur.years = +ds.v; goBank(); break;
+      case 'badd': cur.add = +ds.v; goBank(); break;
       case 'wd': bankMove(-1, ds.v); break;
       case 'pickToy': goToys(ds.id); break;
       case 'shoptab': goToys(null, null, ds.t); break;
